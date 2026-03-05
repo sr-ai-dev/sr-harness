@@ -69,6 +69,10 @@
           {
             "type": "command",
             "command": ".claude/scripts/dev-specify-init-hook.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/scripts/rubric-loop-init.sh"
           }
         ]
       },
@@ -124,6 +128,10 @@
           {
             "type": "command",
             "command": ".claude/scripts/rph-loop.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/scripts/rubric-loop-stop.sh"
           }
         ]
       }

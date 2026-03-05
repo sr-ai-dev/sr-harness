@@ -16,12 +16,12 @@ validate_prompt: |
   Must include 3-step rubric building interaction.
   Must include Agent-based parallel multi-model scoring with AVAILABLE/SKIPPED/DEGRADED states.
   Must include circuit breaker logic.
-  Must include pause gate at every iteration.
+  Must include state file write for Stop hook integration.
 ---
 
 # rubric-loop
 
-Iterative self-improvement skill driven by a user-defined rubric. Builds a scoring rubric interactively, evaluates an artifact with multiple models in parallel, then loops — improving one criterion at a time — until the score meets the threshold or the user stops.
+Iterative self-improvement skill driven by a user-defined rubric. Builds a scoring rubric interactively, evaluates an artifact with multiple models in parallel, then loops autonomously — improving one criterion at a time — until the score meets the threshold or the circuit breaker fires. No user interaction after Phase 1.
 
 ---
 
@@ -97,6 +97,16 @@ Display the final rubric before Phase 2 begins:
 
 Rubric locked. Starting evaluation.
 ```
+
+**State init** — write the loop state so the Stop hook can track progress:
+
+```
+Bash: mkdir -p "$HOME/.claude/.hook-state" && cat > "$HOME/.claude/.hook-state/rubric-loop-active.json" <<'STATEOF'
+{"round":0,"max_rounds":5,"score":0,"threshold":[threshold],"status":"active"}
+STATEOF
+```
+
+Replace `[threshold]` with the actual threshold value. This file is read by the Stop hook to decide whether the loop should continue.
 
 ---
 
@@ -190,13 +200,23 @@ If any two models differ by more than 20 points on the same criterion:
 
 Collect suggestions from all AVAILABLE models. Prioritize the criterion with the lowest average score. Present the top suggestion per criterion, labeled by source model.
 
+**State update** — after every scoring round, update the state file:
+
+```
+Bash: cat > "$HOME/.claude/.hook-state/rubric-loop-active.json" <<STATEOF
+{"round":[round],"max_rounds":[max_rounds],"score":[overall],"threshold":[threshold],"status":"active"}
+STATEOF
+```
+
+Replace `[round]`, `[overall]`, etc. with actual values. The Stop hook reads this to block premature exit.
+
 ---
 
 ## Phase 3: Improvement Loop
 
-Iteratively improve the artifact one criterion at a time until the threshold is met or the circuit breaker fires.
+Iteratively improve the artifact one criterion at a time until the threshold is met or the circuit breaker fires. **No user interaction in this phase** — the loop runs autonomously.
 
-**Initialize**: `round = 1`, `max_rounds = 5`, `absolute_max = 10`, `score_history = []`
+**Initialize**: `round = 1`, `max_rounds = 5`, `score_history = []`
 
 ### Threshold Check
 
@@ -205,9 +225,12 @@ if overall >= threshold:
   → Proceed to Phase 4 immediately
 ```
 
-### Pause Gate (every iteration)
+### Circuit Breaker Check
 
-After displaying scores, always use `AskUserQuestion` to ask the user how to proceed: keep going (next round targeting weakest criterion), adjust rubric (return to Phase 1 Step 2, round counter does not reset), or stop here (proceed to Phase 4).
+```
+if round > max_rounds:
+  → Proceed to Phase 4 immediately (result: CIRCUIT BREAKER)
+```
 
 ### Improvement Dispatch
 
@@ -232,20 +255,23 @@ Improve ONLY this criterion. Do not restructure or rewrite unrelated sections.
 Return the improved artifact to the same location.")
 ```
 
-After the worker completes, return to Phase 2 for re-scoring. Append to score history: `score_history.append({ round, overall, per_criterion_scores, model_states })`.
-
-Increment round counter: `round += 1`.
-
-### Circuit Breaker
-
-When `round > max_rounds`, display score history and use `AskUserQuestion` to ask:
-- **Accept current state** → Phase 4
-- **Extend 3 more rounds** → `max_rounds += 3`, continue (only available when `max_rounds + 3 <= absolute_max`; hidden once `max_rounds >= absolute_max`)
-- **Escalate to /specify** → display: `"Run /specify [topic] to start a structured planning session."` → stop
+After the worker completes:
+1. Append to score history: `score_history.append({ round, overall, per_criterion_scores, model_states })`
+2. Increment round counter: `round += 1`
+3. Return to **Phase 2** for re-scoring (which updates state file automatically)
+4. Loop continues until threshold check or circuit breaker fires
 
 ---
 
 ## Phase 4: Completion
+
+**State update** — mark as completed so the Stop hook allows exit:
+
+```
+Bash: cat > "$HOME/.claude/.hook-state/rubric-loop-active.json" <<'STATEOF'
+{"status":"completed"}
+STATEOF
+```
 
 ### Final Report
 
@@ -256,7 +282,7 @@ Display the complete evaluation summary:
 
 **Artifact**: [artifact description or path]
 **Rubric**: [N] criteria · threshold [threshold]/100
-**Result**: [PASSED / STOPPED BY USER / CIRCUIT BREAKER]
+**Result**: [PASSED / CIRCUIT BREAKER]
 
 ### Score History
 

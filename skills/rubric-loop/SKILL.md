@@ -1,8 +1,12 @@
 ---
 name: rubric-loop
 description: |
-  "/rubric-loop", "루브릭 루프", "rubric evaluate", "채점 루프", "자율 개선",
-  "rubric score", "multi-model evaluate", "개선 루프"
+  Iterative rubric-based evaluation and self-improvement loop. Builds a scoring rubric interactively,
+  evaluates an artifact with multiple models in parallel (Codex, Gemini, Claude), then autonomously
+  improves the artifact one criterion at a time until a score threshold is met or circuit breaker fires.
+  "/rubric-loop", "rubric evaluate", "rubric score", "multi-model evaluate",
+  "score and improve", "evaluate and iterate", "grade this",
+  "루브릭 루프", "채점 루프", "자율 개선", "개선 루프", "루브릭 평가"
 allowed-tools:
   - Read
   - Grep
@@ -102,11 +106,11 @@ Rubric locked. Starting evaluation.
 
 ```
 Bash: mkdir -p "$HOME/.claude/.hook-state" && cat > "$HOME/.claude/.hook-state/rubric-loop-active.json" <<'STATEOF'
-{"round":0,"max_rounds":5,"score":0,"threshold":[threshold],"status":"active"}
+{"round":0,"max_rounds":5,"score":0,"threshold":[threshold],"status":"active","iteration":0,"max_iterations":15}
 STATEOF
 ```
 
-Replace `[threshold]` with the actual threshold value. This file is read by the Stop hook to decide whether the loop should continue.
+Replace `[threshold]` with the actual threshold value. This file is read by the Stop hook to decide whether the loop should continue. The `iteration`/`max_iterations` fields are the Stop hook's safety counter — always preserve them in subsequent state updates.
 
 ---
 
@@ -119,7 +123,7 @@ Score the artifact independently using up to 3 models in parallel.
 Before scoring, check which CLIs are available:
 
 ```
-Bash: which codex && which gemini
+Bash: command -v codex && command -v gemini
 ```
 
 Model states: **AVAILABLE** (CLI found) / **SKIPPED** (not found) / **DEGRADED** (found but call failed).
@@ -128,18 +132,9 @@ Note: The 3rd evaluator (Claude) runs as a subagent — no CLI check needed.
 
 ### Parallel Scoring
 
-Launch all evaluators **simultaneously in a single message** using Agent calls in parallel.
-
 **Score isolation rule**: Pass only the current artifact content to each model. Do NOT include previous round scores, improvement history, or prior evaluation feedback.
 
-**Each evaluator Agent** receives the same prompt structure with the rubric, artifact content, and required JSON output format.
-
-**3 evaluators:**
-- **Codex Agent**: Agent that runs `codex exec` via Bash to score the artifact
-- **Gemini Agent**: Agent that runs `gemini -p` via Bash to score the artifact
-- **Claude Agent**: Agent (subagent) that directly evaluates the artifact itself — no CLI needed, the subagent IS the Claude model
-
-All 3 use the same prompt template:
+**Each evaluator** receives the same prompt template with the rubric, artifact content, and required JSON output format:
 
 ```
 ## Rubric Evaluation Task
@@ -160,19 +155,32 @@ Return ONLY a JSON object — no prose before or after.
 }
 ```
 
-For Codex/Gemini agents, append an execution instruction:
-- **Codex**: `Run: codex exec <<'PROMPT' ... PROMPT`
-- **Gemini**: `Run: gemini -p "$(cat <<'PROMPT' ... PROMPT)"`
+**Launch all 3 evaluators in a single message using `run_in_background: true`:**
 
-For the Claude agent, the subagent evaluates directly — just include the rubric, artifact, and output format in the Agent prompt.
+```
+# All 3 in ONE message — true parallel execution
+Agent(subagent_type="general-purpose", run_in_background=true,
+      description="Codex evaluator",
+      prompt="Run: codex exec <<'PROMPT'\n[evaluation prompt with rubric + artifact]\nPROMPT")
 
-Launch all 3 Agent calls in the **same message** for true parallelism.
+Agent(subagent_type="general-purpose", run_in_background=true,
+      description="Gemini evaluator",
+      prompt="Run: gemini -p \"$(cat <<'PROMPT'\n[evaluation prompt with rubric + artifact]\nPROMPT)\"\n")
+
+Agent(subagent_type="general-purpose", run_in_background=true,
+      description="Claude evaluator",
+      prompt="[evaluation prompt with rubric + artifact — subagent evaluates directly]")
+```
+
+After launching, wait for all 3 to complete (check `TaskOutput` for each background agent). Then proceed to Score Aggregation.
 
 ### Score Aggregation
 
 After all models complete (or fail):
 
 **Minimum model guarantee**: If all 3 CLIs fail, fall back to main agent self-evaluation as a last resort. Score aggregation is guaranteed to have at least one model result.
+
+**Low confidence flag**: If only 1 model is AVAILABLE, flag the round as `LOW CONFIDENCE` in the inline display. Single-model scores lack cross-validation.
 
 1. For each criterion, compute the average score across AVAILABLE models only.
 2. Compute the overall weighted average:
@@ -200,15 +208,15 @@ If any two models differ by more than 20 points on the same criterion:
 
 Collect suggestions from all AVAILABLE models. Prioritize the criterion with the lowest average score. Present the top suggestion per criterion, labeled by source model.
 
-**State update** — after every scoring round, update the state file:
+**State update** — after every scoring round, update the state file (preserve `iteration`/`max_iterations` for the Stop hook's safety counter):
 
 ```
 Bash: cat > "$HOME/.claude/.hook-state/rubric-loop-active.json" <<STATEOF
-{"round":[round],"max_rounds":[max_rounds],"score":[overall],"threshold":[threshold],"status":"active"}
+{"round":[round],"max_rounds":[max_rounds],"score":[overall],"threshold":[threshold],"status":"active","iteration":0,"max_iterations":15}
 STATEOF
 ```
 
-Replace `[round]`, `[overall]`, etc. with actual values. The Stop hook reads this to block premature exit.
+Replace `[round]`, `[overall]`, etc. with actual values. Note: `iteration` resets to 0 here — the Stop hook increments it each time it fires within a round, providing a per-round safety net.
 
 ---
 
@@ -217,6 +225,20 @@ Replace `[round]`, `[overall]`, etc. with actual values. The Stop hook reads thi
 Iteratively improve the artifact one criterion at a time until the threshold is met or the circuit breaker fires. **No user interaction in this phase** — the loop runs autonomously.
 
 **Initialize**: `round = 1`, `max_rounds = 5`, `score_history = []`
+
+### Loop Structure
+
+The initial Phase 2 scoring produces baseline scores. Phase 3 then runs this loop:
+
+```
+LOOP:
+  1. Threshold Check → if overall >= threshold → Phase 4 (PASSED)
+  2. Circuit Breaker → if round > max_rounds → Phase 4 (CIRCUIT BREAKER)
+  3. Improvement Dispatch (improve lowest criterion)
+  4. Re-score (return to Phase 2)
+  5. Append to score_history, round += 1
+  6. Repeat from 1
+```
 
 ### Threshold Check
 
@@ -234,7 +256,9 @@ if round > max_rounds:
 
 ### Improvement Dispatch
 
-Select the single lowest-scoring criterion (prevents scope creep). Dispatch a worker agent:
+Select the single lowest-scoring criterion (prevents scope creep). If multiple criteria tie for the lowest score, pick the one with the higher weight (greater impact on overall score).
+
+Dispatch a worker agent:
 
 ```
 Agent(subagent_type="worker",
@@ -256,10 +280,10 @@ Return the improved artifact to the same location.")
 ```
 
 After the worker completes:
-1. Append to score history: `score_history.append({ round, overall, per_criterion_scores, model_states })`
-2. Increment round counter: `round += 1`
-3. Return to **Phase 2** for re-scoring (which updates state file automatically)
-4. Loop continues until threshold check or circuit breaker fires
+1. Return to **Phase 2** for re-scoring (which updates state file automatically)
+2. Append to score history: `score_history.append({ round, overall, per_criterion_scores, model_states })`
+3. Increment round counter: `round += 1`
+4. Return to top of loop (Threshold Check)
 
 ---
 
@@ -304,16 +328,14 @@ Display the complete evaluation summary:
 [PASSED threshold of [threshold] ✓ / Did not reach threshold — stopped at round N]
 ```
 
-### Optional Save
+### Auto-Save Report
 
-Use `AskUserQuestion` to ask if the user wants to save the rubric and scores to `.dev/rubric-loop/`.
-
-If yes:
+Always save the rubric and scores automatically. Include the full report in the saved file.
 
 ```
 Bash: mkdir -p .dev/rubric-loop
 
-Write to .dev/rubric-loop/[YYYY-MM-DD-HHMMSS]-report.md:
+Write to .dev/rubric-loop/$(date +%Y-%m-%d-%H%M%S)-report.md:
   [Full rubric definition]
   [Score history table]
   [Final scores table]
@@ -321,7 +343,7 @@ Write to .dev/rubric-loop/[YYYY-MM-DD-HHMMSS]-report.md:
 ```
 
 Close with:
-> "Finished! Final score: [final_score]/100 after [N] round(s)."
+> "Finished! Final score: [final_score]/100 after [N] round(s). Report saved to .dev/rubric-loop/."
 
 ---
 

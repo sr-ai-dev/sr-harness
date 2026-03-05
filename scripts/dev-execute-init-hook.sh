@@ -84,6 +84,14 @@ jq --arg sid "$SESSION_ID" \
    })
    ' "$STATE_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$STATE_FILE"
 
+# Snapshot baseline git status (pre-execution dirty files)
+BASELINE_DIR="$CWD/.dev/specs/$PLAN_NAME/context"
+mkdir -p "$BASELINE_DIR"
+BASELINE_FILE="$BASELINE_DIR/.git-baseline"
+if [[ ! -f "$BASELINE_FILE" ]]; then
+  (cd "$CWD" && git status --porcelain 2>/dev/null || true) > "$BASELINE_FILE"
+fi
+
 echo "📋 Execute init: Registered session for plan '$PLAN_NAME'" >&2
 
 exit 0

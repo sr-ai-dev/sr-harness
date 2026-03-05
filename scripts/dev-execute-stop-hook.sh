@@ -107,11 +107,25 @@ else
   ERRORS+=("Transcript file not found")
 fi
 
-# 4. Check for uncommitted changes
+# 4. Check for uncommitted changes (delta from baseline)
 if command -v git &> /dev/null && [[ -d "$CWD/.git" ]]; then
-  UNCOMMITTED=$(cd "$CWD" && git status --porcelain 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-  if [[ "$UNCOMMITTED" -gt 0 ]]; then
-    ERRORS+=("Uncommitted changes: $UNCOMMITTED files (delegate to git-master)")
+  # Extract plan name from plan path for baseline lookup
+  PLAN_NAME_FOR_BASELINE=$(echo "$PLAN_PATH" | sed 's|.dev/specs/||;s|/PLAN.md||')
+  BASELINE_FILE="$CWD/.dev/specs/$PLAN_NAME_FOR_BASELINE/context/.git-baseline"
+
+  CURRENT_STATUS=$(cd "$CWD" && git status --porcelain 2>/dev/null || true)
+
+  if [[ -f "$BASELINE_FILE" ]]; then
+    # Compare: only flag NEW dirty files not in baseline
+    BASELINE_STATUS=$(cat "$BASELINE_FILE")
+    NEW_CHANGES=$(comm -23 <(echo "$CURRENT_STATUS" | sort) <(echo "$BASELINE_STATUS" | sort) | wc -l | tr -d ' ')
+  else
+    # No baseline — fall back to counting all
+    NEW_CHANGES=$(echo "$CURRENT_STATUS" | grep -c '.' || echo "0")
+  fi
+
+  if [[ "$NEW_CHANGES" -gt 0 ]]; then
+    ERRORS+=("Uncommitted changes: $NEW_CHANGES new files since execution start (delegate to git-master)")
   fi
 fi
 
@@ -125,6 +139,9 @@ if [[ ${#ERRORS[@]} -eq 0 ]]; then
   # Remove session from state file
   TEMP_FILE="${STATE_FILE}.tmp.$$"
   jq --arg sid "$SESSION_ID" 'del(.[$sid])' "$STATE_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$STATE_FILE"
+  # Clean up baseline file
+  PLAN_NAME_CLEANUP=$(echo "$PLAN_PATH" | sed 's|.dev/specs/||;s|/PLAN.md||')
+  rm -f "$CWD/.dev/specs/$PLAN_NAME_CLEANUP/context/.git-baseline"
   exit 0
 fi
 

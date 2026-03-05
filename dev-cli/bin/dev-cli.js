@@ -48,9 +48,8 @@ async function main() {
     process.exit(1);
   }
 
-  // Handler not yet implemented — scaffold only
-  process.stderr.write(`Subcommand '${subcommand}' is not yet implemented.\n`);
-  process.exit(1);
+  const mod = await SUBCOMMANDS[subcommand]();
+  await mod.default(args.slice(1));
 }
 
 main().catch((err) => {

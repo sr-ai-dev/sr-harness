@@ -1,0 +1,419 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dev-spec/v4",
+  "title": "dev-spec v4",
+  "description": "JSON Schema for dev spec v4 — immutable contract document (spec/state separated)",
+  "type": "object",
+  "required": ["meta", "tasks"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "meta": { "$ref": "#/$defs/meta" },
+    "context": { "$ref": "#/$defs/context" },
+    "requirements": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/requirement" }
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/task" }
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/constraint" }
+    }
+  },
+  "$defs": {
+    "sha256Hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Raw SHA-256 hex digest (64 lowercase hex characters, no prefix)"
+    },
+    "reference": {
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string" },
+        "start_line": { "type": "integer", "minimum": 1 },
+        "end_line": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "taskConstraint": {
+      "type": "object",
+      "required": ["type", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["no_modify", "no_delete", "preserve_string", "read_only"]
+        },
+        "target": { "type": "string" }
+      }
+    },
+    "expect": {
+      "type": "object",
+      "required": ["exit_code"],
+      "additionalProperties": false,
+      "properties": {
+        "exit_code": { "type": "integer" },
+        "stdout_contains": { "type": "string" },
+        "stderr_empty": { "type": "boolean" }
+      }
+    },
+    "verifyCommand": {
+      "type": "object",
+      "required": ["type", "run", "expect"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "const": "command" },
+        "run": { "type": "string" },
+        "expect": { "$ref": "#/$defs/expect" }
+      }
+    },
+    "verifyAssertion": {
+      "type": "object",
+      "required": ["type", "checks"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "const": "assertion" },
+        "checks": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "verifyInstruction": {
+      "type": "object",
+      "required": ["type", "ask"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "const": "instruction" },
+        "ask": { "type": "string" }
+      }
+    },
+    "verify": {
+      "oneOf": [
+        { "$ref": "#/$defs/verifyCommand" },
+        { "$ref": "#/$defs/verifyAssertion" },
+        { "$ref": "#/$defs/verifyInstruction" }
+      ]
+    },
+    "scenario": {
+      "type": "object",
+      "required": ["id", "given", "when", "then", "verified_by", "verify"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "given": { "type": "string" },
+        "when": { "type": "string" },
+        "then": { "type": "string" },
+        "verified_by": {
+          "type": "string",
+          "enum": ["machine", "agent", "human"]
+        },
+        "verify": { "$ref": "#/$defs/verify" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "verified_by": { "const": "machine" } },
+            "required": ["verified_by"]
+          },
+          "then": {
+            "properties": {
+              "verify": { "$ref": "#/$defs/verifyCommand" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "verified_by": { "const": "agent" } },
+            "required": ["verified_by"]
+          },
+          "then": {
+            "properties": {
+              "verify": { "$ref": "#/$defs/verifyAssertion" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "verified_by": { "const": "human" } },
+            "required": ["verified_by"]
+          },
+          "then": {
+            "properties": {
+              "verify": { "$ref": "#/$defs/verifyInstruction" }
+            }
+          }
+        }
+      ]
+    },
+    "meta": {
+      "type": "object",
+      "required": ["name", "goal"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "goal": { "type": "string" },
+        "deliverables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "path": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "derived_from": { "type": "string" },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": "string" },
+        "approved_by": { "type": "string" },
+        "approved_at": { "type": "string" }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "request": { "type": "string" },
+        "interview": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["topic", "decision"],
+            "additionalProperties": false,
+            "properties": {
+              "topic": { "type": "string" },
+              "decision": { "type": "string" }
+            }
+          }
+        },
+        "research": { "type": "string" },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "belief", "if_wrong", "impact"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "belief": { "type": "string" },
+              "if_wrong": { "type": "string" },
+              "impact": {
+                "type": "string",
+                "enum": ["minor", "major", "critical"]
+              }
+            }
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "decision", "rationale"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "decision": { "type": "string" },
+              "rationale": { "type": "string" },
+              "alternatives_rejected": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["option", "reason"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "option": { "type": "string" },
+                    "reason": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "known_gaps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["gap", "severity", "mitigation"],
+            "additionalProperties": false,
+            "properties": {
+              "gap": { "type": "string" },
+              "severity": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "critical"]
+              },
+              "mitigation": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "required": ["id", "behavior", "priority", "scenarios"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "behavior": { "type": "string" },
+        "priority": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "scenarios": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/scenario" }
+        }
+      }
+    },
+    "checkpoint": {
+      "type": "object",
+      "required": ["enabled"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "message": { "type": "string" },
+        "condition": {
+          "type": "string",
+          "enum": ["always", "on_fulfill", "manual"]
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "required": ["id", "action", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "action": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["work", "verification"]
+        },
+        "risk": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "file_scope": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "fulfills": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "depends_on": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "steps": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "references": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/reference" }
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["from_task", "artifact"],
+            "additionalProperties": false,
+            "properties": {
+              "from_task": { "type": "string" },
+              "artifact": { "type": "string" }
+            }
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "path": { "type": "string" }
+            }
+          }
+        },
+        "task_constraints": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/taskConstraint" }
+        },
+        "checkpoint": {
+          "oneOf": [
+            { "$ref": "#/$defs/checkpoint" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "constraint": {
+      "type": "object",
+      "required": ["id", "type", "rule", "verified_by", "verify"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["must_not_do", "preserve", "scope_boundary"]
+        },
+        "rule": { "type": "string" },
+        "allowed_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "verified_by": {
+          "type": "string",
+          "enum": ["machine", "agent", "human"]
+        },
+        "verify": { "$ref": "#/$defs/verify" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "verified_by": { "const": "machine" } },
+            "required": ["verified_by"]
+          },
+          "then": {
+            "properties": {
+              "verify": { "$ref": "#/$defs/verifyCommand" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "verified_by": { "const": "agent" } },
+            "required": ["verified_by"]
+          },
+          "then": {
+            "properties": {
+              "verify": { "$ref": "#/$defs/verifyAssertion" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "verified_by": { "const": "human" } },
+            "required": ["verified_by"]
+          },
+          "then": {
+            "properties": {
+              "verify": { "$ref": "#/$defs/verifyInstruction" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

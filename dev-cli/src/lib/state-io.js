@@ -15,11 +15,18 @@ import path from 'path';
  * @returns {object|null}
  */
 export function readState(statePath) {
-  if (!fs.existsSync(statePath)) {
-    return null;
+  let raw;
+  try {
+    raw = fs.readFileSync(statePath, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    throw err;
   }
-  const raw = fs.readFileSync(statePath, 'utf8');
-  return JSON.parse(raw);
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`Invalid JSON in state file ${statePath}: ${err.message}`);
+  }
 }
 
 /**
@@ -48,4 +55,14 @@ export function writeState(statePath, data) {
   const json = JSON.stringify(data, null, 2);
   fs.writeFileSync(tmpPath, json, 'utf8');
   fs.renameSync(tmpPath, statePath);
+
+  // Retain only the last 3 backups
+  const base = path.basename(statePath);
+  const backups = fs.readdirSync(dir)
+    .filter(f => f.startsWith(base + '.backup-'))
+    .sort()
+    .map(f => path.join(dir, f));
+  while (backups.length > 3) {
+    fs.unlinkSync(backups.shift());
+  }
 }

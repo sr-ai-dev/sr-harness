@@ -125,11 +125,17 @@ async function handleInit(args) {
   const specRefRelative = relative(dirname(outputPath), specPath);
 
   const tasks = {};
+  const seenIds = new Set();
   for (const task of specData.tasks) {
     if (!task.id) {
       process.stderr.write('Error: all tasks must have an "id" field\n');
       process.exit(1);
     }
+    if (seenIds.has(task.id)) {
+      process.stderr.write(`Error: duplicate task id '${task.id}' in spec\n`);
+      process.exit(1);
+    }
+    seenIds.add(task.id);
     tasks[task.id] = { status: 'pending' };
   }
 

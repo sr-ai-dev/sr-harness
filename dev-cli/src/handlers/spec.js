@@ -9,6 +9,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SPEC_HELP = `
 Usage:
   dev-cli spec validate <path>             Validate a spec.json file against the schema
+  dev-cli spec plan <path> [--format text|mermaid|json]  Show execution plan with parallel groups
   dev-cli spec amend --reason <feedback-id> --spec <path>  Amend spec.json based on feedback
 
 Options:
@@ -16,7 +17,8 @@ Options:
 
 Examples:
   dev-cli spec validate ./spec.json
-  dev-cli spec validate /path/to/spec.json
+  dev-cli spec plan ./spec.json
+  dev-cli spec plan ./spec.json --format mermaid
   dev-cli spec amend --reason fb-001 --spec ./spec.json
 `;
 
@@ -84,6 +86,279 @@ async function handleValidate(args) {
     }
     process.exit(1);
   }
+}
+
+function loadSpec(filePath) {
+  try {
+    const raw = readFileSync(filePath, 'utf8');
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      process.stderr.write(`Error: file not found: ${filePath}\n`);
+    } else if (err instanceof SyntaxError) {
+      process.stderr.write(`Error: invalid JSON in ${filePath}: ${err.message}\n`);
+    } else {
+      process.stderr.write(`Error: could not read file: ${err.message}\n`);
+    }
+    process.exit(1);
+  }
+}
+
+/**
+ * Build execution plan from spec.json tasks using topological sort.
+ * Groups tasks into parallel rounds based on depends_on.
+ */
+function buildPlan(tasks) {
+  const taskMap = new Map();
+  for (const t of tasks) {
+    taskMap.set(t.id, { ...t, depends_on: t.depends_on || [] });
+  }
+
+  // Validate dependency references
+  for (const t of taskMap.values()) {
+    for (const dep of t.depends_on) {
+      if (!taskMap.has(dep)) {
+        process.stderr.write(`Warning: task ${t.id} depends on unknown task ${dep}\n`);
+      }
+    }
+  }
+
+  // Kahn's algorithm — topological sort into rounds
+  const inDegree = new Map();
+  for (const t of taskMap.values()) {
+    if (!inDegree.has(t.id)) inDegree.set(t.id, 0);
+    for (const dep of t.depends_on) {
+      // dep → t.id edge
+      inDegree.set(t.id, (inDegree.get(t.id) || 0));
+    }
+  }
+  // Count in-degrees
+  for (const t of taskMap.values()) {
+    inDegree.set(t.id, t.depends_on.filter(d => taskMap.has(d)).length);
+  }
+
+  const rounds = [];
+  const done = new Set();
+
+  while (done.size < taskMap.size) {
+    const round = [];
+    for (const t of taskMap.values()) {
+      if (done.has(t.id)) continue;
+      const allDepsDone = t.depends_on.every(d => done.has(d) || !taskMap.has(d));
+      if (allDepsDone) round.push(t.id);
+    }
+
+    if (round.length === 0) {
+      // Cycle detection
+      const remaining = [...taskMap.keys()].filter(id => !done.has(id));
+      process.stderr.write(`Error: circular dependency detected among: ${remaining.join(', ')}\n`);
+      process.exit(1);
+    }
+
+    rounds.push(round);
+    for (const id of round) done.add(id);
+  }
+
+  return rounds;
+}
+
+/**
+ * Find the critical path (longest path through the DAG).
+ */
+function findCriticalPath(tasks) {
+  const taskMap = new Map();
+  for (const t of tasks) {
+    taskMap.set(t.id, { ...t, depends_on: t.depends_on || [] });
+  }
+
+  // longest path to each node + predecessor
+  const dist = new Map();
+  const pred = new Map();
+  for (const id of taskMap.keys()) {
+    dist.set(id, 0);
+    pred.set(id, null);
+  }
+
+  // Process in topological order
+  const rounds = buildPlan(tasks);
+  for (const round of rounds) {
+    for (const id of round) {
+      const t = taskMap.get(id);
+      for (const dep of t.depends_on) {
+        if (!taskMap.has(dep)) continue;
+        if (dist.get(dep) + 1 > dist.get(id)) {
+          dist.set(id, dist.get(dep) + 1);
+          pred.set(id, dep);
+        }
+      }
+    }
+  }
+
+  // Find the node with max distance
+  let maxDist = -1;
+  let endNode = null;
+  for (const [id, d] of dist) {
+    if (d > maxDist) {
+      maxDist = d;
+      endNode = id;
+    }
+  }
+
+  // Trace back
+  const path = [];
+  let cur = endNode;
+  while (cur) {
+    path.unshift(cur);
+    cur = pred.get(cur);
+  }
+
+  return path;
+}
+
+function formatText(spec, rounds, criticalPath) {
+  const taskMap = new Map();
+  for (const t of spec.tasks) taskMap.set(t.id, t);
+
+  const lines = [];
+  lines.push(`Plan: ${spec.meta.name}`);
+  lines.push(`Goal: ${spec.meta.goal}`);
+  lines.push('');
+
+  const totalTasks = spec.tasks.length;
+  const parallelTasks = rounds.filter(r => r.length > 1).reduce((sum, r) => sum + r.length, 0);
+  lines.push(`Tasks: ${totalTasks}  Rounds: ${rounds.length}  Max parallel: ${Math.max(...rounds.map(r => r.length))}`);
+  lines.push('');
+
+  for (let i = 0; i < rounds.length; i++) {
+    const round = rounds[i];
+    const parallel = round.length > 1;
+    lines.push(`Round ${i + 1}${parallel ? ' (parallel)' : ''}:`);
+    for (const id of round) {
+      const t = taskMap.get(id);
+      const type = t.type === 'verification' ? 'verify' : 'work';
+      const risk = t.risk ? ` [${t.risk}]` : '';
+      const deps = (t.depends_on || []).length > 0 ? ` ← ${t.depends_on.join(', ')}` : '';
+      const cp = criticalPath.includes(id) ? ' *' : '';
+      lines.push(`  ${id}: ${t.action} (${type}${risk})${deps}${cp}`);
+    }
+    lines.push('');
+  }
+
+  lines.push(`Critical path: ${criticalPath.join(' → ')}`);
+
+  // Show fulfills summary if any task has it
+  const hasFulfills = spec.tasks.some(t => t.fulfills && t.fulfills.length > 0);
+  if (hasFulfills) {
+    lines.push('');
+    lines.push('Requirement coverage:');
+    const reqMap = new Map();
+    for (const t of spec.tasks) {
+      for (const r of (t.fulfills || [])) {
+        if (!reqMap.has(r)) reqMap.set(r, []);
+        reqMap.get(r).push(t.id);
+      }
+    }
+    for (const [r, tasks] of reqMap) {
+      lines.push(`  ${r} ← ${tasks.join(', ')}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+function formatMermaid(spec, rounds, criticalPath) {
+  const taskMap = new Map();
+  for (const t of spec.tasks) taskMap.set(t.id, t);
+  const cpSet = new Set(criticalPath);
+
+  const lines = ['graph LR'];
+
+  for (const t of spec.tasks) {
+    const label = `${t.id}[${t.id}: ${t.action}]`;
+    lines.push(`  ${label}`);
+  }
+
+  for (const t of spec.tasks) {
+    for (const dep of (t.depends_on || [])) {
+      if (taskMap.has(dep)) {
+        lines.push(`  ${dep} --> ${t.id}`);
+      }
+    }
+  }
+
+  // Style critical path
+  if (criticalPath.length > 0) {
+    lines.push(`  style ${criticalPath.join(',')} stroke:#f66,stroke-width:3px`);
+  }
+
+  // Style verification tasks
+  const verifyTasks = spec.tasks.filter(t => t.type === 'verification').map(t => t.id);
+  if (verifyTasks.length > 0) {
+    lines.push(`  style ${verifyTasks.join(',')} stroke:#6a6,stroke-dasharray: 5 5`);
+  }
+
+  return lines.join('\n');
+}
+
+function formatJson(spec, rounds, criticalPath) {
+  const taskMap = new Map();
+  for (const t of spec.tasks) taskMap.set(t.id, t);
+
+  return JSON.stringify({
+    name: spec.meta.name,
+    goal: spec.meta.goal,
+    total_tasks: spec.tasks.length,
+    total_rounds: rounds.length,
+    max_parallel: Math.max(...rounds.map(r => r.length)),
+    critical_path: criticalPath,
+    rounds: rounds.map((round, i) => ({
+      round: i + 1,
+      parallel: round.length > 1,
+      tasks: round.map(id => {
+        const t = taskMap.get(id);
+        return {
+          id: t.id,
+          action: t.action,
+          type: t.type,
+          risk: t.risk || null,
+          depends_on: t.depends_on || [],
+        };
+      }),
+    })),
+  }, null, 2);
+}
+
+async function handlePlan(args) {
+  const parsed = parseArgs(args);
+  const filePath = parsed._[0] || parsed.spec;
+
+  if (!filePath) {
+    process.stderr.write('Error: missing <path> argument\n');
+    process.stderr.write('Usage: dev-cli spec plan <path> [--format text|mermaid|json]\n');
+    process.exit(1);
+  }
+
+  const spec = loadSpec(filePath);
+
+  if (!spec.tasks || spec.tasks.length === 0) {
+    process.stderr.write('Error: spec has no tasks\n');
+    process.exit(1);
+  }
+
+  const rounds = buildPlan(spec.tasks);
+  const criticalPath = findCriticalPath(spec.tasks);
+  const format = parsed.format || 'text';
+
+  let output;
+  if (format === 'mermaid') {
+    output = formatMermaid(spec, rounds, criticalPath);
+  } else if (format === 'json') {
+    output = formatJson(spec, rounds, criticalPath);
+  } else {
+    output = formatText(spec, rounds, criticalPath);
+  }
+
+  process.stdout.write(output + '\n');
 }
 
 function parseArgs(args) {
@@ -192,6 +467,8 @@ export default async function spec(args) {
 
   if (subcommand === 'validate') {
     await handleValidate(args.slice(1));
+  } else if (subcommand === 'plan') {
+    await handlePlan(args.slice(1));
   } else if (subcommand === 'amend') {
     await handleAmend(args.slice(1));
   } else {

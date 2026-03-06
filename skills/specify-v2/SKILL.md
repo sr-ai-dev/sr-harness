@@ -15,8 +15,8 @@ allowed-tools:
   - AskUserQuestion
 validate_prompt: |
   Must produce a valid spec.json that passes both dev-cli spec validate and dev-cli spec check.
-  spec.json must include: meta.mode, context.research (structured), tasks with acceptance_criteria.
-  Standard mode must include: verification_summary, orchestrator, constraints.
+  spec.json must include: meta.mode, context.research (structured), tasks with acceptance_criteria, requirements with scenarios.
+  Standard mode must include: verification_summary (derived from requirements), constraints.
   Output files must be in .dev/specs/{name}/ directory.
 ---
 
@@ -394,13 +394,23 @@ Task(subagent_type="tradeoff-analyzer",
      prompt="Assess risk per change area, propose simpler alternatives, generate decision_points.")
 
 Task(subagent_type="verification-planner",
-     prompt="Classify verification: A-items (agent), H-items (human), S-items (sandbox).
+     prompt="Generate requirements[] scenarios for ALL verification points.
+
+For EACH verification point, output a requirement with Given-When-Then scenarios.
+Each scenario MUST include:
+- verified_by: 'machine' (automated command), 'agent' (AI assertion), or 'human' (manual inspection)
+- execution_env: 'host' (local), 'sandbox' (docker/container), or 'ci' (CI pipeline) — optional, default 'host'
+- verify: command (for machine), assertion (for agent), or instruction (for human)
 
 ## Testing Strategy (from TESTING.md)
 [Paste TESTING_MD_CONTENT here — the full content read in the pre-read step above.
  If the file was not found, note this in Verification Gaps and proceed without it.]
 
-Use the 4-Tier testing model above to classify verification points.")
+Use the 4-Tier testing model above. Output format:
+- Tier 1-3 items → verified_by: 'machine', execution_env: 'host'
+- Tier 4 items → verified_by: 'machine', execution_env: 'sandbox'
+- Subjective/UX items → verified_by: 'human'
+- AI-checkable items → verified_by: 'agent'")
 
 # Optional: only when migration, new library, unfamiliar tech
 Task(subagent_type="external-researcher",
@@ -421,11 +431,11 @@ Task(subagent_type="codex-strategist",
 
 ### S-items Fallback Rules
 
-When merging verification-planner results, apply these fallback rules:
+When merging verification-planner results into `requirements`, apply these fallback rules:
 
-- **Misclassified Tier 4**: If verification-planner output has Tier 4 items listed under A-items (e.g., `A-N: ... (tier: 4, ...)`), reclassify them as S-items when merging into `verification_summary.sandbox_items`.
-- **Missing S-items despite sandbox infra**: If the project has sandbox infrastructure (docker-compose, `sandbox/features/`) but `sandbox_items` is empty or 0, flag this as a warning in `verification_summary.gaps` and check if Tier 4 items were misclassified as A-items.
-- **UI screenshot S-items**: If the work involves UI/frontend changes and verification-planner did not include screenshot-based S-items, add them: screenshot capture at affected routes + comparison against design spec.
+- **Misclassified Tier 4**: If verification-planner output has Tier 4 items without `execution_env: "sandbox"`, fix them — Tier 4 items MUST have `execution_env: "sandbox"`.
+- **Missing sandbox items despite sandbox infra**: If the project has sandbox infrastructure (docker-compose, `sandbox/features/`) but no requirement scenarios have `execution_env: "sandbox"`, flag this as a warning and check if Tier 4 items were misclassified.
+- **UI screenshot S-items**: If the work involves UI/frontend changes and verification-planner did not include screenshot-based sandbox scenarios, add them: screenshot capture at affected routes + comparison against design spec (`execution_env: "sandbox"`, `verified_by: "machine"`).
 
 ### Merge analysis results
 
@@ -447,15 +457,25 @@ dev-cli spec merge .dev/specs/{name}/spec.json --json '{
   ]
 }'
 
-# verification_summary from verification-planner (apply S-items fallback rules above)
+# requirements from verification-planner (apply S-items fallback rules above)
+# Requirements are the SINGLE SOURCE OF TRUTH for all verification.
+# verification_summary is DERIVED from requirements (not stored independently).
 dev-cli spec merge .dev/specs/{name}/spec.json --json '{
-  "verification_summary": {
-    "agent_items": [{"id": "A-1", "criterion": "...", "method": "..."}],
-    "human_items": [{"id": "H-1", "criterion": "...", "reason": "..."}],
-    "sandbox_items": [{"id": "S-1", "criterion": "...", "method": "..."}],
-    "gaps": ["..."]
-  }
+  "requirements": [
+    {
+      "id": "R1", "behavior": "...", "priority": 1,
+      "scenarios": [
+        {"id": "R1-S1", "given": "...", "when": "...", "then": "...",
+         "verified_by": "machine", "execution_env": "host",
+         "verify": {"type": "command", "run": "...", "expect": {"exit_code": 0}}}
+      ]
+    }
+  ]
 }'
+# verification_summary is derived from requirements at Phase 5d / Phase 6:
+#   A-items = scenarios where verified_by is "machine" or "agent" AND execution_env is "host"
+#   H-items = scenarios where verified_by is "human"
+#   S-items = scenarios where execution_env is "sandbox"
 
 # external_dependencies — from exploration findings + verification-planner output
 # Populate services from Agent Findings > External Dependencies.
@@ -488,11 +508,10 @@ Build tasks from research findings + analysis results. This is the main spec aut
 - Every task: `must_not_do: ["Do not run git commands"]`
 - Every task: `acceptance_criteria` with at least `functional` + `static` + `runtime`
 - Every task: `inputs` listing dependencies from previous tasks (use task output IDs)
-- Every task: `verify` block with acceptance (Given-When-Then), integration, commands, and risk
 - HIGH risk tasks: include rollback steps in `steps`
 - Map `research.patterns` → `tasks[].references`
 - Map `research.commands` → `TF.acceptance_criteria.runtime`
-- Apply S-items from `verification_summary.sandbox_items` to TF acceptance criteria where applicable
+- Apply S-items from `requirements[].scenarios` where `execution_env: "sandbox"` to TF acceptance criteria where applicable
 
 #### Type Field
 
@@ -518,7 +537,7 @@ Build tasks from research findings + analysis results. This is the main spec aut
 
 Always generate the `requirements` section with Given-When-Then scenarios — do not skip even if success criteria were not explicitly discussed. Derive from the goal, acceptance criteria, and user intent.
 
-### Merge tasks + orchestrator
+### Merge tasks
 
 ```bash
 dev-cli spec merge .dev/specs/{name}/spec.json --json '{
@@ -536,16 +555,6 @@ dev-cli spec merge .dev/specs/{name}/spec.json --json '{
         "functional": [{"description": "Config file created with required fields"}],
         "static": [{"description": "Valid JSON", "command": "node -e \"require(...)\""}],
         "runtime": [{"description": "Existing tests pass", "command": "npm test"}]
-      },
-      "verify": {
-        "acceptance": [
-          {"given": ["precondition"], "when": "action", "then": ["expected result"]}
-        ],
-        "integration": ["Module A calls Module B with expected args"],
-        "commands": [
-          {"run": "npm test -- feature.spec.ts", "expect": "exit 0"}
-        ],
-        "risk": "low"
       }
     },
     {
@@ -557,37 +566,15 @@ dev-cli spec merge .dev/specs/{name}/spec.json --json '{
         "functional": [{"description": "All deliverables exist and work"}],
         "static": [{"description": "Lint passes", "command": "npm run lint"}],
         "runtime": [{"description": "All tests pass", "command": "npm test"}]
-      },
-      "verify": {
-        "acceptance": [
-          {"given": ["All tasks completed"], "when": "Run full test suite", "then": ["All tests pass", "No lint errors"]}
-        ],
-        "integration": ["All module interactions verified"],
-        "commands": [
-          {"run": "npm run lint", "expect": "exit 0"},
-          {"run": "npm test", "expect": "exit 0"}
-        ],
-        "risk": "low"
       }
     }
-  ],
-  "orchestrator": {
-    "commit_strategy": [
-      {"after_task": "T1", "message": "feat(...): ..."}
-    ],
-    "parallelization": [
-      {"group": "G1", "task_ids": ["T1"], "reason": "no deps"}
-    ],
-    "error_handling": {"max_retries": 2},
-    "runtime_contract": {
-      "working_dir": ".", "network_access": false,
-      "package_install": false, "git_operations": false
-    }
-  }
+  ]
 }'
 ```
 
 ### Add requirements (always generate — derive from goal, acceptance criteria, and user intent)
+
+Requirements are the **single source of truth** for all verification. Each scenario specifies WHO verifies (`verified_by`) and WHERE it runs (`execution_env`).
 
 ```bash
 dev-cli spec merge .dev/specs/{name}/spec.json --json '{
@@ -596,8 +583,14 @@ dev-cli spec merge .dev/specs/{name}/spec.json --json '{
       "id": "R1", "behavior": "...", "priority": 1,
       "scenarios": [
         {"id": "R1-S1", "given": "...", "when": "...", "then": "...",
-         "verified_by": "machine",
-         "verify": {"type": "command", "run": "...", "expect": {"exit_code": 0}}}
+         "verified_by": "machine", "execution_env": "host",
+         "verify": {"type": "command", "run": "...", "expect": {"exit_code": 0}}},
+        {"id": "R1-S2", "given": "...", "when": "...", "then": "...",
+         "verified_by": "human",
+         "verify": {"type": "instruction", "check": "Visually confirm layout matches design"}},
+        {"id": "R1-S3", "given": "...", "when": "...", "then": "...",
+         "verified_by": "machine", "execution_env": "sandbox",
+         "verify": {"type": "command", "run": "docker exec ...", "expect": {"exit_code": 0}}}
       ]
     }
   ]
@@ -660,12 +653,46 @@ Read the file and evaluate:
 > - **Quick**: Skip. Proceed directly to Phase 5e.
 > - **Autopilot**: Skip. Proceed directly to Phase 5e.
 
-After plan review passes, present the Verification Summary to the user for lightweight confirmation.
+After plan review passes, derive the Verification Summary from `requirements[].scenarios` and present it to the user for lightweight confirmation.
+
+**Derivation rules** (from requirements scenarios):
+- **A-items** = scenarios where `verified_by` is `"machine"` or `"agent"` AND `execution_env` is `"host"` (or omitted)
+- **H-items** = scenarios where `verified_by` is `"human"`
+- **S-items** = scenarios where `execution_env` is `"sandbox"`
+
 The summary must include counts for **all three categories**: A-items, H-items, and S-items (if sandbox infra exists).
+
+> **IMPORTANT — Show Before Ask**: FIRST output the full item list as assistant text so the user can read each item. THEN call `AskUserQuestion` for confirmation only. Never put the item details inside the `question` field — the user cannot see truncated content.
+
+**Step 1**: Output assistant text with full details:
+
+```
+## Verification Summary
+
+### Agent-verifiable (A): {A-count}
+- A-1: {criterion} → {method}
+- A-2: {criterion} → {method}
+...
+
+### Human-required (H): {H-count}
+- H-1: {criterion} — {reason}
+- H-2: {criterion} — {reason}
+...
+
+### Sandbox (S): {S-count}
+- S-1: {criterion} → {method}
+...
+(or "none" if no S-items)
+
+### Gaps
+{gap summary or "none"}
+```
+
+**Step 2**: Then ask for confirmation:
 
 ```
 AskUserQuestion(
-  question: "Here is the Verification Summary: {A-count} agent-verifiable (A), {H-count} human-required (H), {S-count} sandbox scenarios (S). Shall we proceed?",
+  question: "Shall we proceed with this verification strategy?",
   options: [
     { label: "Confirmed", description: "Verification strategy looks good" },
     { label: "Corrections needed", description: "I'd like to change verification items" }
@@ -673,7 +700,7 @@ AskUserQuestion(
 )
 ```
 
-**If "Corrections needed"**: Ask which items to change, update via `spec merge` on `verification_summary`, then proceed to Phase 5e.
+**If "Corrections needed"**: Ask which items to change, update via `spec merge` on `requirements` scenarios (the source of truth), then proceed to Phase 5e.
 
 ### 5e. Decision Summary (standard + interactive only)
 
@@ -681,19 +708,39 @@ AskUserQuestion(
 > - **Quick**: Skip
 > - **Autopilot**: Log only, don't ask
 
-Present summary to user:
+Present summary to user.
+
+> **IMPORTANT — Show Before Ask**: FIRST output the full decision list as assistant text. THEN call `AskUserQuestion` for confirmation only. Never put the decision details inside the `question` field.
+
+**Step 1**: Output assistant text with full details:
+
+```
+## Decision Summary
+
+### User Decisions
+- D1: {decision} — {rationale}
+- D2: {decision} — {rationale}
+...
+
+### Agent Decisions (with risk)
+- {decision} — {risk level}, {rationale}
+...
+
+### Verification Strategy
+- A-items: {count}, H-items: {count}, S-items: {count}
+```
+
+**Step 2**: Then ask for confirmation:
 
 ```
 AskUserQuestion(
-  question: "Decision Summary — any corrections?",
+  question: "Any corrections to the decisions above?",
   options: [
     { label: "All confirmed" },
     { label: "Corrections needed" }
   ]
 )
 ```
-
-Summary includes: user decisions, agent decisions (with risk), verification strategy (A/H/S counts).
 
 ---
 
@@ -768,7 +815,7 @@ Constraints: {n} items
 | Section | Source in spec.json | When |
 |---------|---------------------|------|
 | Task Overview | `tasks[]` — id, action, type, risk, depends_on | Always |
-| Verification | `verification_summary` — count A/H/S items, list first 3-5 of each | Always |
+| Verification | Derived from `requirements[].scenarios` — A/H/S classification (see Phase 5d rules) | Always |
 | Pre-work | `external_dependencies.pre_work` — list all, mark blocking=true as Blocking | Always |
 | Post-work | `external_dependencies.post_work` — list all | Always |
 | Key Decisions | `context.decisions[]` — decision, rationale | Always |
@@ -807,6 +854,7 @@ AskUserQuestion(
 - **Every task needs acceptance_criteria** — functional + static + runtime at minimum
 - **known_gaps gate** — no `severity: "critical"` gaps may remain at Phase 4 entry
 - **Incremental merge** — merge after every phase and every user response; do not batch
+- **Requirements = single source of truth** — all verification lives in `requirements[].scenarios` with `verified_by` + `execution_env`; `verification_summary` is derived, not stored independently
 
 ## Checklist Before Stopping
 
@@ -816,9 +864,8 @@ AskUserQuestion(
 - [ ] `dev-cli spec check` passes
 - [ ] All tasks have `status: "pending"`
 - [ ] All tasks have `must_not_do` and `acceptance_criteria`
-- [ ] All tasks have `verify` block (acceptance, commands, risk)
 - [ ] All tasks have `inputs` field
-- [ ] `requirements` section populated with Given-When-Then scenarios
+- [ ] `requirements` section populated with Given-When-Then scenarios + `verified_by` + `execution_env`
 - [ ] `external_dependencies` populated (if applicable)
 - [ ] `history` includes `spec_created` entry
 - [ ] `meta.mode` is set
@@ -827,8 +874,7 @@ AskUserQuestion(
 
 ### Standard mode (additional)
 - [ ] `context.research` is structured object (not string)
-- [ ] `verification_summary` exists with agent_items + human_items + sandbox_items
-- [ ] `orchestrator` exists with commit_strategy + runtime_contract
+- [ ] `verification_summary` derived from `requirements[].scenarios` (A/H/S classification presented in Phase 5d/6)
 - [ ] `constraints` populated from gap-analyzer
 - [ ] Analysis agents ran (gap + tradeoff + verification-planner)
 - [ ] TESTING.md pre-read and inlined into verification-planner prompt

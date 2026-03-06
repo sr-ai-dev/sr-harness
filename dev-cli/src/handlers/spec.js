@@ -10,16 +10,20 @@ import { writeState } from '../lib/state-io.js';
 
 const SPEC_HELP = `
 Usage:
-  dev-cli spec validate <path>             Validate a spec.json file against the schema
+  dev-cli spec init <name> --goal "..." <path>   Create a minimal valid spec.json
+  dev-cli spec merge <path> --json '{...}'       Deep-merge a JSON fragment into spec.json
+  dev-cli spec validate <path>                   Validate a spec.json file against the schema
   dev-cli spec plan <path> [--format text|mermaid|json]  Show execution plan with parallel groups
   dev-cli spec task <task-id> --status <status> [--summary "..."] <path>  Update task status
-  dev-cli spec check <path>                Check internal consistency
+  dev-cli spec check <path>                      Check internal consistency
   dev-cli spec amend --reason <feedback-id> --spec <path>  Amend spec.json based on feedback
 
 Options:
   --help, -h    Show this help message
 
 Examples:
+  dev-cli spec init api-auth --goal "Add JWT auth" .dev/specs/api-auth/spec.json
+  dev-cli spec merge .dev/specs/api-auth/spec.json --json '{"context":{"request":"Add auth"}}'
   dev-cli spec validate ./spec.json
   dev-cli spec plan ./spec.json
   dev-cli spec task T1 --status done --summary "implemented" ./spec.json
@@ -31,6 +35,188 @@ function loadSchema() {
   const schemaPath = resolve(__dirname, '../../schemas/dev-spec-v4.schema.json');
   const raw = readFileSync(schemaPath, 'utf8');
   return JSON.parse(raw);
+}
+
+function validateSpec(specData) {
+  let schema;
+  try {
+    schema = loadSchema();
+  } catch (err) {
+    process.stderr.write(`Error: could not load schema: ${err.message}\n`);
+    process.exit(1);
+  }
+  const ajv = new Ajv2020({ allErrors: true });
+  addFormats(ajv);
+  const validate = ajv.compile(schema);
+  const valid = validate(specData);
+  if (!valid) {
+    process.stderr.write('Validation failed:\n');
+    for (const e of validate.errors) {
+      const path = e.instancePath || '(root)';
+      process.stderr.write(`  ${path}: ${e.message}\n`);
+    }
+    process.exit(1);
+  }
+}
+
+/**
+ * Deep-merge source into target.
+ * - Objects are recursively merged
+ * - Arrays are replaced by default, or concatenated with --append
+ */
+function deepMerge(target, source, append = false) {
+  for (const key of Object.keys(source)) {
+    if (source[key] === null || source[key] === undefined) {
+      continue;
+    }
+    if (Array.isArray(source[key])) {
+      if (append && Array.isArray(target[key])) {
+        target[key] = target[key].concat(source[key]);
+      } else {
+        target[key] = source[key];
+      }
+    } else if (typeof source[key] === 'object') {
+      if (!target[key] || typeof target[key] !== 'object' || Array.isArray(target[key])) {
+        target[key] = {};
+      }
+      deepMerge(target[key], source[key], append);
+    } else {
+      target[key] = source[key];
+    }
+  }
+  return target;
+}
+
+async function handleInit(args) {
+  const parsed = parseArgs(args);
+  const name = parsed._[0];
+
+  if (!name) {
+    process.stderr.write('Error: <name> is required\n');
+    process.stderr.write('Usage: dev-cli spec init <name> --goal "..." <path>\n');
+    process.exit(1);
+  }
+
+  if (!parsed.goal) {
+    process.stderr.write('Error: --goal "..." is required\n');
+    process.stderr.write('Usage: dev-cli spec init <name> --goal "..." <path>\n');
+    process.exit(1);
+  }
+
+  const filePath = parsed._[1];
+  if (!filePath) {
+    process.stderr.write('Error: <path> is required\n');
+    process.stderr.write('Usage: dev-cli spec init <name> --goal "..." <path>\n');
+    process.exit(1);
+  }
+
+  const specPath = resolve(filePath);
+
+  // Check if file already exists
+  try {
+    readFileSync(specPath, 'utf8');
+    process.stderr.write(`Error: file already exists: ${specPath}\n`);
+    process.stderr.write('Use "dev-cli spec merge" to update an existing spec.\n');
+    process.exit(1);
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      process.stderr.write(`Error: ${err.message}\n`);
+      process.exit(1);
+    }
+  }
+
+  const now = new Date().toISOString();
+
+  const specData = {
+    meta: {
+      name,
+      goal: parsed.goal,
+      created_at: now,
+    },
+    tasks: [
+      { id: 'T1', action: 'TODO', type: 'work', status: 'pending' },
+    ],
+    history: [
+      { ts: now, type: 'spec_created' },
+    ],
+  };
+
+  // Add optional mode
+  if (parsed.depth || parsed.interaction) {
+    specData.meta.mode = {};
+    if (parsed.depth) specData.meta.mode.depth = parsed.depth;
+    if (parsed.interaction) specData.meta.mode.interaction = parsed.interaction;
+  }
+
+  validateSpec(specData);
+  writeState(specPath, specData);
+
+  process.stdout.write(`Spec created: ${specPath}\n`);
+  process.stdout.write(`  name: ${name}\n`);
+  process.stdout.write(`  goal: ${parsed.goal}\n`);
+  if (specData.meta.mode) {
+    process.stdout.write(`  mode: ${specData.meta.mode.depth || '-'}/${specData.meta.mode.interaction || '-'}\n`);
+  }
+  process.exit(0);
+}
+
+async function handleMerge(args) {
+  const parsed = parseArgs(args);
+  const filePath = parsed._[0];
+
+  if (!filePath) {
+    process.stderr.write('Error: <path> is required\n');
+    process.stderr.write('Usage: dev-cli spec merge <path> --json \'{...}\' [--append]\n');
+    process.exit(1);
+  }
+
+  if (!parsed.json) {
+    process.stderr.write('Error: --json \'{...}\' is required\n');
+    process.stderr.write('Usage: dev-cli spec merge <path> --json \'{...}\' [--append]\n');
+    process.exit(1);
+  }
+
+  let fragment;
+  try {
+    fragment = JSON.parse(parsed.json);
+  } catch (err) {
+    process.stderr.write(`Error: invalid JSON fragment: ${err.message}\n`);
+    process.exit(1);
+  }
+
+  if (typeof fragment !== 'object' || Array.isArray(fragment)) {
+    process.stderr.write('Error: JSON fragment must be an object\n');
+    process.exit(1);
+  }
+
+  const specPath = resolve(filePath);
+  const specData = loadSpec(specPath);
+
+  const append = parsed.append === true;
+  deepMerge(specData, fragment, append);
+
+  // Auto-add history entry for merge
+  const now = new Date().toISOString();
+  if (!specData.history) specData.history = [];
+  const mergedKeys = Object.keys(fragment).join(', ');
+  specData.history.push({
+    ts: now,
+    type: 'spec_updated',
+    detail: `merged: ${mergedKeys}`,
+  });
+
+  // Update meta.updated_at
+  if (specData.meta) {
+    specData.meta.updated_at = now;
+  }
+
+  validateSpec(specData);
+  writeState(specPath, specData);
+
+  process.stdout.write(`Spec merged: ${specPath}\n`);
+  process.stdout.write(`  merged keys: ${mergedKeys}\n`);
+  if (append) process.stdout.write('  mode: append (arrays concatenated)\n');
+  process.exit(0);
 }
 
 async function handleValidate(args) {
@@ -630,7 +816,11 @@ export default async function spec(args) {
     process.exit(0);
   }
 
-  if (subcommand === 'validate') {
+  if (subcommand === 'init') {
+    await handleInit(args.slice(1));
+  } else if (subcommand === 'merge') {
+    await handleMerge(args.slice(1));
+  } else if (subcommand === 'validate') {
     await handleValidate(args.slice(1));
   } else if (subcommand === 'plan') {
     await handlePlan(args.slice(1));

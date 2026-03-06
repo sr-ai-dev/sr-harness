@@ -325,8 +325,11 @@ function formatJson(spec, rounds, criticalPath) {
           id: t.id,
           action: t.action,
           type: t.type,
+          status: t.status || 'pending',
           risk: t.risk || null,
           depends_on: t.depends_on || [],
+          steps: t.steps || [],
+          file_scope: t.file_scope || [],
         };
       }),
     })),

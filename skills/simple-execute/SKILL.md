@@ -2,7 +2,7 @@
 name: simple-execute
 description: |
   Lightweight executor driven by unified spec.json (spec + state + history in one file).
-  Reads tasks from spec.json, delegates to workers, tracks progress inline.
+  Uses dev-cli spec plan to build task DAG, creates tracking Tasks, dispatches workers.
   Use when: "/simple-execute", "간단한 실행", "simple execute", "spec 실행", "스펙 실행해줘"
 validate_prompt: |
   All tasks in spec.json must have status "done" at completion.
@@ -12,7 +12,7 @@ validate_prompt: |
 
 # /simple-execute — Spec-Driven Lightweight Executor
 
-Execute tasks defined in spec.json, track progress inline via `spec task` command.
+Execute tasks defined in spec.json. Uses `dev-cli spec plan` to get task info, creates tracking Tasks, then dispatches worker agents.
 
 ## When to Use
 
@@ -32,18 +32,13 @@ ELSE:
   spec_path = most recent .dev/specs/*/spec.json
 ```
 
-Read spec.json (single file — no state.json needed):
+### Step 2: Get Plan from dev-cli
 
-```
-spec = Read(spec_path)
-```
-
-### Step 2: Build Execution Plan
-
-Use `dev-cli spec plan` to get the DAG-based execution order:
+Get the DAG-based execution plan with full task details:
 
 ```bash
 plan_json = Bash("node dev-cli/bin/dev-cli.js spec plan {spec_path} --format json")
+plan = JSON.parse(plan_json)
 ```
 
 Display the text plan to the user:
@@ -52,41 +47,64 @@ Display the text plan to the user:
 Bash("node dev-cli/bin/dev-cli.js spec plan {spec_path}")
 ```
 
-Then filter out already-done tasks:
+Each task in the plan contains: `id`, `action`, `type`, `status`, `steps[]`, `file_scope[]`, `depends_on[]`.
+
+Filter out already-done tasks:
 
 ```
-plan = JSON.parse(plan_json)
 FOR EACH round in plan.rounds:
-  round.tasks = round.tasks.filter(t => {
-    task = spec.tasks.find(st => st.id == t.id)
-    return !task.status || task.status != "done"
-  })
-# Remove empty rounds
+  round.tasks = round.tasks.filter(t => t.status != "done")
 plan.rounds = plan.rounds.filter(r => r.tasks.length > 0)
 ```
 
-### Step 3: Execute Rounds
+### Step 3: Create Tracking Tasks
 
-Walk through rounds in order. Within each round, dispatch tasks sequentially.
+From the plan, create TaskCreate entries for visibility and progress tracking:
 
 ```
 FOR EACH round in plan.rounds:
   FOR EACH task in round.tasks:
-    spec_task = find spec.tasks where id == task.id
+    TaskCreate(
+      subject: "{task.id}: {task.action}",
+      description: """
+        Type: {task.type}
+        Steps: {task.steps joined by newline}
+        File scope: {task.file_scope joined by newline}
+        Depends on: {task.depends_on joined by ", "}
+      """,
+      activeForm: "Executing {task.id}"
+    )
+```
 
-    # Mark in-progress
+Set up dependencies via TaskUpdate(addBlockedBy) matching the plan's depends_on.
+
+### Step 4: Execute Tasks
+
+Walk through rounds in order. For each task:
+
+1. **TaskUpdate** → `in_progress`
+2. **spec task** → mark `in_progress` in spec.json
+3. **Dispatch** worker or run verification
+4. **spec task** → mark `done` in spec.json
+5. **TaskUpdate** → `completed`
+
+```
+FOR EACH round in plan.rounds:
+  FOR EACH task in round.tasks:
+
+    TaskUpdate(taskId, status: "in_progress")
     Bash("node dev-cli/bin/dev-cli.js spec task {task.id} --status in_progress {spec_path}")
 
-    IF spec_task.type == "work":
-      result = Task(subagent_type="worker", prompt="""
+    IF task.type == "work":
+      result = Agent(subagent_type="worker", prompt="""
         ## TASK
-        {spec_task.action}
+        {task.action}
 
         ## STEPS
-        {spec_task.steps joined by newline, or "Implement as appropriate" if empty}
+        {task.steps joined by newline, or "Implement as appropriate" if empty}
 
         ## FILE SCOPE
-        {spec_task.file_scope joined by newline, or "Determine appropriate files"}
+        {task.file_scope joined by newline, or "Determine appropriate files"}
 
         ## MUST NOT DO
         - Do not run git commands
@@ -105,33 +123,33 @@ FOR EACH round in plan.rounds:
 
       IF result.status == "DONE":
         Bash("node dev-cli/bin/dev-cli.js spec task {task.id} --status done --summary '{result.summary}' {spec_path}")
+        TaskUpdate(taskId, status: "completed")
       ELSE:
         print("Task {task.id} failed: {result.summary}")
         HALT
 
-    ELIF spec_task.type == "verification":
+    ELIF task.type == "verification":
       Bash("node dev-cli/bin/dev-cli.js spec check {spec_path}")
       IF exit_code == 0:
         Bash("node dev-cli/bin/dev-cli.js spec task {task.id} --status done {spec_path}")
+        TaskUpdate(taskId, status: "completed")
       ELSE:
         print("Verification failed: spec consistency check failed")
         HALT
 ```
 
-### Step 4: Commit
+### Step 5: Commit
 
 After all tasks complete, commit the changes:
 
 ```
-Task(subagent_type="git-master", prompt="""
-  Commit all changes from the spec: {spec.meta.goal}
-  Spec name: {spec.meta.name}
+Agent(subagent_type="git-master", prompt="""
+  Commit all changes from the spec: {plan.goal}
+  Spec name: {plan.name}
 """)
 ```
 
-### Step 5: Report
-
-Re-read spec.json for final status, then report:
+### Step 6: Report
 
 ```
 ═══════════════════════════════════════════════════
@@ -139,7 +157,7 @@ Re-read spec.json for final status, then report:
 ═══════════════════════════════════════════════════
 
 SPEC: {spec_path}
-GOAL: {spec.meta.goal}
+GOAL: {plan.goal}
 
 PLAN: {plan.total_rounds} rounds, max {plan.max_parallel} parallel
 CRITICAL PATH: {plan.critical_path joined by " → "}
@@ -155,9 +173,10 @@ STATE: ✅ all tasks done | ⚠️ N tasks pending
 ## Rules
 
 - **Single file** — spec.json is both the spec and the state tracker (no state.json)
-- **No verify agent** — worker self-report trusted (like /execute --quick)
+- **dev-cli is the source** — all task info comes from `spec plan --format json`
+- **Dual tracking** — update both spec.json (via `spec task`) and TaskList (via TaskUpdate)
+- **No verify agent** — worker self-report trusted
 - **No reconciliation** — on failure, halt immediately
-- **No parallel dispatch** — tasks run sequentially by ID order
-- **Always update via dev-cli** — use `spec task` to update status (auto-logs history)
+- **No parallel dispatch** — tasks run sequentially by round order
 - **Always commit** — use git-master at the end
 - **Constraints check** — if spec has constraints, verify them before completing

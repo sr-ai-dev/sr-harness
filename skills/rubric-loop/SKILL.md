@@ -17,8 +17,9 @@ allowed-tools:
   - Agent
 validate_prompt: |
   Must contain all 4 Phases (Rubric Building, Evaluation, Improvement Loop, Completion).
-  Must include 3-step rubric building interaction.
+  Must include 3-step rubric building interaction with per-criterion floor setting.
   Must include Agent-based parallel multi-model scoring with AVAILABLE/SKIPPED/DEGRADED states.
+  Must include pass check with both threshold AND floor (AND-gate).
   Must include circuit breaker logic.
   Must include state file write for Stop hook integration.
 ---
@@ -55,22 +56,42 @@ Require a minimum of 2 criteria. If fewer than 2 are given, prompt again:
 
 Generate a rubric draft based on the collected criteria. Assign equal weights by default.
 
-Present the draft as a table:
+**Checklist Decomposition (default)**: Break each criterion into 5–10 yes/no sub-items. Score is computed as `(checked / total) × 100`. This eliminates evaluator interpretation variance.
+
+Present the draft as a table with sub-items:
 
 ```
 ## Draft Rubric
 
+| # | Criterion       | Weight | Sub-items (yes/no each)                                    |
+|---|-----------------|--------|------------------------------------------------------------|
+| 1 | [criterion]     | 25%    | □ [sub-item-1] · □ [sub-item-2] · □ [sub-item-3]          |
+|   |                 |        | □ [sub-item-4] · □ [sub-item-5]                            |
+|   |                 |        | score = (checked / 5) × 100                                |
+| 2 | [criterion]     | 25%    | □ [sub-item-1] · □ [sub-item-2] · □ [sub-item-3]          |
+|   |                 |        | □ [sub-item-4] · □ [sub-item-5] · □ [sub-item-6]          |
+|   |                 |        | score = (checked / 6) × 100                                |
+```
+
+**Sub-item design rules**:
+- Each sub-item must be **binary observable** — answerable with yes or no by reading the artifact
+- Avoid subjective sub-items ("code is clean") — reword to observable ("all functions have explicit return types")
+- Order sub-items from basic (easy to pass) to advanced (hard to pass)
+- Unchecked sub-items automatically become improvement targets in Phase 3
+
+**Qualitative fallback**: If a criterion genuinely cannot be decomposed into sub-items (e.g., "writing tone"), use level-based anchors instead:
+
+```
 | # | Criterion       | Weight | Scoring Guidance (0–100)                                   |
 |---|-----------------|--------|------------------------------------------------------------|
-| 1 | [criterion]     | 25%    | 0 = absent, 50 = partially met, 80+ = clearly met         |
-| 2 | [criterion]     | 25%    | 0 = absent, 50 = partially met, 80+ = clearly met         |
-| 3 | [criterion]     | 25%    | 0 = absent, 50 = partially met, 80+ = clearly met         |
-| 4 | [criterion]     | 25%    | 0 = absent, 50 = partially met, 80+ = clearly met         |
+| N | [criterion]     | 25%    | 0=absent · 25=minimal · 50=partial · 75=good · 100=full   |
 ```
+
+Level-based anchors must have **5 levels** (0/25/50/75/100) with one concrete observable indicator per level. 3-level anchors (0/50/80) are too coarse.
 
 Each criterion gets:
 - A 0–100 scoring range
-- Guidance anchors: what 0, 50, and 80+ look like for that dimension
+- Either checklist sub-items (preferred) or 5-level anchors with observable indicators
 
 Then use `AskUserQuestion` to confirm or modify (accept, adjust weights, edit criteria, or start over). Loop until the user accepts.
 
@@ -78,9 +99,15 @@ Then use `AskUserQuestion` to confirm or modify (accept, adjust weights, edit cr
 > "Weights must sum to 100%. Current sum: [X]%. Please redistribute."
 Re-present the rubric table until weights are valid.
 
-### Step 3 — Threshold Setting
+### Step 3 — Threshold & Floor Setting
 
-Use `AskUserQuestion` to ask what overall score (0–100) the artifact should reach before stopping. Suggest 70/80/90 as options. Default is 70 if the user doesn't specify.
+Use `AskUserQuestion` to ask two things:
+
+1. **Overall threshold** (0–100): what overall score the artifact should reach before stopping. Suggest 70/80/90 as options. Default is 70 if the user doesn't specify.
+
+2. **Per-criterion floor** (0–100): the minimum score that EACH individual criterion must meet, regardless of overall score. Suggest 50/60 as options. Default is 60 if the user doesn't specify. Set to 0 to disable.
+
+**Why floor matters**: Without a floor, strong criteria can mask weak ones (e.g., overall 80 passes threshold 70, but one criterion scores 50). The floor ensures every dimension meets a minimum bar.
 
 ### Rubric Summary (Evaluation Contract)
 
@@ -91,14 +118,17 @@ Display the final rubric before Phase 2 begins:
 
 **Target**: [artifact description or path]
 **Threshold**: [threshold]/100
+**Per-criterion floor**: [floor]/100
 **Max rounds**: 5
+**Scoring method**: Checklist Decomposition
 
-| # | Criterion   | Weight | Scoring Anchors                        |
-|---|-------------|--------|----------------------------------------|
-| 1 | [criterion] | [W]%   | 0=absent · 50=partial · 80+=clear      |
-| 2 | [criterion] | [W]%   | 0=absent · 50=partial · 80+=clear      |
+| # | Criterion   | Weight | Sub-items                              | Formula              |
+|---|-------------|--------|----------------------------------------|----------------------|
+| 1 | [criterion] | [W]%   | □ A · □ B · □ C · □ D · □ E           | (checked/5) × 100   |
+| 2 | [criterion] | [W]%   | □ A · □ B · □ C · □ D                 | (checked/4) × 100   |
 ...
 
+Pass condition: overall >= [threshold] AND every criterion >= [floor]
 Rubric locked. Starting evaluation.
 ```
 
@@ -140,10 +170,11 @@ Note: The 3rd evaluator (Claude) runs as a subagent — no CLI check needed.
 ## Rubric Evaluation Task
 
 You are a strict evaluator. Score the artifact below using the provided rubric.
+For each criterion, check every sub-item (yes/no) and compute: score = (checked / total) × 100.
 Return ONLY a JSON object — no prose before or after.
 
 ## Rubric
-[criterion list with weights and anchors]
+[criterion list with weights and sub-items checklist]
 
 ## Artifact
 [Full artifact content — read the file]
@@ -151,7 +182,8 @@ Return ONLY a JSON object — no prose before or after.
 ## Required Output Format
 {
   "scores": { "[criterion]": <0-100>, ... },
-  "suggestions": { "[criterion]": "<one concrete action>", ... }
+  "checklist": { "[criterion]": { "[sub-item-1]": true/false, "[sub-item-2]": true/false, ... }, ... },
+  "suggestions": { "[criterion]": "<one concrete action targeting an unchecked sub-item>", ... }
 }
 ```
 
@@ -192,11 +224,12 @@ After all models complete (or fail):
 **Inline display:**
 
 ```
-📊 Score: XX/100 (Codex: XX | Gemini: XX | Claude: XX) — Threshold: [threshold]
+📊 Score: XX/100 (Codex: XX | Gemini: XX | Claude: XX) — Threshold: [threshold] · Floor: [floor]
    [criterion_1]: XX  (Codex: XX, Gemini: XX, Claude: XX)
-   [criterion_2]: XX  (Codex: XX, Gemini: XX, Claude: XX)
+   [criterion_2]: XX  (Codex: XX, Gemini: XX, Claude: XX)  ⚠️ BELOW FLOOR
    ...
    Model status: Codex=AVAILABLE · Gemini=SKIPPED · Claude=AVAILABLE
+   Floor violations: [list of criteria below floor, or "None"]
 ```
 
 **Convergence / Divergence Analysis:**
@@ -232,20 +265,31 @@ The initial Phase 2 scoring produces baseline scores. Phase 3 then runs this loo
 
 ```
 LOOP:
-  1. Threshold Check → if overall >= threshold → Phase 4 (PASSED)
+  1. Pass Check → if overall >= threshold AND all criteria >= floor → Phase 4 (PASSED)
   2. Circuit Breaker → if round > max_rounds → Phase 4 (CIRCUIT BREAKER)
-  3. Improvement Dispatch (improve lowest criterion)
+  3. Improvement Dispatch (improve lowest criterion — floor violations first)
   4. Re-score (return to Phase 2)
   5. Append to score_history, round += 1
   6. Repeat from 1
 ```
 
-### Threshold Check
+### Pass Check (Threshold + Floor)
 
 ```
-if overall >= threshold:
-  → Proceed to Phase 4 immediately
+below_floor = [c for c in criteria if c.score < floor]
+
+if overall >= threshold AND len(below_floor) == 0:
+  → Proceed to Phase 4 immediately (PASSED)
+
+if len(below_floor) > 0:
+  → Log: "Floor violation: [criterion] at [score] < floor [floor]. Auto-targeting for improvement."
+  → Improvement target = lowest below-floor criterion (not lowest overall)
+
+if overall < threshold AND len(below_floor) == 0:
+  → Improvement target = lowest criterion (original behavior)
 ```
+
+**Floor priority**: Floor violations take precedence over overall threshold. Even if overall >= threshold, a below-floor criterion blocks PASSED and triggers improvement.
 
 ### Circuit Breaker Check
 
@@ -271,11 +315,15 @@ Location: [artifact file path or content block]
 [criterion name]: current score [score]/100
 Weight: [W]%
 
+## Unchecked Sub-items (fix these)
+[List each unchecked sub-item from the checklist — these are the specific gaps to close]
+
 ## Improvement Instructions
 [Synthesized suggestions from all AVAILABLE models for this criterion]
 
 ## Constraint
-Improve ONLY this criterion. Do not restructure or rewrite unrelated sections.
+Improve ONLY this criterion. Focus on the unchecked sub-items listed above.
+Do not restructure or rewrite unrelated sections.
 Return the improved artifact to the same location.")
 ```
 
@@ -305,7 +353,7 @@ Display the complete evaluation summary:
 ## Rubric-Loop Final Report
 
 **Artifact**: [artifact description or path]
-**Rubric**: [N] criteria · threshold [threshold]/100
+**Rubric**: [N] criteria · threshold [threshold]/100 · floor [floor]/100
 **Result**: [PASSED / CIRCUIT BREAKER]
 
 ### Score History

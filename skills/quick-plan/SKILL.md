@@ -15,11 +15,12 @@ allowed_tools:
   - TaskList
 validate_prompt: |
   Must contain all of these sections:
-  1. "## Task Breakdown" with numbered tasks
+  1. "## Task Breakdown" with numbered tasks and touch zones
   2. "## Dependency DAG" showing task relationships
-  3. "## Coordination Mode" with mode (agent-spawn or team) and rationale
-  4. "## Agent Mapping" table with columns: Task, Agent, Model, Rationale
-  5. "## Execution Plan" with parallel rounds
+  3. "## Overlap Matrix" if any touch zone overlaps exist
+  4. "## Coordination Mode" with mode (agent-spawn or team) and rationale
+  5. "## Agent Mapping" table with columns: Task, Agent, Model, Rationale
+  6. "## Execution Plan" with parallel rounds and context sharing notes
   Must NOT: execute any tasks, create teams, or spawn agents.
 ---
 
@@ -52,6 +53,34 @@ For each task determine:
 - **parallel?**: can it run alongside other tasks?
 
 Build a DAG. Minimize sequential depth — maximize parallel width.
+
+### Phase 3.5: Overlap Analysis
+
+For each task, identify its **touch zone** — the files and modules it will modify.
+
+1. **List touch zones**: For each task, enumerate target files/directories
+2. **Detect overlaps**: If two tasks modify the same file or tightly-coupled module:
+   - **Merge**: Combine into one task if small enough
+   - **Serialize**: Make one block the other if merging is too large
+   - **Never**: Let overlapping tasks run in parallel (guaranteed merge conflicts)
+3. **No overlap** → mark as parallel-safe
+
+Output an overlap matrix in Phase 7 if any overlaps were found.
+
+### Phase 3.7: Context Sharing Strategy
+
+Even when tasks are orthogonal in code, agents benefit from shared context.
+
+For each task, determine:
+- **Needs to know**: What context from other tasks improves this agent's decisions?
+- **Produces**: What results/decisions should be shared with downstream agents?
+
+Patterns:
+- **Summary injection**: Give each agent a 1-line summary of what sibling agents are doing
+- **Result forwarding**: Pass prior round outputs as read-only context to next round agents
+- **Shared decisions doc**: If multiple agents need the same architectural decision, resolve it in Round 0
+
+Rule: **Code changes = orthogonal, Information = shared.**
 
 ### Phase 4: Coordination Mode Decision
 
@@ -91,12 +120,24 @@ Output the complete plan in this format, then ask user for approval:
 ```
 ## Task Breakdown
 
-1. **{task-name}**: {description} → Done when: {condition}
+1. **{task-name}**: {description} → Done when: {condition} | Touch: `{files/dirs}`
 2. ...
 
 ## Dependency DAG
 
 {ASCII diagram}
+
+## Overlap Matrix (if any)
+
+| Task A | Task B | Shared files | Resolution |
+|--------|--------|-------------|------------|
+| 1 | 3 | types.ts | Serialize (1→3) |
+
+## Context Sharing
+
+| Round | Agent | Receives context from |
+|-------|-------|----------------------|
+| 2 | C | A's output summary |
 
 ## Coordination Mode
 
@@ -112,11 +153,11 @@ rationale: {one-line reason}
 ## Execution Plan
 
 ### Round 1 (Parallel)
-- Agent A: {task} — no dependencies
-- Agent B: {task} — no dependencies
+- Agent A: {task} — no dependencies | context: sibling summary
+- Agent B: {task} — no dependencies | context: sibling summary
 
 ### Round 2 (After Round 1)
-- Agent C: {task} — needs results from A
+- Agent C: {task} — needs results from A | context: A's output + sibling summary
 
 ## Estimated Parallelism
 

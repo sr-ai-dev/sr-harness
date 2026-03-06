@@ -245,12 +245,27 @@ TaskUpdate(taskId=fv, addBlocks=[rp])
 
 ## Phase 1: Execute Loop
 
+> **Compaction-resilience rule**: Auto-compact can erase spec.json contents from memory mid-session.
+> Before EVERY `:Worker` or `:Verify` dispatch, ALWAYS re-read these — never rely on memory:
+>
+> 1. **spec.json** — `Read(spec_path)` to get task details (steps, acceptance_criteria, must_not_do, etc.)
+> 2. **learnings.md** — previous workers may have appended new entries
+> 3. **issues.md** — failed approaches to avoid
+>
+> This is mandatory even if you "remember" the content. Context window is unreliable after compaction.
+
 ```
 WHILE TaskList() has pending tasks:
   runnable = TaskList().filter(status=="pending" AND blockedBy==empty)
 
   IF len(runnable) == 0:
     BREAK  # all done or deadlock
+
+  # MANDATORY: Re-read before every dispatch round (compaction-resilient)
+  IF any task in runnable is :Worker or :Verify:
+    spec = Read(spec_path) → parse JSON
+    learnings = Read("{CONTEXT_DIR}/learnings.md")
+    issues = Read("{CONTEXT_DIR}/issues.md")
 
   # Dispatch by task subject suffix
   dispatch_all(runnable)
@@ -928,11 +943,12 @@ Details: {verify result summary}
 3. **Two turns for task setup** — Turn 1: all TaskCreate, Turn 2: all TaskUpdate
 4. **Dual tracking** — both spec.json (via `spec task`) and TaskList (via TaskUpdate)
 5. **Workers write context** — orchestrator only writes audit.md
-6. **Per-task commit** — every task gets its own commit via git-master
-7. **Verify is standard-only** — quick mode skips per-task verification
-8. **Adaptation updates spec.json** — new tasks go through `spec merge`, then re-plan
-9. **Max 2 retries** — after 2 failed retry attempts, HALT
-10. **Background for parallel** — use `run_in_background: true` for round-parallel workers
+6. **Re-read before every dispatch** — spec.json + learnings.md + issues.md before every `:Worker`/`:Verify` (compaction erases memory)
+7. **Per-task commit** — every task gets its own commit via git-master
+8. **Verify is standard-only** — quick mode skips per-task verification
+9. **Adaptation updates spec.json** — new tasks go through `spec merge`, then re-plan
+10. **Max 2 retries** — after 2 failed retry attempts, HALT
+11. **Background for parallel** — use `run_in_background: true` for round-parallel workers
 
 ## Checklist Before Stopping
 
@@ -940,8 +956,9 @@ Details: {verify result summary}
 - [ ] spec.json found and validated
 - [ ] `dev-cli spec plan` executed and shown to user
 - [ ] Context directory initialized (learnings.md, issues.md, audit.md)
-- [ ] Pre-work executed (if blocking items exist)
+- [ ] Pre-work status logged explicitly (none/pass/fail)
 - [ ] All TaskCreate in single turn, all TaskUpdate in single turn
+- [ ] spec.json + context files re-read before every :Worker/:Verify dispatch (compaction-resilient)
 - [ ] All spec tasks have `status: "done"` (via `dev-cli spec task`)
 - [ ] `dev-cli spec check` passes at end
 - [ ] Residual commit handled

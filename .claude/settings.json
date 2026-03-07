@@ -16,6 +16,17 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/execute-compact-hook.sh"
+          }
+        ]
+      }
+    ],
     "SessionEnd": [
       {
         "matcher": "",

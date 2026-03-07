@@ -245,14 +245,10 @@ TaskUpdate(taskId=fv, addBlocks=[rp])
 
 ## Phase 1: Execute Loop
 
-> **Compaction-resilience rule**: Auto-compact can erase spec.json contents from memory mid-session.
-> Before EVERY `:Worker` or `:Verify` dispatch, ALWAYS re-read these — never rely on memory:
->
-> 1. **spec.json** — `Read(spec_path)` to get task details (steps, acceptance_criteria, must_not_do, etc.)
-> 2. **learnings.md** — previous workers may have appended new entries
-> 3. **issues.md** — failed approaches to avoid
->
-> This is mandatory even if you "remember" the content. Context window is unreliable after compaction.
+> **Compaction recovery**: A `SessionStart(compact)` hook automatically re-injects
+> spec_path, task progress, and context_dir after compaction. You do NOT need to
+> manually re-read spec.json on every dispatch. Use `dev-cli spec task <id> --get`
+> to fetch individual task details on demand.
 
 ```
 WHILE TaskList() has pending tasks:
@@ -261,9 +257,9 @@ WHILE TaskList() has pending tasks:
   IF len(runnable) == 0:
     BREAK  # all done or deadlock
 
-  # MANDATORY: Re-read before every dispatch round (compaction-resilient)
+  # Read context files before dispatch (workers may have appended new entries)
+  # Note: spec.json is NOT re-read here — use `spec task --get` per task instead
   IF any task in runnable is :Worker or :Verify:
-    spec = Read(spec_path) → parse JSON
     learnings = Read("{CONTEXT_DIR}/learnings.md")
     issues = Read("{CONTEXT_DIR}/issues.md")
 
@@ -295,11 +291,15 @@ ELSE:
 
 ### 1a. :Worker — Delegate Implementation
 
-Read spec.json to get full task details, then build worker prompt:
+Fetch task details via dev-cli, then build worker prompt:
 
 ```
-spec = Read(spec_path) → parse JSON
-task_spec = spec.tasks.find(t => t.id == task_id)
+task_spec = JSON.parse(Bash("node dev-cli/bin/dev-cli.js spec task {task_id} --get {spec_path}"))
+
+# Resolve inputs from dependency tasks
+FOR EACH input in (task_spec.inputs || []):
+  dep_task = JSON.parse(Bash("node dev-cli/bin/dev-cli.js spec task {input.from_task} --get {spec_path}"))
+  input.resolved_outputs = dep_task.outputs
 
 # Read context files for inherited wisdom
 learnings = Read("{CONTEXT_DIR}/learnings.md")
@@ -411,8 +411,7 @@ ELIF result.status == "FAILED":
 Dispatch a verify worker that independently checks acceptance criteria and must-not-do violations.
 
 ```
-spec = Read(spec_path) → parse JSON
-task_spec = spec.tasks.find(t => t.id == task_id)
+task_spec = JSON.parse(Bash("node dev-cli/bin/dev-cli.js spec task {task_id} --get {spec_path}"))
 
 Agent(
   subagent_type="worker",
@@ -943,7 +942,7 @@ Details: {verify result summary}
 3. **Two turns for task setup** — Turn 1: all TaskCreate, Turn 2: all TaskUpdate
 4. **Dual tracking** — both spec.json (via `spec task`) and TaskList (via TaskUpdate)
 5. **Workers write context** — orchestrator only writes audit.md
-6. **Re-read before every dispatch** — spec.json + learnings.md + issues.md before every `:Worker`/`:Verify` (compaction erases memory)
+6. **Use `--get` for task details** — `dev-cli spec task <id> --get` instead of reading full spec.json. `SessionStart(compact)` hook handles compaction recovery automatically.
 7. **Per-task commit** — every task gets its own commit via git-master
 8. **Verify is standard-only** — quick mode skips per-task verification
 9. **Adaptation updates spec.json** — new tasks go through `spec merge`, then re-plan
@@ -958,7 +957,7 @@ Details: {verify result summary}
 - [ ] Context directory initialized (learnings.md, issues.md, audit.md)
 - [ ] Pre-work status logged explicitly (none/pass/fail)
 - [ ] All TaskCreate in single turn, all TaskUpdate in single turn
-- [ ] spec.json + context files re-read before every :Worker/:Verify dispatch (compaction-resilient)
+- [ ] Task details fetched via `spec task --get` (not full spec.json read)
 - [ ] All spec tasks have `status: "done"` (via `dev-cli spec task`)
 - [ ] `dev-cli spec check` passes at end
 - [ ] Residual commit handled

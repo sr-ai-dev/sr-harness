@@ -666,12 +666,14 @@ async function handleTask(args) {
   const parsed = parseArgs(args.slice(1));
 
   // --get mode: read-only task retrieval
+  // Usage: dev-cli spec task <id> --get <path>
   if (parsed.get !== undefined) {
-    const filePath = typeof parsed.get === 'string' ? parsed.get : parsed._[0];
-    if (!filePath) {
-      process.stderr.write('Error: <path> to spec.json is required\n');
+    if (typeof parsed.get !== 'string') {
+      process.stderr.write('Error: --get requires <path> argument\n');
+      process.stderr.write('Usage: dev-cli spec task <task-id> --get <path>\n');
       process.exit(1);
     }
+    const filePath = parsed.get;
     const specData = loadSpec(resolve(filePath));
     const task = specData.tasks.find(t => t.id === taskId);
     if (!task) {

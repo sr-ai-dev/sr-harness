@@ -1,7 +1,7 @@
 ---
 name: dev-scan
 description: Collect diverse opinions on technical topics from developer communities. Use for "developer reactions", "community opinions" requests. Aggregates Reddit, HN, Dev.to, Lobsters, ProductHunt, etc.
-version: 2.0.0
+version: 2.1.0
 ---
 
 # Dev Opinions Scan
@@ -92,7 +92,7 @@ Each platform's search engine works differently. Generate one optimized query pe
 | Reddit | `Q_REDDIT` | Natural phrasing. Keep "vs" for comparisons — Reddit titles use it. Script handles broadening internally. |
 | X/Twitter | `Q_TWITTER` | Short key terms + search operators. Append `since:YYYY-MM-DD` (30 days ago) and `min_faves:5` for quality filtering. Results sorted by popularity (Top). |
 | HN | `Q_HN` | Specific technical terms. Drop "vs" — Algolia full-text matches better without. |
-| Dev.to | `Q_DEVTO` | Add context word (`comparison`/`review`/`guide`) for better DuckDuckGo recall. |
+| Dev.to | `Q_DEVTO` | Add context word (`comparison`/`review`/`guide`) for better Google recall. |
 | Lobsters | `Q_LOBSTERS` | Simple technical terms. Small community — keep query broad for recall. |
 | ProductHunt | `Q_PH` | Product/tool names. Drop generic words — PH topics are specific slugs. **Only generate if PH is relevant (see below).** |
 
@@ -100,7 +100,7 @@ Each platform's search engine works differently. Generate one optimized query pe
 
 **Query type rules:**
 
-| Type | Reddit | X/Twitter | HN | Dev.to (DuckDuckGo) | Lobsters (DuckDuckGo) | ProductHunt |
+| Type | Reddit | X/Twitter | HN | Dev.to (Google) | Lobsters (Google) | ProductHunt |
 |------|--------|-----------|-----|------|------|------|
 | Comparison ("A vs B") | Keep "A vs B" | "A B since:… min_faves:5" | "A B" | "A vs B comparison" | "A B" | "A B" |
 | Opinion ("reactions to X") | "X" | "X since:… min_faves:5" | "X" | "X review" | "X" | "X" |
@@ -118,19 +118,37 @@ Each platform's search engine works differently. Generate one optimized query pe
 | `Q_LOBSTERS` | `claude code codex` |
 | `Q_PH` | `claude code codex` |
 
+### Step 1.5: Time Period
+
+Extract time period from user request. Default: `month`.
+
+| User says | `TIME_PERIOD` | `--time` value |
+|-----------|---------------|----------------|
+| (nothing) | `month` | `month` / `m` |
+| "지난주", "last week" | `week` | `week` / `w` |
+| "최근 3일", "last few days" | `week` | `week` / `w` |
+| "올해", "this year" | `year` | `year` / `y` |
+| "전체", "all time" | `all` | `all` / `a` |
+
+Use `TIME_PERIOD` in all search commands below.
+
 ### Step 2: Search (Two Bash Calls)
 
 chromux scripts share one Chrome instance — running them simultaneously causes tab conflicts.
 Split into two phases: API-based sources in parallel, then chromux sources sequentially.
 
+**Both Bash calls must share the same temp directory.** Generate a stable `RUN_ID` once and use it in both calls.
+
 **Bash call 1 — API sources (parallel):**
 ```bash
-D=/tmp/dev-scan-results-$$
+RUN_ID="dev-scan-$(date +%s)-$RANDOM"
+D="/tmp/$RUN_ID"
 mkdir -p "$D"
+echo "$D" > /tmp/dev-scan-current-dir
 
-python3 skills/dev-scan/vendor/reddit-search/reddit-search.py "{Q_REDDIT}" --count 10 --comments 5 --time month --json > "$D/reddit.json" 2>"$D/reddit.err" &
-python3 skills/dev-scan/vendor/hn-search/hn-search.py "{Q_HN}" --count 10 --comments 5 --time month --json > "$D/hn.json" 2>"$D/hn.err" &
-python3 skills/dev-scan/vendor/ph-search/ph-search.py "{Q_PH}" --count 10 --comments 3 --time month --json > "$D/ph.json" 2>"$D/ph.err" &
+python3 skills/dev-scan/vendor/reddit-search/reddit-search.py "{Q_REDDIT}" --count 20 --comments 5 --time {TIME_PERIOD} --json > "$D/reddit.json" 2>"$D/reddit.err" &
+python3 skills/dev-scan/vendor/hn-search/hn-search.py "{Q_HN}" --count 10 --comments 5 --time {TIME_PERIOD} --json > "$D/hn.json" 2>"$D/hn.err" &
+python3 skills/dev-scan/vendor/ph-search/ph-search.py "{Q_PH}" --count 10 --comments 3 --time {TIME_PERIOD} --json > "$D/ph.json" 2>"$D/ph.err" &
 wait
 
 echo "=== Reddit ===" && cat "$D/reddit.json"
@@ -140,19 +158,21 @@ echo "=== ProductHunt ===" && cat "$D/ph.json"
 
 **Bash call 2 — chromux sources (sequential, same Bash call):**
 ```bash
-D=/tmp/dev-scan-results-$$
+D="$(cat /tmp/dev-scan-current-dir)"
 
 node skills/dev-scan/vendor/chromux-search/x-search.mjs "{Q_TWITTER}" --count 20 --json > "$D/x.json" 2>"$D/x.err"
 echo "=== X/Twitter ===" && cat "$D/x.json"
 
-node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_DEVTO}" --site dev.to --time m --count 10 --comments 5 --body 500 --json > "$D/devto.json" 2>"$D/devto.err"
+node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_DEVTO}" --site dev.to --time {TIME_SHORT} --count 10 --comments 5 --body 500 --json > "$D/devto.json" 2>"$D/devto.err"
 echo "=== Dev.to ===" && cat "$D/devto.json"
 
-node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_LOBSTERS}" --site lobste.rs --time m --count 10 --comments 5 --json > "$D/lobsters.json" 2>"$D/lobsters.err"
+node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_LOBSTERS}" --site lobste.rs --time {TIME_SHORT} --count 10 --comments 5 --json > "$D/lobsters.json" 2>"$D/lobsters.err"
 echo "=== Lobsters ===" && cat "$D/lobsters.json"
 
-rm -rf "$D"
+rm -rf "$D" /tmp/dev-scan-current-dir
 ```
+
+**`TIME_SHORT` mapping**: `month`→`m`, `week`→`w`, `year`→`y`, `all`→`a` (web-search.mjs uses single-letter time codes).
 
 - Omit any source that failed `--check` in Step 0 or is not relevant (e.g. skip PH line if `Q_PH` not set).
 - If chromux unavailable, replace Dev.to/Lobsters/X lines with `WebSearch` fallback.

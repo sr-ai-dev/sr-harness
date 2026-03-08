@@ -179,7 +179,8 @@ async function search(query, { site, count, time, enrich, maxComments, bodyLen }
       process.stderr.write(`[web-search] Enriching (${i + 1}/${results.length}): ${r.url}\n`);
       try {
         cx('open', es, r.url);
-        cx('wait', es, '1500');
+        const wait = (r.url.includes('reddit.com') || r.url.includes('x.com')) ? '3000' : '1500';
+        cx('wait', es, wait);
         const content = JSON.parse(cx('eval', es, extractorFor(r.url, maxComments, bodyLen)));
         enriched.push({ ...r, ...content });
       } catch (err) {

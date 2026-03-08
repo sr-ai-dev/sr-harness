@@ -223,7 +223,7 @@ rm -rf "$D" /tmp/dev-scan-current-dir
 
 #### 3-0. Comment-level Sentiment Tagging
 
-For every comment extracted from Reddit and X/Twitter (both API and Google enriched results), tag sentiment:
+For every comment extracted from Reddit and X/Twitter (Google `site:` enriched results), tag sentiment:
 
 | Tag | When to apply |
 |-----|---------------|

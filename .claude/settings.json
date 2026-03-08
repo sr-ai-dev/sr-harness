@@ -10,9 +10,7 @@
       "Bash(git ls-tree:*)",
       "Bash(gh pr:*)",
       "Bash(gh pr list:*)",
-      "Bash(git worktree:*)",
       "Bash(tmux:*)",
-      "Bash(hy:*)",
       "Bash(chromux:*)",
       "Bash(npx @team-attention/chromux:*)"
     ]
@@ -39,7 +37,7 @@
           },
           {
             "type": "command",
-            "command": ".claude/scripts/rubric-loop-cleanup.sh"
+            "command": ".claude/scripts/rulph-cleanup.sh"
           },
           {
             "type": "command",
@@ -54,19 +52,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/capture-session.sh"
-          },
-          {
-            "type": "command",
             "command": ".claude/scripts/ultrawork-init-hook.sh"
           },
           {
             "type": "command",
             "command": ".claude/scripts/skill-session-init.sh"
-          },
-          {
-            "type": "command",
-            "command": "scripts/hy-session-hook.sh"
           },
           {
             "type": "command",
@@ -89,7 +79,7 @@
           },
           {
             "type": "command",
-            "command": ".claude/scripts/rubric-loop-init.sh"
+            "command": ".claude/scripts/rulph-init.sh"
           }
         ]
       },
@@ -140,7 +130,7 @@
           },
           {
             "type": "command",
-            "command": ".claude/scripts/rubric-loop-stop.sh"
+            "command": ".claude/scripts/rulph-stop.sh"
           }
         ]
       }

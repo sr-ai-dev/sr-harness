@@ -1,12 +1,12 @@
 #!/bin/bash
-# rubric-loop-stop.sh - Stop hook
+# rulph-stop.sh - Stop hook
 #
-# Purpose: Block Claude from stopping mid-loop in rubric-loop skill
-# State is session-scoped (rubric-loop-$SESSION_ID.json).
+# Purpose: Block Claude from stopping mid-loop in rulph skill
+# State is session-scoped (rulph-$SESSION_ID.json).
 #
 # Decision logic:
 #   Allow stop when:
-#     - No state file (not in rubric-loop)
+#     - No state file (not in rulph)
 #     - status == "completed" (Phase 4 finished)
 #     - score >= threshold (target met)
 #     - round > max_rounds (circuit breaker)
@@ -27,9 +27,9 @@ if [[ -z "$SESSION_ID" ]]; then
   SESSION_ID="unknown"
 fi
 
-STATE_FILE="$STATE_DIR/rubric-loop-$SESSION_ID.json"
+STATE_FILE="$STATE_DIR/rulph-$SESSION_ID.json"
 
-# No state file = not in rubric-loop, allow exit
+# No state file = not in rulph, allow exit
 if [[ ! -f "$STATE_FILE" ]]; then
   exit 0
 fi
@@ -76,7 +76,7 @@ if [[ "$round" -gt "$max_rounds" ]] && [[ "$max_rounds" -gt 0 ]]; then
 fi
 
 # Not complete — block stop and continue
-REASON="RUBRIC-LOOP (hook iteration ${iteration}/${max_iterations}): Score ${score}/${threshold}, Round ${round}/${max_rounds}. Loop is still active — continue the rubric-loop workflow. Do NOT stop until Phase 4 (Final Report) is output."
+REASON="RULPH (hook iteration ${iteration}/${max_iterations}): Score ${score}/${threshold}, Round ${round}/${max_rounds}. Loop is still active — continue the rulph workflow. Do NOT stop until Phase 4 (Final Report) is output."
 
 jq -n --arg reason "$REASON" '{decision: "block", reason: $reason}'
 

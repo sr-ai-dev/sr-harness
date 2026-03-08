@@ -1,8 +1,8 @@
 #!/bin/bash
-# rubric-loop-init.sh - PreToolUse[Skill] hook
+# rulph-init.sh - PreToolUse[Skill] hook
 #
-# Purpose: Create rubric-loop state marker when skill is invoked
-# Activation: tool_name="Skill" && tool_input.skill contains "rubric-loop"
+# Purpose: Create rulph state marker when skill is invoked
+# Activation: tool_name="Skill" && tool_input.skill contains "rulph"
 #
 # The SKILL.md itself writes the full state (score, threshold, round).
 # This hook just creates the initial marker + safety iteration counter.
@@ -19,8 +19,8 @@ HOOK_INPUT=$(cat)
 SKILL_NAME=$(echo "$HOOK_INPUT" | jq -r '.tool_input.skill // empty')
 SESSION_ID=$(echo "$HOOK_INPUT" | jq -r '.session_id // empty')
 
-# Only process rubric-loop skill
-if [[ "$SKILL_NAME" != *"rubric-loop"* ]]; then
+# Only process rulph skill
+if [[ "$SKILL_NAME" != *"rulph"* ]]; then
   exit 0
 fi
 
@@ -29,7 +29,7 @@ if [[ -z "$SESSION_ID" ]]; then
   SESSION_ID="unknown"
 fi
 
-STATE_FILE="$STATE_DIR/rubric-loop-$SESSION_ID.json"
+STATE_FILE="$STATE_DIR/rulph-$SESSION_ID.json"
 
 mkdir -p "$STATE_DIR"
 

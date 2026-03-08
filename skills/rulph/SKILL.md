@@ -1,10 +1,10 @@
 ---
-name: rubric-loop
+name: rulph
 description: |
   Iterative rubric-based evaluation and self-improvement loop. Builds a scoring rubric interactively,
   evaluates an artifact with multiple models in parallel (Codex, Gemini, Claude), then autonomously
   improves the artifact one criterion at a time until a score threshold is met or circuit breaker fires.
-  "/rubric-loop", "rubric evaluate", "rubric score", "multi-model evaluate",
+  "/rulph", "rubric evaluate", "rubric score", "multi-model evaluate",
   "score and improve", "evaluate and iterate", "grade this",
   "루브릭 루프", "채점 루프", "자율 개선", "개선 루프", "루브릭 평가"
 allowed-tools:
@@ -24,7 +24,7 @@ validate_prompt: |
   Must include state file write for Stop hook integration.
 ---
 
-# rubric-loop
+# rulph
 
 Iterative self-improvement skill driven by a user-defined rubric. Builds a scoring rubric interactively, evaluates an artifact with multiple models in parallel, then loops autonomously — improving one criterion at a time — until the score meets the threshold or the circuit breaker fires. No user interaction after Phase 1.
 
@@ -135,12 +135,12 @@ Rubric locked. Starting evaluation.
 **State init** — write the loop state so the Stop hook can track progress. The state file is session-scoped to prevent cross-session interference:
 
 ```
-Bash: SESSION_ID=$(jq -r '.session_id // "unknown"' "$HOME/.claude/.session-context" 2>/dev/null || echo "unknown") && mkdir -p "$HOME/.claude/.hook-state" && cat > "$HOME/.claude/.hook-state/rubric-loop-$SESSION_ID.json" <<STATEOF
+Bash: SESSION_ID=$(jq -r '.session_id // "unknown"' "$HOME/.claude/.session-context" 2>/dev/null || echo "unknown") && mkdir -p "$HOME/.claude/.hook-state" && cat > "$HOME/.claude/.hook-state/rulph-$SESSION_ID.json" <<STATEOF
 {"round":0,"max_rounds":5,"score":0,"threshold":[threshold],"status":"active","session_id":"$SESSION_ID","iteration":0,"max_iterations":15}
 STATEOF
 ```
 
-Replace `[threshold]` with the actual threshold value. The state file uses `rubric-loop-$SESSION_ID.json` naming. This file is read by the Stop hook to decide whether the loop should continue. The `iteration`/`max_iterations` fields are the Stop hook's safety counter — always preserve them in subsequent state updates.
+Replace `[threshold]` with the actual threshold value. The state file uses `rulph-$SESSION_ID.json` naming. This file is read by the Stop hook to decide whether the loop should continue. The `iteration`/`max_iterations` fields are the Stop hook's safety counter — always preserve them in subsequent state updates.
 
 ---
 
@@ -244,7 +244,7 @@ Collect suggestions from all AVAILABLE models. Prioritize the criterion with the
 **State update** — after every scoring round, update the session-scoped state file (preserve `iteration`/`max_iterations` for the Stop hook's safety counter):
 
 ```
-Bash: SESSION_ID=$(jq -r '.session_id // "unknown"' "$HOME/.claude/.session-context" 2>/dev/null || echo "unknown") && cat > "$HOME/.claude/.hook-state/rubric-loop-$SESSION_ID.json" <<STATEOF
+Bash: SESSION_ID=$(jq -r '.session_id // "unknown"' "$HOME/.claude/.session-context" 2>/dev/null || echo "unknown") && cat > "$HOME/.claude/.hook-state/rulph-$SESSION_ID.json" <<STATEOF
 {"round":[round],"max_rounds":[max_rounds],"score":[overall],"threshold":[threshold],"status":"active","session_id":"$SESSION_ID","iteration":0,"max_iterations":15}
 STATEOF
 ```
@@ -340,7 +340,7 @@ After the worker completes:
 **State update** — mark as completed so the Stop hook allows exit:
 
 ```
-Bash: SESSION_ID=$(jq -r '.session_id // "unknown"' "$HOME/.claude/.session-context" 2>/dev/null || echo "unknown") && cat > "$HOME/.claude/.hook-state/rubric-loop-$SESSION_ID.json" <<'STATEOF'
+Bash: SESSION_ID=$(jq -r '.session_id // "unknown"' "$HOME/.claude/.session-context" 2>/dev/null || echo "unknown") && cat > "$HOME/.claude/.hook-state/rulph-$SESSION_ID.json" <<'STATEOF'
 {"status":"completed"}
 STATEOF
 ```
@@ -350,7 +350,7 @@ STATEOF
 Display the complete evaluation summary:
 
 ```
-## Rubric-Loop Final Report
+## Rulph Final Report
 
 **Artifact**: [artifact description or path]
 **Rubric**: [N] criteria · threshold [threshold]/100 · floor [floor]/100
@@ -381,9 +381,9 @@ Display the complete evaluation summary:
 Always save the rubric and scores automatically. Include the full report in the saved file.
 
 ```
-Bash: mkdir -p .dev/rubric-loop
+Bash: mkdir -p .dev/rulph
 
-Write to .dev/rubric-loop/$(date +%Y-%m-%d-%H%M%S)-report.md:
+Write to .dev/rulph/$(date +%Y-%m-%d-%H%M%S)-report.md:
   [Full rubric definition]
   [Score history table]
   [Final scores table]
@@ -391,7 +391,7 @@ Write to .dev/rubric-loop/$(date +%Y-%m-%d-%H%M%S)-report.md:
 ```
 
 Close with:
-> "Finished! Final score: [final_score]/100 after [N] round(s). Report saved to .dev/rubric-loop/."
+> "Finished! Final score: [final_score]/100 after [N] round(s). Report saved to .dev/rulph/."
 
 ---
 

@@ -1,7 +1,7 @@
 #!/bin/bash
-# rubric-loop-cleanup.sh - SessionEnd hook
+# rulph-cleanup.sh - SessionEnd hook
 #
-# Purpose: Clean up rubric-loop state file when session ends
+# Purpose: Clean up rulph state file when session ends
 # Prevents orphan state from blocking future sessions
 
 STATE_DIR="$HOME/.claude/.hook-state"
@@ -15,6 +15,6 @@ if [ -z "$session_id" ]; then
 fi
 
 # Remove session-scoped state file if it exists
-rm -f "$STATE_DIR/rubric-loop-$session_id.json"
+rm -f "$STATE_DIR/rulph-$session_id.json"
 
 exit 0

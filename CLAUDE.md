@@ -96,7 +96,14 @@ Hooks are registered in `.claude/settings.local.json` and automate pipeline tran
 - Plugin version is in `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
 - **Bump both files** in a single commit on `develop` before merging to `main`
 
-## Recent Changes (v0.6.6)
+## Recent Changes (v0.7.0)
+
+- refactor(hooks): consolidate 7 hooks into 4 unified skill-session hooks (`skill-session-init`, `skill-session-guard`, `skill-session-stop`, `skill-session-cleanup`) with per-session state in `~/.claude/.hook-state/{session_id}.json`
+- feat(skills): replace v1 specify/execute with v2 (spec.json-native, dev-cli driven, no PLAN.md dependency)
+- feat(dev-cli): add `spec status` subcommand for hook-based task completion checking
+- feat(agents): update browser-explorer to chromux-based architecture (raw CDP, isolated Chrome profile)
+
+## Previous Changes (v0.6.6)
 
 - feat(bugfix): add `/bugfix` skill and `debugger` agent for root cause-based one-shot bug fixing (DIAGNOSE → FIX → REVIEW & COMMIT, adaptive SIMPLE/COMPLEX mode, circuit breaker with `/specify` escalation)
 - feat(persist): add `!rph` (Ralph Loop) and `!rv` (Re-validate) magic keyword hooks with DoD guard, zombie cleanup, orphan GC

@@ -17,6 +17,7 @@ Usage:
   dev-cli spec task <task-id> --status <status> [--summary "..."] <path>  Update task status
   dev-cli spec task <task-id> --get <path>                               Get task details as JSON
   dev-cli spec status <path>                     Show task completion status (exit 0=done, 1=incomplete)
+  dev-cli spec meta <path>                       Show spec meta (name, goal, non_goals, mode, etc.)
   dev-cli spec check <path>                      Check internal consistency
   dev-cli spec amend --reason <feedback-id> --spec <path>  Amend spec.json based on feedback
 
@@ -31,6 +32,7 @@ Examples:
   dev-cli spec task T1 --status done --summary "implemented" ./spec.json
   dev-cli spec task T1 --get ./spec.json
   dev-cli spec status ./spec.json
+  dev-cli spec meta ./spec.json
   dev-cli spec check ./spec.json
   dev-cli spec amend --reason fb-001 --spec ./spec.json
 `;
@@ -831,6 +833,22 @@ async function handleStatus(args) {
   process.exit(remaining.length === 0 ? 0 : 1);
 }
 
+async function handleMeta(args) {
+  const filePath = args[0];
+
+  if (!filePath) {
+    process.stderr.write('Error: missing <path> argument\n');
+    process.stderr.write('Usage: dev-cli spec meta <path>\n');
+    process.exit(1);
+  }
+
+  const specData = loadSpec(resolve(filePath));
+  const meta = specData.meta || {};
+
+  process.stdout.write(JSON.stringify(meta, null, 2) + '\n');
+  process.exit(0);
+}
+
 async function handleCheck(args) {
   const filePath = args[0];
 
@@ -932,6 +950,8 @@ export default async function spec(args) {
     await handleTask(args.slice(1));
   } else if (subcommand === 'status') {
     await handleStatus(args.slice(1));
+  } else if (subcommand === 'meta') {
+    await handleMeta(args.slice(1));
   } else if (subcommand === 'check') {
     await handleCheck(args.slice(1));
   } else if (subcommand === 'amend') {

@@ -12,7 +12,9 @@
       "Bash(gh pr list:*)",
       "Bash(git worktree:*)",
       "Bash(tmux:*)",
-      "Bash(hy:*)"
+      "Bash(hy:*)",
+      "Bash(chromux:*)",
+      "Bash(npx @team-attention/chromux:*)"
     ]
   },
   "hooks": {

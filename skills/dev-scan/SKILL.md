@@ -1,7 +1,7 @@
 ---
 name: dev-scan
 description: Collect diverse opinions on technical topics from developer communities. Use for "developer reactions", "community opinions" requests. Aggregates Reddit, HN, Dev.to, Lobsters, ProductHunt, etc.
-version: 2.1.0
+version: 3.0.0
 ---
 
 # Dev Opinions Scan
@@ -20,11 +20,11 @@ Quickly understand **diverse perspectives** on technical topics:
 
 | Platform | Method |
 |----------|--------|
-| Reddit | Vendored reddit-search.py (`python3`) — public JSON API, no key needed |
-| X (Twitter) | Vendored x-search.mjs (`chromux`) — real Chrome with existing login, no API keys |
+| Reddit | Vendored web-search.mjs (`chromux`) — Google `site:reddit.com` + enrichment (post body, comments, score) |
+| X (Twitter) | Vendored web-search.mjs (`chromux`) — Google `site:x.com` + enrichment (tweets, likes, replies) |
 | Hacker News | Vendored hn-search.py (`python3`) — Algolia API, no key needed |
-| Dev.to | Vendored web-search.mjs (`chromux`) — Google search + content enrichment via real Chrome |
-| Lobsters | Vendored web-search.mjs (`chromux`) — Google search + content enrichment via real Chrome |
+| Dev.to | Vendored web-search.mjs (`chromux`) — Google `site:dev.to` + enrichment (article, comments) |
+| Lobsters | Vendored web-search.mjs (`chromux`) — Google `site:lobste.rs` + enrichment (article, comments) |
 | ProductHunt | Vendored ph-search.py (`python3`) — GraphQL API, requires `PRODUCT_HUNT_TOKEN` env var |
 
 ## Execution
@@ -37,28 +37,20 @@ The only way to parallelize is within one shell invocation.
 
 ```bash
 mkdir -p /tmp/dev-scan-$$
-python3 skills/dev-scan/vendor/reddit-search/reddit-search.py --check > /tmp/dev-scan-$$/reddit.txt 2>&1 &
-node skills/dev-scan/vendor/chromux-search/x-search.mjs --check > /tmp/dev-scan-$$/x.txt 2>&1 &
-python3 skills/dev-scan/vendor/hn-search/hn-search.py --check > /tmp/dev-scan-$$/hn.txt 2>&1 &
 node skills/dev-scan/vendor/chromux-search/web-search.mjs --check > /tmp/dev-scan-$$/web.txt 2>&1 &
+python3 skills/dev-scan/vendor/hn-search/hn-search.py --check > /tmp/dev-scan-$$/hn.txt 2>&1 &
 python3 skills/dev-scan/vendor/ph-search/ph-search.py --check > /tmp/dev-scan-$$/ph.txt 2>&1 &
 wait
-echo "=== Reddit ===" && cat /tmp/dev-scan-$$/reddit.txt
-echo "=== X/Twitter ===" && cat /tmp/dev-scan-$$/x.txt
-echo "=== HN ===" && cat /tmp/dev-scan-$$/hn.txt
 echo "=== Web (chromux) ===" && cat /tmp/dev-scan-$$/web.txt
+echo "=== HN ===" && cat /tmp/dev-scan-$$/hn.txt
 echo "=== ProductHunt ===" && cat /tmp/dev-scan-$$/ph.txt
 rm -rf /tmp/dev-scan-$$
 ```
 
 | Result | Action |
 |--------|--------|
-| `reddit-search --check` → `available: true` | Reddit source available |
-| `reddit-search --check` → `available: false` | Skip Reddit, warn user |
-| `x-search --check` → `authenticated: true` | X/Twitter source available |
-| `x-search --check` → `authenticated: false` | Skip X/Twitter, warn: "chromux default 프로필에서 X.com 로그인 필요" |
-| `web-search --check` → `available: true` | Dev.to/Lobsters source available (Google search + enrichment via chromux) |
-| `web-search --check` → `available: false` | Fall back to WebSearch for Dev.to/Lobsters |
+| `web-search --check` → `available: true` | chromux available — Reddit, X, Dev.to, Lobsters all use Google `site:` + enrichment |
+| `web-search --check` → `available: false` | Fall back to WebSearch tool for all Google-based sources |
 | `hn-search --check` → `available: true` | Hacker News source available |
 | `hn-search --check` → `available: false` | Fall back to WebSearch for HN |
 | `ph-search --check` → `available: true` | ProductHunt source available |
@@ -83,44 +75,76 @@ Examples:
 - "Community opinions on Bun vs Deno" → topic: `Bun vs Deno`, entities: [`Bun`, `Deno`], type: `comparison`
 - "What happened with Redis license" → topic: `Redis license`, entities: [`Redis`], type: `event`
 
-#### 1-2. Source-Specific Query Optimization
+#### 1-2. Query Decomposition
 
-Each platform's search engine works differently. Generate one optimized query per source.
+User requests are often complex or conversational. Before generating platform-specific queries, decompose the request into **atomic search concepts** that search engines can match effectively.
 
-| Source | Variable | Strategy |
-|--------|----------|----------|
-| Reddit | `Q_REDDIT` | Natural phrasing. Keep "vs" for comparisons — Reddit titles use it. Script handles broadening internally. |
-| Reddit (Google) | `Q_REDDIT_G` | Same as `Q_REDDIT`. Google `site:reddit.com` catches threads the Reddit API misses. |
-| X/Twitter | `Q_TWITTER` | Short key terms + search operators. Append `since:YYYY-MM-DD` (30 days ago) and `min_faves:5` for quality filtering. Results sorted by popularity (Top). |
-| X (Google) | `Q_TWITTER_G` | Core key terms only (no `since:` or `min_faves:`). Google `site:x.com` finds popular threads/discussions. |
-| HN | `Q_HN` | Specific technical terms. Drop "vs" — Algolia full-text matches better without. |
-| Dev.to | `Q_DEVTO` | Add context word (`comparison`/`review`/`guide`) for better Google recall. |
-| Lobsters | `Q_LOBSTERS` | Simple technical terms. Small community — keep query broad for recall. |
-| ProductHunt | `Q_PH` | Product/tool names. Drop generic words — PH topics are specific slugs. **Only generate if PH is relevant (see below).** |
+**Why this matters**: Search engines match keywords, not intent. A verbose question like "Is React 19's use() hook a viable replacement for useEffect patterns in production apps?" will miss threads titled "use() vs useEffect" or "React 19 hooks review". Decomposition bridges this gap.
+
+**Process**:
+
+1. **Extract core entities**: Product/technology names exactly as communities write them
+2. **Generate query variants** by search intent:
+   - `core`: The most concise keyword combination (2-4 words)
+   - `versus`: Direct comparison form if applicable ("A vs B")
+   - `opinion`: How people ask about it ("A worth it", "A review", "A experience")
+   - `technical`: Specific feature/aspect if the question targets one ("A feature X")
+3. **Select best variant per platform** (see mapping below)
+
+**Example**: "React 19의 use() hook이 기존 useEffect 패턴을 대체할 수 있는가"
+
+| Variant | Query |
+|---------|-------|
+| `core` | `React 19 use hook` |
+| `versus` | `use() vs useEffect` |
+| `opinion` | `React 19 use hook worth it` |
+| `technical` | `React 19 use hook replace useEffect` |
+
+**Example**: "Cursor가 돈 낼 만한 가치가 있어? GitHub Copilot이랑 비교해서"
+
+| Variant | Query |
+|---------|-------|
+| `core` | `Cursor AI editor` |
+| `versus` | `Cursor vs GitHub Copilot` |
+| `opinion` | `Cursor worth paying for` |
+| `technical` | (not applicable — no specific feature) |
+
+**Example**: "What happened with the Redis license change"
+
+| Variant | Query |
+|---------|-------|
+| `core` | `Redis license` |
+| `versus` | (not applicable) |
+| `opinion` | `Redis license change reaction` |
+| `technical` | `Redis SSPL Valkey fork` |
+
+#### 1-3. Source-Specific Query Mapping
+
+Map the best variant from Step 1-2 to each platform's search behavior.
+
+| Source | Variable | Best variant | Platform-specific adjustments |
+|--------|----------|-------------|-------------------------------|
+| Reddit | `Q_REDDIT` | `versus` or `opinion` | Google `site:reddit.com` — keep "vs", natural phrasing. Enrichment extracts post body + top comments. |
+| X/Twitter | `Q_TWITTER` | `versus` or `core` | Google `site:x.com` — short terms. Enrichment extracts tweets + likes + replies. |
+| HN | `Q_HN` | `core` or `technical` | Drop "vs" — Algolia full-text matches better without. |
+| Dev.to | `Q_DEVTO` | `opinion` or `versus` | Google `site:dev.to` — add context word (`comparison`/`review`/`guide`) for recall. |
+| Lobsters | `Q_LOBSTERS` | `core` | Google `site:lobste.rs` — simple terms. Small community, keep broad. |
+| ProductHunt | `Q_PH` | `core` | Product names only. Drop generic words. **Only if PH relevant (see below).** |
 
 **ProductHunt relevance check** — PH is a product launch community. Only set `Q_PH` when the query involves **specific products, tools, or SaaS** (e.g. "Cursor", "Linear", "Supabase vs Firebase"). Skip PH when the topic is abstract/conceptual (e.g. "microservices best practices", "Rust async patterns", "tech layoffs").
 
-**Query type rules:**
+**Full example**: user asks "claude code vs codex"
 
-| Type | Reddit | X/Twitter | HN | Dev.to (Google) | Lobsters (Google) | ProductHunt |
-|------|--------|-----------|-----|------|------|------|
-| Comparison ("A vs B") | Keep "A vs B" | "A B since:… min_faves:5" | "A B" | "A vs B comparison" | "A B" | "A B" |
-| Opinion ("reactions to X") | "X" | "X since:… min_faves:5" | "X" | "X review" | "X" | "X" |
-| Technology ("X feature") | "X feature" | "X feature since:… min_faves:5" | "X feature" | "X feature guide" | "X feature" | "X" |
-| Event ("X release") | "X release" | "X since:… min_faves:5" | "X" | "X announcement" | "X" | "X" |
+Decomposition: `core`=`claude code codex`, `versus`=`claude code vs codex`, `opinion`=`claude code vs codex worth it`
 
-**Example**: user asks "claude code vs codex"
-
-| Variable | Optimized Query |
-|----------|----------------|
-| `Q_REDDIT` | `claude code vs codex` |
-| `Q_REDDIT_G` | `claude code vs codex` |
-| `Q_TWITTER` | `claude code codex since:2026-01-17 min_faves:5` |
-| `Q_TWITTER_G` | `claude code vs codex` |
-| `Q_HN` | `claude code codex` |
-| `Q_DEVTO` | `claude code vs codex comparison` |
-| `Q_LOBSTERS` | `claude code codex` |
-| `Q_PH` | `claude code codex` |
+| Variable | Variant used | Optimized Query |
+|----------|-------------|----------------|
+| `Q_REDDIT` | versus | `claude code vs codex` |
+| `Q_TWITTER` | versus | `claude code vs codex` |
+| `Q_HN` | core | `claude code codex` |
+| `Q_DEVTO` | versus | `claude code vs codex comparison` |
+| `Q_LOBSTERS` | core | `claude code codex` |
+| `Q_PH` | core | `claude code codex` |
 
 ### Step 1.5: Time Period
 
@@ -138,8 +162,7 @@ Use `TIME_PERIOD` in all search commands below.
 
 ### Step 2: Search (Two Bash Calls)
 
-chromux scripts share one Chrome instance — running them simultaneously causes tab conflicts.
-Split into two phases: API-based sources in parallel, then chromux sources sequentially.
+Split into two phases: API sources in parallel (shell backgrounding), then all Google `site:` sources sequentially (chromux shares one Chrome instance — simultaneous use causes tab conflicts).
 
 **Both Bash calls must share the same temp directory.** Generate a stable `RUN_ID` once and use it in both calls.
 
@@ -150,21 +173,22 @@ D="/tmp/$RUN_ID"
 mkdir -p "$D"
 echo "$D" > /tmp/dev-scan-current-dir
 
-python3 skills/dev-scan/vendor/reddit-search/reddit-search.py "{Q_REDDIT}" --count 20 --comments 5 --time {TIME_PERIOD} --json > "$D/reddit.json" 2>"$D/reddit.err" &
 python3 skills/dev-scan/vendor/hn-search/hn-search.py "{Q_HN}" --count 10 --comments 5 --time {TIME_PERIOD} --json > "$D/hn.json" 2>"$D/hn.err" &
 python3 skills/dev-scan/vendor/ph-search/ph-search.py "{Q_PH}" --count 10 --comments 3 --time {TIME_PERIOD} --json > "$D/ph.json" 2>"$D/ph.err" &
 wait
 
-echo "=== Reddit ===" && cat "$D/reddit.json"
 echo "=== HN ===" && cat "$D/hn.json"
 echo "=== ProductHunt ===" && cat "$D/ph.json"
 ```
 
-**Bash call 2 — chromux sources (sequential, same Bash call):**
+**Bash call 2 — Google `site:` sources (sequential via chromux, same Bash call):**
 ```bash
 D="$(cat /tmp/dev-scan-current-dir)"
 
-node skills/dev-scan/vendor/chromux-search/x-search.mjs "{Q_TWITTER}" --count 20 --json > "$D/x.json" 2>"$D/x.err"
+node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_REDDIT}" --site reddit.com --time {TIME_SHORT} --count 10 --comments 5 --body 500 --json > "$D/reddit.json" 2>"$D/reddit.err"
+echo "=== Reddit ===" && cat "$D/reddit.json"
+
+node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_TWITTER}" --site x.com --time {TIME_SHORT} --count 10 --comments 5 --json > "$D/x.json" 2>"$D/x.err"
 echo "=== X/Twitter ===" && cat "$D/x.json"
 
 node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_DEVTO}" --site dev.to --time {TIME_SHORT} --count 10 --comments 5 --body 500 --json > "$D/devto.json" 2>"$D/devto.err"
@@ -173,45 +197,50 @@ echo "=== Dev.to ===" && cat "$D/devto.json"
 node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_LOBSTERS}" --site lobste.rs --time {TIME_SHORT} --count 10 --comments 5 --json > "$D/lobsters.json" 2>"$D/lobsters.err"
 echo "=== Lobsters ===" && cat "$D/lobsters.json"
 
-node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_REDDIT_G}" --site reddit.com --time {TIME_SHORT} --count 10 --no-enrich --json > "$D/reddit-g.json" 2>"$D/reddit-g.err"
-echo "=== Reddit (Google) ===" && cat "$D/reddit-g.json"
-
-node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_TWITTER_G}" --site x.com --time {TIME_SHORT} --count 10 --no-enrich --json > "$D/x-g.json" 2>"$D/x-g.err"
-echo "=== X/Twitter (Google) ===" && cat "$D/x-g.json"
-
 rm -rf "$D" /tmp/dev-scan-current-dir
 ```
 
 **`TIME_SHORT` mapping**: `month`→`m`, `week`→`w`, `year`→`y`, `all`→`a` (web-search.mjs uses single-letter time codes).
 
 - Omit any source that failed `--check` in Step 0 or is not relevant (e.g. skip PH line if `Q_PH` not set).
-- If chromux unavailable, replace Dev.to/Lobsters/X lines with `WebSearch` fallback.
+- If chromux unavailable, fall back to `WebSearch` tool with `site:` filter for all Google-based sources.
 - Run Bash call 1 and 2 in the **same message** (Claude Code sends them sequentially, but this saves a round-trip vs separate messages).
 
 #### Source Notes
 
 | Source | Tool | Notes |
 |--------|------|-------|
-| Reddit | reddit-search.py | Public JSON API, no key. Includes top comments with author/score. `--subreddits` for targeted search. |
-| Reddit (Google) | web-search.mjs | Google `site:reddit.com` — catches threads the Reddit API misses. `--no-enrich` (URLs+snippets only, fast). |
-| X/Twitter | x-search.mjs | chromux + existing X.com login. Auto-scrolls. Output: text, author, likes, RTs. |
-| X (Google) | web-search.mjs | Google `site:x.com` — finds popular threads Google indexes. `--no-enrich` (URLs+snippets only, fast). |
+| Reddit | web-search.mjs | Google `site:reddit.com` + enrichment. Extracts: post title, body, author, score, top comments with author/score. |
+| X/Twitter | web-search.mjs | Google `site:x.com` + enrichment. Extracts: tweets, author, handle, likes, time. |
 | HN | hn-search.py | Algolia API, no key. Stories with points and top comments. |
-| Dev.to | web-search.mjs | Google `site:dev.to` via chromux. Enriches: body, author, tags, comments. |
-| Lobsters | web-search.mjs | Google `site:lobste.rs` via chromux. Enriches: body, author, tags, comments. |
+| Dev.to | web-search.mjs | Google `site:dev.to` + enrichment. Extracts: article body, author, tags, comments. |
+| Lobsters | web-search.mjs | Google `site:lobste.rs` + enrichment. Extracts: article body, author, tags, score, comments. |
 | ProductHunt | ph-search.py | GraphQL API, needs `PRODUCT_HUNT_TOKEN`. Only for product/tool queries. |
 
 ### Step 3: Synthesize & Present
 
-**Merge Google supplementary results**: Deduplicate Reddit (Google) and X (Google) results against the primary API results by URL. Use Google results to discover threads/posts the API missed — cite them as the original platform (Reddit/X), not as "Google".
+**Deduplicate across sources**: If the same URL appears in multiple source results, merge them (keep the richer version with more comments/metadata). Cite by the actual platform (Reddit, X, Dev.to), not "Google".
+
+#### 3-0. Comment-level Sentiment Tagging
+
+For every comment extracted from Reddit and X/Twitter (both API and Google enriched results), tag sentiment:
+
+| Tag | When to apply |
+|-----|---------------|
+| `positive` | Praise, endorsement, excitement, recommendation |
+| `negative` | Criticism, frustration, warning, discouragement |
+| `neutral` | Factual statement, question, "it depends" |
+| `mixed` | Same comment contains both positive and negative points |
+
+Use these tags downstream in Opinion Classification and Controversy detection — comments with opposing sentiment on the same subtopic signal controversy.
 
 #### 3-1. Opinion Classification
 
 Classify collected opinions by:
-- **Pro/Positive**: Supporting opinions
-- **Con/Negative**: Concerns, criticism, alternatives
-- **Neutral/Conditional**: "Only if...", "When used with..."
-- **Experience-based**: Based on actual production use
+- **Pro/Positive**: Supporting opinions (aggregate from `positive` comments)
+- **Con/Negative**: Concerns, criticism, alternatives (aggregate from `negative` comments)
+- **Neutral/Conditional**: "Only if...", "When used with..." (from `neutral`/`mixed`)
+- **Experience-based**: Based on actual production use (any sentiment, but with concrete details)
 
 #### 3-2. Derive Consensus
 
@@ -291,12 +320,9 @@ Find unique or deep insights:
 
 | Situation | Response |
 |------|------|
-| No search results | Skip that platform, focus on others |
-| reddit-search failure / rate limit | Skip Reddit, proceed with other sources |
-| x-search not logged in | Skip X/Twitter, warn: "chromux default 프로필에서 X.com 로그인 필요" |
-| x-search error | Skip X/Twitter, proceed with other sources |
+| No search results for a source | Skip that platform, focus on others |
+| chromux unavailable | Fall back to `WebSearch` tool with `site:` filter for all Google-based sources |
+| web-search enrichment timeout on URL | Skip that URL, include remaining results |
 | hn-search failure | Skip HN, proceed with other sources |
 | ph-search failure / token missing | Skip ProductHunt, proceed with other sources |
-| web-search / chromux unavailable | Fall back to WebSearch with `site:` filter |
-| web-search enrichment timeout on URL | Skip that URL, include remaining results |
 | Topic too new | Note insufficient results, suggest related keywords |

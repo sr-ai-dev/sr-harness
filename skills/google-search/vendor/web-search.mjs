@@ -82,6 +82,46 @@ const LOBSTERS_JS = (mc) => `JSON.stringify({
   })
 })`;
 
+const REDDIT_JS = (mc, bl) => `JSON.stringify({
+  site: "reddit.com", url: location.href,
+  title: (document.querySelector('h1') || document.querySelector('[data-testid="post-title"]'))?.innerText?.trim() || document.title,
+  author: document.querySelector('[data-testid="post_author_link"]')?.innerText?.trim() || '',
+  score: document.querySelector('[data-testid="post-unit-score"]')?.innerText?.trim() || document.querySelector('shreddit-post')?.getAttribute('score') || '',
+  body: (document.querySelector('[data-testid="post-content"]')?.innerText || document.querySelector('[slot="text-body"]')?.innerText || '').trim().slice(0, ${bl}),
+  comments: [...document.querySelectorAll('shreddit-comment')].slice(0, ${mc}).map(el => {
+    return {
+      author: el.getAttribute('author') || '',
+      score: el.getAttribute('score') || '',
+      text: (el.querySelector('[slot="comment"]')?.innerText || '').trim().slice(0, 300)
+    };
+  })
+})`;
+
+const TWITTER_JS = (mc) => `JSON.stringify({
+  site: "x.com", url: location.href,
+  title: '',
+  comments: [...document.querySelectorAll('[data-testid="tweet"]')].slice(0, ${mc + 1}).map(el => {
+    const textEl = el.querySelector('[data-testid="tweetText"]');
+    const userEl = el.querySelector('[data-testid="User-Name"]');
+    const timeEl = el.querySelector('time');
+    const metric = (id) => {
+      const btn = el.querySelector('[data-testid="' + id + '"]');
+      const label = btn?.getAttribute('aria-label') || '';
+      const m = label.match(/([\\d,]+)/);
+      return m ? m[1].replace(/,/g, '') : '0';
+    };
+    if (!textEl) return null;
+    const userParts = userEl?.innerText?.split('\\n') || [];
+    return {
+      author: userParts[0]?.trim() || '',
+      handle: userParts.find(p => p.startsWith('@'))?.trim() || '',
+      text: textEl.innerText.trim().slice(0, 300),
+      likes: metric('like'),
+      time: timeEl?.getAttribute('datetime') || ''
+    };
+  }).filter(Boolean)
+})`;
+
 const GENERIC_JS = (bl) => `JSON.stringify({
   site: "generic", url: location.href,
   title: document.querySelector('h1')?.innerText?.trim() || document.title,
@@ -95,6 +135,8 @@ const GENERIC_JS = (bl) => `JSON.stringify({
 function extractorFor(url, mc, bl) {
   if (url.includes('dev.to')) return DEVTO_JS(mc, bl);
   if (url.includes('lobste.rs')) return LOBSTERS_JS(mc);
+  if (url.includes('reddit.com')) return REDDIT_JS(mc, bl);
+  if (url.includes('x.com') || url.includes('twitter.com')) return TWITTER_JS(mc);
   return GENERIC_JS(bl);
 }
 

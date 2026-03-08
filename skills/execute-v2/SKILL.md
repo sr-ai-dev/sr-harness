@@ -140,7 +140,7 @@ ELSE:
   # Display all pre-work items first
   print("Pre-work items (human actions required before execution):")
   FOR EACH item in pre_work:
-    print("  - {item.action} (blocking={item.blocking})")
+    print("  - [{item.id ?? ''}] {item.dependency}: {item.action} (blocking={item.blocking})")
 
   # Ask user to confirm completion
   FOR EACH item in pre_work WHERE item.blocking == true:
@@ -821,7 +821,7 @@ POST-WORK (human actions after completion)
 ───────────────────────────────────────────────────
 {post_work = spec.external_dependencies.post_work ?? []}
 {FOR EACH item in post_work:}
-- {item.action}
+- [{item.id ?? ''}] {item.dependency}: {item.action}
   {IF item.command:} Run: `{item.command}`
 
 {IF no post_work: "None"}

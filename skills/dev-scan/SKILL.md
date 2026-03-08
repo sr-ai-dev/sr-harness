@@ -90,7 +90,9 @@ Each platform's search engine works differently. Generate one optimized query pe
 | Source | Variable | Strategy |
 |--------|----------|----------|
 | Reddit | `Q_REDDIT` | Natural phrasing. Keep "vs" for comparisons — Reddit titles use it. Script handles broadening internally. |
+| Reddit (Google) | `Q_REDDIT_G` | Same as `Q_REDDIT`. Google `site:reddit.com` catches threads the Reddit API misses. |
 | X/Twitter | `Q_TWITTER` | Short key terms + search operators. Append `since:YYYY-MM-DD` (30 days ago) and `min_faves:5` for quality filtering. Results sorted by popularity (Top). |
+| X (Google) | `Q_TWITTER_G` | Core key terms only (no `since:` or `min_faves:`). Google `site:x.com` finds popular threads/discussions. |
 | HN | `Q_HN` | Specific technical terms. Drop "vs" — Algolia full-text matches better without. |
 | Dev.to | `Q_DEVTO` | Add context word (`comparison`/`review`/`guide`) for better Google recall. |
 | Lobsters | `Q_LOBSTERS` | Simple technical terms. Small community — keep query broad for recall. |
@@ -112,7 +114,9 @@ Each platform's search engine works differently. Generate one optimized query pe
 | Variable | Optimized Query |
 |----------|----------------|
 | `Q_REDDIT` | `claude code vs codex` |
+| `Q_REDDIT_G` | `claude code vs codex` |
 | `Q_TWITTER` | `claude code codex since:2026-01-17 min_faves:5` |
+| `Q_TWITTER_G` | `claude code vs codex` |
 | `Q_HN` | `claude code codex` |
 | `Q_DEVTO` | `claude code vs codex comparison` |
 | `Q_LOBSTERS` | `claude code codex` |
@@ -169,6 +173,12 @@ echo "=== Dev.to ===" && cat "$D/devto.json"
 node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_LOBSTERS}" --site lobste.rs --time {TIME_SHORT} --count 10 --comments 5 --json > "$D/lobsters.json" 2>"$D/lobsters.err"
 echo "=== Lobsters ===" && cat "$D/lobsters.json"
 
+node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_REDDIT_G}" --site reddit.com --time {TIME_SHORT} --count 10 --no-enrich --json > "$D/reddit-g.json" 2>"$D/reddit-g.err"
+echo "=== Reddit (Google) ===" && cat "$D/reddit-g.json"
+
+node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_TWITTER_G}" --site x.com --time {TIME_SHORT} --count 10 --no-enrich --json > "$D/x-g.json" 2>"$D/x-g.err"
+echo "=== X/Twitter (Google) ===" && cat "$D/x-g.json"
+
 rm -rf "$D" /tmp/dev-scan-current-dir
 ```
 
@@ -183,13 +193,17 @@ rm -rf "$D" /tmp/dev-scan-current-dir
 | Source | Tool | Notes |
 |--------|------|-------|
 | Reddit | reddit-search.py | Public JSON API, no key. Includes top comments with author/score. `--subreddits` for targeted search. |
+| Reddit (Google) | web-search.mjs | Google `site:reddit.com` — catches threads the Reddit API misses. `--no-enrich` (URLs+snippets only, fast). |
 | X/Twitter | x-search.mjs | chromux + existing X.com login. Auto-scrolls. Output: text, author, likes, RTs. |
+| X (Google) | web-search.mjs | Google `site:x.com` — finds popular threads Google indexes. `--no-enrich` (URLs+snippets only, fast). |
 | HN | hn-search.py | Algolia API, no key. Stories with points and top comments. |
 | Dev.to | web-search.mjs | Google `site:dev.to` via chromux. Enriches: body, author, tags, comments. |
 | Lobsters | web-search.mjs | Google `site:lobste.rs` via chromux. Enriches: body, author, tags, comments. |
 | ProductHunt | ph-search.py | GraphQL API, needs `PRODUCT_HUNT_TOKEN`. Only for product/tool queries. |
 
 ### Step 3: Synthesize & Present
+
+**Merge Google supplementary results**: Deduplicate Reddit (Google) and X (Google) results against the primary API results by URL. Use Google results to discover threads/posts the API missed — cite them as the original platform (Reddit/X), not as "Google".
 
 #### 3-1. Opinion Classification
 

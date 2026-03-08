@@ -182,7 +182,9 @@ async function search(query, { site, count, time, enrich, maxComments, bodyLen }
         const wait = (r.url.includes('reddit.com') || r.url.includes('x.com')) ? '3000' : '1500';
         cx('wait', es, wait);
         const content = JSON.parse(cx('eval', es, extractorFor(r.url, maxComments, bodyLen)));
-        enriched.push({ ...r, ...content });
+        const empty = !content.body && (!content.comments || content.comments.length === 0);
+        if (empty) process.stderr.write(`[web-search] WARNING: empty enrichment for ${r.url}\n`);
+        enriched.push({ ...r, ...content, enrichEmpty: empty || undefined });
       } catch (err) {
         enriched.push({ ...r, enrichError: err.message });
       }

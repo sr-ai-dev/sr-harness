@@ -1,7 +1,7 @@
 ---
 name: dev-scan
 description: Collect diverse opinions on technical topics from developer communities. Use for "developer reactions", "community opinions" requests. Aggregates Reddit, HN, Dev.to, Lobsters, ProductHunt, etc.
-version: 3.0.0
+version: 3.1.0
 ---
 
 # Dev Opinions Scan
@@ -120,16 +120,16 @@ User requests are often complex or conversational. Before generating platform-sp
 
 #### 1-3. Source-Specific Query Mapping
 
-Map the best variant from Step 1-2 to each platform's search behavior.
+Map the best variant from Step 1-2 to each platform's search behavior. **Store all variants** — the retry step (Step 2.5) needs alternate queries if the primary returns 0 results.
 
-| Source | Variable | Best variant | Platform-specific adjustments |
-|--------|----------|-------------|-------------------------------|
-| Reddit | `Q_REDDIT` | `versus` or `opinion` | Google `site:reddit.com` — keep "vs", natural phrasing. Enrichment extracts post body + top comments. |
-| X/Twitter | `Q_TWITTER` | `versus` or `core` | Google `site:x.com` — short terms. Enrichment extracts tweets + likes + replies. |
-| HN | `Q_HN` | `core` or `technical` | Drop "vs" — Algolia full-text matches better without. |
-| Dev.to | `Q_DEVTO` | `opinion` or `versus` | Google `site:dev.to` — add context word (`comparison`/`review`/`guide`) for recall. |
-| Lobsters | `Q_LOBSTERS` | `core` | Google `site:lobste.rs` — simple terms. Small community, keep broad. |
-| ProductHunt | `Q_PH` | `core` | Product names only. Drop generic words. **Only if PH relevant (see below).** |
+| Source | Variable | Best variant | Retry variant | Platform-specific adjustments |
+|--------|----------|-------------|---------------|-------------------------------|
+| Reddit | `Q_REDDIT` | `versus` or `opinion` | `core` | Google `site:reddit.com` — keep "vs", natural phrasing. Enrichment extracts post body + top comments. |
+| X/Twitter | `Q_TWITTER` | `versus` or `core` | `opinion` | Google `site:x.com` — short terms. Enrichment extracts tweets + likes + replies. |
+| HN | `Q_HN` | `core` or `technical` | `core` (shorter) | Drop "vs" — Algolia full-text matches better without. |
+| Dev.to | `Q_DEVTO` | `opinion` or `versus` | `core` | Google `site:dev.to` — add context word (`comparison`/`review`/`guide`) for recall. |
+| Lobsters | `Q_LOBSTERS` | `core` | `core` (2 words max) | Google `site:lobste.rs` — simple terms. Small community, keep broad. |
+| ProductHunt | `Q_PH` | `core` | — | Product names only. Drop generic words. **Only if PH relevant (see below).** |
 
 **ProductHunt relevance check** — PH is a product launch community. Only set `Q_PH` when the query involves **specific products, tools, or SaaS** (e.g. "Cursor", "Linear", "Supabase vs Firebase"). Skip PH when the topic is abstract/conceptual (e.g. "microservices best practices", "Rust async patterns", "tech layoffs").
 
@@ -160,9 +160,11 @@ Extract time period from user request. Default: `month`.
 
 Use `TIME_PERIOD` in all search commands below.
 
-### Step 2: Search (Two Bash Calls)
+### Step 2: Search (Two Bash Calls → File-Based)
 
 Split into two phases: API sources in parallel (shell backgrounding), then all Google `site:` sources sequentially (chromux shares one Chrome instance — simultaneous use causes tab conflicts).
+
+**Results go to files, not stdout.** Enriched JSON can exceed 50KB — piping to stdout hits Claude Code's output limit. Instead, save to files and use the **Read tool** to access them. This also serves as a log of the scan.
 
 **Both Bash calls must share the same temp directory.** Generate a stable `RUN_ID` once and use it in both calls.
 
@@ -177,34 +179,56 @@ python3 skills/dev-scan/vendor/hn-search/hn-search.py "{Q_HN}" --count 10 --comm
 python3 skills/dev-scan/vendor/ph-search/ph-search.py "{Q_PH}" --count 10 --comments 3 --time {TIME_PERIOD} --json > "$D/ph.json" 2>"$D/ph.err" &
 wait
 
-echo "=== HN ===" && cat "$D/hn.json"
-echo "=== ProductHunt ===" && cat "$D/ph.json"
+echo "RUN_DIR=$D"
+for f in "$D"/*.json; do echo "$(basename $f): $(wc -c < $f) bytes, $(python3 -c "import json,sys; d=json.load(open('$f')); print(len(d) if isinstance(d,list) else 'obj')" 2>/dev/null || echo '?') items"; done
 ```
 
 **Bash call 2 — Google `site:` sources (sequential via chromux, same Bash call):**
 ```bash
 D="$(cat /tmp/dev-scan-current-dir)"
 
-node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_REDDIT}" --site reddit.com --time {TIME_SHORT} --count 10 --comments 5 --body 500 --json > "$D/reddit.json" 2>"$D/reddit.err"
-echo "=== Reddit ===" && cat "$D/reddit.json"
+node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_REDDIT}" --site reddit.com --time {TIME_SHORT} --count 5 --comments 5 --body 300 --json > "$D/reddit.json" 2>"$D/reddit.err"
+node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_TWITTER}" --site x.com --time {TIME_SHORT} --count 5 --comments 5 --json > "$D/x.json" 2>"$D/x.err"
+node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_DEVTO}" --site dev.to --time {TIME_SHORT} --count 5 --comments 5 --body 300 --json > "$D/devto.json" 2>"$D/devto.err"
+node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_LOBSTERS}" --site lobste.rs --time {TIME_SHORT} --count 5 --comments 5 --json > "$D/lobsters.json" 2>"$D/lobsters.err"
 
-node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_TWITTER}" --site x.com --time {TIME_SHORT} --count 10 --comments 5 --json > "$D/x.json" 2>"$D/x.err"
-echo "=== X/Twitter ===" && cat "$D/x.json"
-
-node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_DEVTO}" --site dev.to --time {TIME_SHORT} --count 10 --comments 5 --body 500 --json > "$D/devto.json" 2>"$D/devto.err"
-echo "=== Dev.to ===" && cat "$D/devto.json"
-
-node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_LOBSTERS}" --site lobste.rs --time {TIME_SHORT} --count 10 --comments 5 --json > "$D/lobsters.json" 2>"$D/lobsters.err"
-echo "=== Lobsters ===" && cat "$D/lobsters.json"
-
-rm -rf "$D" /tmp/dev-scan-current-dir
+for f in "$D"/*.json; do echo "$(basename $f): $(wc -c < $f) bytes, $(python3 -c "import json,sys; d=json.load(open('$f')); print(len(d) if isinstance(d,list) else 'obj')" 2>/dev/null || echo '?') items"; done
 ```
+
+**Reading results**: Use the **Read tool** on each `$D/{source}.json` file. Read the files with the most items first (Reddit, Dev.to tend to be richest). Skip files with 0 items.
 
 **`TIME_SHORT` mapping**: `month`→`m`, `week`→`w`, `year`→`y`, `all`→`a` (web-search.mjs uses single-letter time codes).
 
 - Omit any source that failed `--check` in Step 0 or is not relevant (e.g. skip PH line if `Q_PH` not set).
 - If chromux unavailable, fall back to `WebSearch` tool with `site:` filter for all Google-based sources.
 - Run Bash call 1 and 2 in the **same message** (Claude Code sends them sequentially, but this saves a round-trip vs separate messages).
+- **Do NOT `rm -rf "$D"` yet** — keep the files until synthesis is complete. Clean up after final output.
+
+### Step 2.5: Retry Empty Sources
+
+After Step 2, check which sources returned 0 results (empty JSON array `[]`). Empty results often mean the query was too specific or the time window too narrow — not that the community has nothing to say.
+
+**Retry strategy** (one Bash call for all retries):
+
+1. **Switch query variant**: Use the retry variant from the Step 1-3 table. For HN, try the shortest `core` variant (2-3 words). For Lobsters, try just 2 keywords.
+2. **Broaden time range**: If `TIME_PERIOD` was `month`, retry with `year`. If already `year` or `all`, skip time broadening.
+3. **Only retry sources that had 0 results** — don't re-search sources that already have data.
+
+```bash
+D="$(cat /tmp/dev-scan-current-dir)"
+
+# Example: HN returned 0, retry with shorter query + broader time
+python3 skills/dev-scan/vendor/hn-search/hn-search.py "{Q_HN_RETRY}" --count 10 --comments 5 --time year --json > "$D/hn.json" 2>"$D/hn.err"
+
+# Example: Lobsters returned 0, retry with 2-word query + broader time
+node skills/dev-scan/vendor/chromux-search/web-search.mjs "{Q_LOBSTERS_RETRY}" --site lobste.rs --time y --count 5 --comments 5 --json > "$D/lobsters.json" 2>"$D/lobsters.err"
+
+for f in "$D"/*.json; do echo "$(basename $f): $(wc -c < $f) bytes, $(python3 -c "import json,sys; d=json.load(open('$f')); print(len(d) if isinstance(d,list) else 'obj')" 2>/dev/null || echo '?') items"; done
+```
+
+**Skip retry if**: The topic is genuinely niche for that platform (e.g., Lobsters has very few posts on commercial tools). Note the skip reason in the output.
+
+**Max 1 retry per source.** If retry also returns 0, move on.
 
 #### Source Notes
 
@@ -270,9 +294,22 @@ Find unique or deep insights:
 ## Output Format
 
 **Core Principle**: All opinions must have inline source. No opinions without sources.
+The report is designed for quick scanning AND decision-making — TL;DR first, details after.
 
 ```markdown
-## Key Insights
+## TL;DR
+
+> [1-2 sentence summary of overall community sentiment and the key takeaway.
+> e.g. "커뮤니티 전반적으로 X에 긍정적이나, Y 상황에서는 Z가 더 나은 선택이라는 의견 다수."]
+
+## Sentiment Overview
+
+긍정 ████████░░ 75% | 부정 ██░░░░░░░░ 20% | 중립 █░░░░░░░░░ 5%
+Sources: Reddit N건, X N건, HN N건, Dev.to N건, Lobsters N건
+
+---
+
+## Key Findings
 
 ### Consensus
 
@@ -307,7 +344,23 @@ Find unique or deep insights:
    - Source: [Platform](url)
 
 (at least 3)
+
+---
+
+## Decision Signal
+
+- **If you need [topic]**: [Clear recommendation based on majority opinion]
+- **Watch out for**: [Top 2-3 risks/concerns frequently mentioned]
+- **Alternatives worth considering**: [Other options the community recommends, with context on when they fit better]
+- **Confidence**: High/Medium/Low — based on volume and agreement across sources
 ```
+
+### Sentiment Bar Rules
+
+Calculate sentiment from **comment-level tags** (Step 3-0). The bar uses block chars:
+- `█` = 10% filled, `░` = 10% empty
+- Round to nearest 5%. Sum must equal 100%.
+- Count source items (posts + threads, not individual comments) per platform for the "Sources" line.
 
 ### Source Citation Rules
 
@@ -320,9 +373,17 @@ Find unique or deep insights:
 
 | Situation | Response |
 |------|------|
-| No search results for a source | Skip that platform, focus on others |
+| 0 results for a source | **Retry once** with alternate query variant + broader time (Step 2.5). Skip after 2nd failure. |
 | chromux unavailable | Fall back to `WebSearch` tool with `site:` filter for all Google-based sources |
 | web-search enrichment timeout on URL | Skip that URL, include remaining results |
-| hn-search failure | Skip HN, proceed with other sources |
+| hn-search failure | Retry with shorter query. Skip HN if retry also fails. |
 | ph-search failure / token missing | Skip ProductHunt, proceed with other sources |
+| Output too large for stdout | Results are in files — use Read tool (already the default approach) |
 | Topic too new | Note insufficient results, suggest related keywords |
+
+## Cleanup
+
+After synthesis is complete, clean up the temp directory:
+```bash
+D="$(cat /tmp/dev-scan-current-dir)" && rm -rf "$D" /tmp/dev-scan-current-dir
+```

@@ -1,12 +1,10 @@
 import { readFileSync } from 'fs';
 import { createHash } from 'crypto';
-import { fileURLToPath } from 'url';
 import { resolve, dirname, relative } from 'path';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
+import stateSchema from '../../schemas/dev-state-v1.schema.json' with { type: 'json' };
 import { readState, writeState } from '../lib/state-io.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const STATE_HELP = `
 Usage:
@@ -34,14 +32,8 @@ Examples:
   dev-cli state sync --spec ./spec.json --state ./state.json
 `;
 
-function loadStateSchema() {
-  const schemaPath = resolve(__dirname, '../../schemas/dev-state-v1.schema.json');
-  const raw = readFileSync(schemaPath, 'utf8');
-  return JSON.parse(raw);
-}
-
 function getStateValidator() {
-  const schema = loadStateSchema();
+  const schema = stateSchema;
   const ajv = new Ajv2020({ allErrors: true });
   addFormats(ajv);
   return ajv.compile(schema);

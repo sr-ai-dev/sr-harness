@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 
+import specHandler from '../src/handlers/spec.js';
+import stateHandler from '../src/handlers/state.js';
+import sessionHandler from '../src/handlers/session.js';
+import feedbackHandler from '../src/handlers/feedback.js';
+
 const USAGE = `
 dev-cli — Developer workflow CLI
 
@@ -23,10 +28,10 @@ Examples:
 `;
 
 const SUBCOMMANDS = {
-  spec: () => import('../src/handlers/spec.js'),
-  state: () => import('../src/handlers/state.js'),
-  session: () => import('../src/handlers/session.js'),
-  feedback: () => import('../src/handlers/feedback.js'),
+  spec: specHandler,
+  state: stateHandler,
+  session: sessionHandler,
+  feedback: feedbackHandler,
 };
 
 async function main() {
@@ -38,10 +43,10 @@ async function main() {
   }
 
   if (args[0] === '--version') {
-    const { createRequire } = await import('module');
-    const require = createRequire(import.meta.url);
-    const pkg = require('../package.json');
-    process.stdout.write(`dev-cli v${pkg.version}\n`);
+    // VERSION is injected by esbuild --define at build time
+    // Falls back to 'dev' when running directly from source
+    const version = typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__ : 'dev';
+    process.stdout.write(`dev-cli v${version}\n`);
     process.exit(0);
   }
 
@@ -53,8 +58,8 @@ async function main() {
     process.exit(1);
   }
 
-  const mod = await SUBCOMMANDS[subcommand]();
-  await mod.default(args.slice(1));
+  const handler = SUBCOMMANDS[subcommand];
+  await handler(args.slice(1));
 }
 
 main().catch((err) => {

@@ -1,10 +1,8 @@
 import { readFileSync, writeFileSync } from 'fs';
-import { fileURLToPath } from 'url';
 import { resolve, dirname } from 'path';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import specSchema from '../../schemas/dev-spec-v4.schema.json' with { type: 'json' };
 
 import { writeState } from '../lib/state-io.js';
 
@@ -38,9 +36,7 @@ Examples:
 `;
 
 function loadSchema() {
-  const schemaPath = resolve(__dirname, '../../schemas/dev-spec-v4.schema.json');
-  const raw = readFileSync(schemaPath, 'utf8');
-  return JSON.parse(raw);
+  return specSchema;
 }
 
 function validateSpec(specData) {

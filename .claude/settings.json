@@ -33,14 +33,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/rph-cleanup.sh"
-          },
-          {
-            "type": "command",
-            "command": ".claude/scripts/rulph-cleanup.sh"
-          },
-          {
-            "type": "command",
             "command": ".claude/scripts/skill-session-cleanup.sh"
           }
         ]

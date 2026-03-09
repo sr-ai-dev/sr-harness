@@ -106,19 +106,20 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v0.8.1)
+## Recent Changes (v0.9.0)
+
+- feat(skills): add `/ralph` skill (iterative DoD-based task loop with Stop hook re-injection)
+- feat(skills): add `/scope` skill (fast parallel change-scope analyzer)
+- feat(browser-explorer): default to headless mode on setup
+- refactor(hooks): rename rph → ralph (rph-detector → ralph hooks, rph-dod-guard → ralph-dod-guard)
+- refactor(quick-plan): defer spec.json generation until user confirms execution
+- docs: comprehensive CLAUDE.md and README.md rewrite (all English, spec.json refs, complete skill/agent/hook listings)
+
+## Previous Changes (v0.8.1)
 
 - fix(hooks): remove deleted rph-cleanup.sh from hooks.json SessionEnd
 - refactor: replace `node cli/dist/cli.js` with `hoyeon-cli` globally
 - chore: sync cli version to 0.8.0 and update release flow
-
-## Previous Changes (v0.8.0)
-
-- refactor(cli): rename `dev-cli/` to `cli/`, bundle with esbuild into single `dist/cli.js` (all deps inlined, no node_modules needed)
-- feat(cli): prepare npm publish as `@team-attention/hoyeon-cli` (package.json, bin entry, publishConfig)
-- refactor(cli): rename user-facing strings from `dev-cli` to `hoyeon-cli` in all help/error output
-- refactor(hooks,skills,docs): update all references from `dev-cli/bin/dev-cli.js` to `cli/dist/cli.js`
-- feat(hooks): add pre-commit hook to auto-rebuild `cli/dist/cli.js` on source changes (`scripts/pre-commit-cli-build.sh`)
 
 ## Testing Strategy
 

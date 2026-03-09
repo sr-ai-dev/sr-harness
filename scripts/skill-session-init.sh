@@ -64,27 +64,9 @@ fi
 # Nothing detected → exit
 [[ -z "$DETECTED_SKILL" ]] && exit 0
 
-# ── Resolve spec path (execute/specify only) ──
-
-SPEC_PATH=""
-if [[ "$DETECTED_SKILL" == "execute" || "$DETECTED_SKILL" == "specify" ]]; then
-  if [[ -n "$DETECTED_ARGS" ]]; then
-    CANDIDATE="$CWD/.dev/specs/$DETECTED_ARGS/spec.json"
-    if [[ -f "$CANDIDATE" ]]; then
-      SPEC_PATH=".dev/specs/$DETECTED_ARGS/spec.json"
-    fi
-  fi
-
-  # Fallback: most recently modified spec.json
-  if [[ -z "$SPEC_PATH" ]]; then
-    ABS_SPEC=$(find "$CWD/.dev/specs" -name "spec.json" -maxdepth 2 -print0 2>/dev/null \
-      | xargs -0 stat -f '%m %N' 2>/dev/null \
-      | sort -rn | head -1 | cut -d' ' -f2-)
-    if [[ -n "$ABS_SPEC" ]]; then
-      SPEC_PATH="${ABS_SPEC#$CWD/}"
-    fi
-  fi
-fi
+# ── Spec path resolution is handled by each skill's Phase 0 ──
+# (execute reads arg → .dev/specs → state.json; specify creates at .dev/specs)
+# Hook does NOT write spec — skills register it via dev-cli session set
 
 # ── Write session state ──
 
@@ -94,26 +76,24 @@ mkdir -p "$SESSION_DIR/files" "$SESSION_DIR/tmp"
 STATE_FILE="$SESSION_DIR/state.json"
 TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# Merge into existing state.json (preserves .rph, .rv, .rulph namespaces)
+# Merge into existing state.json (preserves .rph, .rv, .rulph, .spec)
 TEMP_FILE="${STATE_FILE}.tmp.$$"
 if [[ -f "$STATE_FILE" ]]; then
   jq \
     --arg skill "$DETECTED_SKILL" \
-    --arg spec "$SPEC_PATH" \
     --arg started_at "$TIMESTAMP" \
     --arg cwd "$CWD" \
-    '. + {skill: $skill, spec: $spec, started_at: $started_at, cwd: $cwd}' \
+    '. + {skill: $skill, started_at: $started_at, cwd: $cwd}' \
     "$STATE_FILE" > "$TEMP_FILE" && mv "$TEMP_FILE" "$STATE_FILE"
 else
   jq -n \
     --arg skill "$DETECTED_SKILL" \
-    --arg spec "$SPEC_PATH" \
     --arg started_at "$TIMESTAMP" \
     --arg cwd "$CWD" \
-    '{skill: $skill, spec: $spec, started_at: $started_at, cwd: $cwd}' \
+    '{skill: $skill, started_at: $started_at, cwd: $cwd}' \
     > "$STATE_FILE"
 fi
 
-echo "📋 Session registered: $DETECTED_SKILL (spec: ${SPEC_PATH:-none})" >&2
+echo "📋 Session registered: $DETECTED_SKILL" >&2
 
 exit 0

@@ -84,14 +84,17 @@ Resolve spec path in priority order:
 ```
 SESSION_ID="[session ID from UserPromptSubmit hook]"
 
-1) Check session state (quick-plan, specify가 등록한 경로):
+1) IF arg looks like a path (contains "/" or ends with ".json"):
+   spec_path = arg  (use as-is)
+
+2) IF arg is a feature name (e.g. "auth-login"):
+   spec_path = ".dev/specs/{arg}/spec.json"
+
+3) No arg: session state (quick-plan, specify 등이 등록한 경로)
    node dev-cli/bin/dev-cli.js session get --sid $SESSION_ID
    → state.spec 필드가 있으면 spec_path = state.spec
 
-2) IF arg given:
-   spec_path = ".dev/specs/{arg}/spec.json"
-
-3) Fallback: most recently modified .dev/specs/*/spec.json
+If none found → error: "spec.json을 찾을 수 없습니다. /specify 또는 /quick-plan으로 먼저 생성해주세요."
 ```
 
 Read spec.json and validate:

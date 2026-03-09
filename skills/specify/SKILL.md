@@ -137,19 +137,7 @@ After `spec init`, classify the task intent and apply the corresponding strategy
 - **Migration**: External docs critical — consider tech-decision research
 - **Performance**: Baseline measurement required before any optimization
 
-Merge intent classification into spec.json:
-
-```bash
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
-  "context": {
-    "intent_classification": {
-      "type": "[Intent Type]",
-      "strategy": "[Strategy]",
-      "key_questions": ["..."]
-    }
-  }
-}'
-```
+Use the classification internally to guide Phase 1 agent selection and interview questions. Do NOT merge intent_classification into spec.json (not in schema).
 
 ---
 

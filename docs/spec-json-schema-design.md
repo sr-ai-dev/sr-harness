@@ -55,28 +55,28 @@ state.json  (mutable — 진행 현황)
 | 파일 | 성격 | 읽기 | 쓰기 | 변경 시점 |
 |------|------|------|------|----------|
 | spec.json | 계약서 | 모든 agent | Coordinator만 | feedback 반영 시 (드물게) |
-| state.json | 진행 대장 | 모든 agent | Worker, Observer (dev-cli 경유) | 매 task 완료마다 |
+| state.json | 진행 대장 | 모든 agent | Worker, Observer (cli 경유) | 매 task 완료마다 |
 | feedback/*.json | Observer 의견 | Coordinator | Observer | 검증 후 |
 
 ### Drift 방지 규칙
 
 | 규칙 | 설명 | 강제 방법 |
 |------|------|----------|
-| **Hash lock** | state.json의 `spec_hash`가 현재 spec.json 해시와 불일치 시 경고/중단 | dev-cli가 매 조작 시 검증 |
-| **Key 정합성** | state.json에 있는 task/requirement ID는 반드시 spec.json에 존재 | dev-cli가 orphan key 거부 |
-| **단일 진입점** | spec/state 직접 수정 금지, 반드시 dev-cli 경유 | pre-commit hook으로 raw edit 차단 |
+| **Hash lock** | state.json의 `spec_hash`가 현재 spec.json 해시와 불일치 시 경고/중단 | cli가 매 조작 시 검증 |
+| **Key 정합성** | state.json에 있는 task/requirement ID는 반드시 spec.json에 존재 | cli가 orphan key 거부 |
+| **단일 진입점** | spec/state 직접 수정 금지, 반드시 cli 경유 | pre-commit hook으로 raw edit 차단 |
 
 ### spec 변경 흐름 (Observer feedback → Coordinator amend)
 
 ```
-1. Observer: dev-cli feedback create "R1.S2 시나리오 누락"
+1. Observer: cli feedback create "R1.S2 시나리오 누락"
    → feedback/fb-001.json 생성
 
-2. Coordinator: dev-cli spec amend --reason "fb-001"
+2. Coordinator: cli spec amend --reason "fb-001"
    → spec.json 수정 (requirement 추가 등)
    → spec_hash 변경
 
-3. dev-cli state sync
+3. cli state sync
    → spec에서 삭제된 task → state에서 archived
    → spec에서 추가된 task → state에 pending으로 추가
    → hash 갱신, 기존 완료 상태 보존
@@ -87,7 +87,7 @@ state.json  (mutable — 진행 현황)
 ```
 .dev/specs/{spec-name}/
 ├── spec.json              ← 계약 (Coordinator 소유)
-├── state.json             ← 현황 (Worker/Observer, dev-cli 경유)
+├── state.json             ← 현황 (Worker/Observer, cli 경유)
 ├── feedback/
 │   ├── fb-001.json        ← Observer 피드백
 │   └── fb-002.json
@@ -213,7 +213,7 @@ v3의 `"check": "자유 텍스트"` → v4에서 체크리스트화:
 - `constraints[]` = **글로벌** (전 task에 적용)
 - `tasks[].task_constraints[]` = **task-local** (해당 task에만 적용)
 - 2개 이상 task에 동일 제약 필요 → `constraints[]`로 승격
-- `tasks[].file_scope[]` 중복 시 dev-cli가 warning 출력 (교차 검증)
+- `tasks[].file_scope[]` 중복 시 cli가 warning 출력 (교차 검증)
 
 ### task_constraints 구조화 (v4)
 
@@ -441,7 +441,7 @@ v3의 자유 텍스트 → v4에서 typed object:
       "risk": "low",
       "file_scope": [
         "dev-cli/src/handlers/stop-evaluate.js",
-        "dev-cli/bin/dev-cli.js"
+        "cli/dist/cli.js"
       ],
       "fulfills": ["R1"],
       "depends_on": [],
@@ -455,7 +455,7 @@ v3의 자유 텍스트 → v4에서 typed object:
         { "path": "scripts/rv-validator.sh", "start_line": 23, "end_line": 36 },
         { "path": "scripts/rph-loop.sh", "start_line": 23, "end_line": 33 },
         { "path": "dev-cli/src/handlers/chain-status.js" },
-        { "path": "dev-cli/bin/dev-cli.js", "start_line": 7, "end_line": 33 }
+        { "path": "cli/dist/cli.js", "start_line": 7, "end_line": 33 }
       ],
       "inputs": [],
       "outputs": [
@@ -781,23 +781,23 @@ Members: Codex(GPT-5.3), Chairman(Claude Opus 4.6). Gemini 429 실패.
 
 ## Next Steps
 
-### Phase 1: Schema + dev-cli (DONE)
+### Phase 1: Schema + cli (DONE)
 
 - [x] JSON Schema validation 파일 작성 (dev-spec-v4.schema.json, dev-state-v1.schema.json)
-- [x] dev-cli에 spec/state 조작 커맨드 구현
-  - `dev-cli spec validate` — spec.json을 schema로 검증
-  - `dev-cli state init` — spec.json에서 state.json 초기 생성
-  - `dev-cli state update T1 --done` — state.json 업데이트
-  - `dev-cli state check` — spec_hash 정합성 + orphan key 검증
-  - `dev-cli state sync` — spec 변경 후 state 동기화
-  - `dev-cli feedback create "message"` — feedback 파일 생성
-  - `dev-cli spec amend --reason fb-001` — spec 수정 (placeholder)
+- [x] cli에 spec/state 조작 커맨드 구현
+  - `cli spec validate` — spec.json을 schema로 검증
+  - `cli state init` — spec.json에서 state.json 초기 생성
+  - `cli state update T1 --done` — state.json 업데이트
+  - `cli state check` — spec_hash 정합성 + orphan key 검증
+  - `cli state sync` — spec 변경 후 state 동기화
+  - `cli feedback create "message"` — feedback 파일 생성
+  - `cli spec amend --reason fb-001` — spec 수정 (placeholder)
 
 ### Phase 2: /specify 통합 + Observer/Coordinator
 
 - [ ] /specify skill에서 spec.json v4 + state.json 생성 흐름 구현
 - [ ] Observer agent가 spec.json + state.json을 읽고 feedback.json을 작성하는 프로토타입
 - [ ] Coordinator가 feedback → spec amend 흐름 구현
-- [ ] pre-commit hook: spec/state 직접 수정 차단 (dev-cli 경유만 허용)
+- [ ] pre-commit hook: spec/state 직접 수정 차단 (cli 경유만 허용)
 - [ ] lint 규칙: inputs[].artifact ↔ outputs[].id 교차 검증
-- [ ] lint 규칙: tasks[].file_scope 중복 경고 (dev-cli spec check에 구현 완료)
+- [ ] lint 규칙: tasks[].file_scope 중복 경고 (cli spec check에 구현 완료)

@@ -195,7 +195,7 @@ Hooks automate transitions and enforce quality:
 The `/execute` skill follows an Orchestrator-Worker pattern:
 
 ```
-Orchestrator (reads spec.json via dev-cli)
+Orchestrator (reads spec.json via cli)
   ├── Parse tasks → Create Tasks with dependencies
   ├── Parallelize non-blocked Tasks
   ├── For each task:

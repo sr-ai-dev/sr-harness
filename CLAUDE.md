@@ -108,8 +108,8 @@ Hooks are registered in `.claude/settings.local.json` and automate pipeline tran
 ## Previous Changes (v0.7.0)
 
 - refactor(hooks): consolidate 7 hooks into 4 unified skill-session hooks (`skill-session-init`, `skill-session-guard`, `skill-session-stop`, `skill-session-cleanup`) with per-session state in `~/.hoyeon/{session_id}/state.json`
-- feat(skills): replace v1 specify/execute with v2 (spec.json-native, dev-cli driven, no PLAN.md dependency)
-- feat(dev-cli): add `spec status` subcommand for hook-based task completion checking
+- feat(skills): replace v1 specify/execute with v2 (spec.json-native, cli driven, no PLAN.md dependency)
+- feat(cli): add `spec status` subcommand for hook-based task completion checking
 - feat(agents): update browser-explorer to chromux-based architecture (raw CDP, isolated Chrome profile)
 
 ## Previous Changes (v0.6.6)

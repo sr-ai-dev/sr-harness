@@ -56,3 +56,5 @@ cat << 'EOF'
   "systemMessage": "RPH GUARD: You cannot modify the DoD file during work. The system will prompt you to verify items when you finish. Continue with the actual task."
 }
 EOF
+
+exit 0

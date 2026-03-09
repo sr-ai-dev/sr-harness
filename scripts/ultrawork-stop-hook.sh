@@ -24,7 +24,8 @@ CWD=$(echo "$HOOK_INPUT" | jq -r '.cwd')
 SESSION_ID=$(echo "$HOOK_INPUT" | jq -r '.session_id')
 TRANSCRIPT_PATH=$(echo "$HOOK_INPUT" | jq -r '.transcript_path // empty')
 
-# State file path
+# Intentionally CWD-scoped (not ~/.hoyeon/) — ultrawork state persists across sessions
+# for the same feature spec, so it lives with the spec files rather than the session directory.
 STATE_FILE="$CWD/.dev/state.local.json"
 
 # Exit if no state file

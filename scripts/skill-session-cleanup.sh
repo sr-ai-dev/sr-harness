@@ -16,6 +16,6 @@ if [[ -d "$SESSION_DIR" ]]; then
 fi
 
 # Orphan GC: delete session dirs older than 24 hours
-find "$HOME/.hoyeon" -mindepth 1 -maxdepth 1 -type d -mmin +1440 -exec rm -rf {} \; 2>/dev/null || true
+[[ -d "$HOME/.hoyeon" ]] && find "$HOME/.hoyeon" -mindepth 1 -maxdepth 1 -type d -mmin +1440 -exec rm -rf {} \; 2>/dev/null || true
 
 exit 0

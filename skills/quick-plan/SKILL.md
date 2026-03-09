@@ -11,6 +11,7 @@ allowed_tools:
   - Bash
   - Write
   - AskUserQuestion
+  - Skill
   - TaskCreate
   - TaskUpdate
   - TaskList
@@ -22,9 +23,9 @@ validate_prompt: |
   4. "## Coordination Mode" with mode (agent-spawn or team) and rationale
   5. "## Agent Mapping" table with columns: Task, Agent, Model, Rationale
   6. "## Execution Plan" with parallel rounds and context sharing notes
-  Must generate spec.json at ~/.hoyeon/{session_id}/spec.json.
-  Must end with AskUserQuestion offering next actions.
-  Must NOT: execute any tasks, create teams, or spawn agents.
+  Must end with AskUserQuestion offering next actions (실행/계획 수정/더 논의).
+  Must NOT generate spec.json until user explicitly chooses "실행".
+  Must NOT: create teams or spawn agents during planning.
 ---
 
 # /quick-plan — Session Task Planner
@@ -171,11 +172,26 @@ rationale: {one-line reason}
 
 After presenting the plan, proceed immediately to Phase 8 (do NOT wait for approval).
 
-### Phase 8: Generate spec.json
+### Phase 8: Next Action
 
-Convert the plan into a machine-readable spec.json. This happens **automatically** — no user confirmation needed.
+Ask user via AskUserQuestion:
 
-#### 8.1 Session Directory
+```
+계획이 준비됐습니다. 어떻게 할까요?
+
+1. 실행 — spec.json 생성 후 바로 /execute
+2. 계획 수정 — 변경할 부분을 말씀해주세요
+3. 더 논의 — 추가 검토가 필요한 부분이 있으면 알려주세요
+```
+
+- If user chooses **1 (실행)**: proceed to Phase 9
+- If user chooses **2 or 3**: handle feedback, revise plan, then re-ask Phase 8
+
+### Phase 9: Generate spec.json & Execute
+
+Only runs when user explicitly chooses to execute.
+
+#### 9.1 Session Directory
 
 ```bash
 SESSION_ID="[session ID from UserPromptSubmit hook]"
@@ -183,7 +199,7 @@ SESSION_DIR="$HOME/.hoyeon/$SESSION_ID"
 SPEC_PATH="$SESSION_DIR/spec.json"
 ```
 
-#### 8.2 Initialize spec.json
+#### 9.2 Initialize spec.json
 
 ```bash
 hoyeon-cli spec init {plan-name} --goal "{user's goal}" ${SPEC_PATH}
@@ -191,7 +207,7 @@ hoyeon-cli spec init {plan-name} --goal "{user's goal}" ${SPEC_PATH}
 
 `{plan-name}`: derive from user's goal (kebab-case, max 30 chars).
 
-#### 8.3 Merge tasks
+#### 9.3 Merge tasks
 
 Merge **all tasks in a single call** — this replaces the placeholder T1 from `spec init`.
 Do NOT call merge per task (without `--append`, each call overwrites the previous tasks array).
@@ -236,7 +252,7 @@ Map from plan:
 - Done condition → `acceptance_criteria.functional`
 - Dependency DAG → `depends_on`
 
-#### 8.4 Update state.json
+#### 9.4 Update state.json
 
 Update the session state to point to the generated spec:
 
@@ -244,7 +260,7 @@ Update the session state to point to the generated spec:
 hoyeon-cli session set --sid $SESSION_ID --spec "$SPEC_PATH"
 ```
 
-#### 8.5 Validate
+#### 9.5 Validate
 
 ```bash
 hoyeon-cli spec validate ${SPEC_PATH}
@@ -252,25 +268,15 @@ hoyeon-cli spec validate ${SPEC_PATH}
 
 If validation fails, fix and retry once.
 
-#### 8.6 Confirm to user
+#### 9.6 Hand off to /execute
 
 Output: `spec.json 생성 완료: ${SPEC_PATH}`
 
-### Phase 9: Next Action
-
-Ask user via AskUserQuestion:
-
-```
-계획이 준비됐습니다. 어떻게 할까요?
-
-1. `/execute` — 바로 실행
-2. 계획 수정 — 변경할 부분을 말씀해주세요
-3. 더 논의 — 추가 검토가 필요한 부분이 있으면 알려주세요
-```
+Then invoke the `/execute` skill to begin execution.
 
 ## Constraints
 
-- Do NOT execute tasks — only plan and generate spec.json
+- Do NOT directly execute tasks — delegate to `/execute` skill after spec.json generation
 - Do NOT create teams or spawn agents — only propose the structure
 - Do NOT modify project files — only write to ~/.hoyeon/{session}/
 - If a task is ambiguous, flag it and suggest clarification

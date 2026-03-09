@@ -6,8 +6,7 @@
 #
 # Flow:
 #   phase: specify_interview + DRAFT exists → trigger plan generation
-#   phase: specify_plan + PLAN approved     → trigger /open
-#   phase: opening + PR created             → trigger /execute
+#   phase: specify_plan + PLAN approved     → trigger /execute
 #   phase: executing + TODOs done           → cleanup
 #
 # Hook Input Fields (Stop):
@@ -153,7 +152,7 @@ Follow specify skill's Mode 2: Plan Generation:
 
   # --------------------------------------------------------
   # Phase: specify_plan
-  # Check: PLAN.md approved → trigger /open
+  # Check: PLAN.md approved → trigger /execute
   # --------------------------------------------------------
   "specify_plan")
     PLAN_FILE="$SPEC_DIR/PLAN.md"
@@ -181,14 +180,14 @@ Follow specify skill's Mode 2: Plan Generation:
     fi
 
     if [[ "$PLAN_APPROVED" == "true" ]]; then
-      update_phase "opening"
-      echo "✅ Ultrawork: Plan approved → /open" >&2
+      update_phase "executing"
+      echo "✅ Ultrawork: Plan approved → /execute" >&2
 
       jq -n \
         --arg name "$FEATURE_NAME" \
-        --arg reason "Plan approved! Create the Draft PR.
+        --arg reason "Plan approved! Start implementation.
 
-Execute: Skill(\"open\", args=\"$FEATURE_NAME\")" \
+Execute: Skill(\"execute\", args=\"$FEATURE_NAME\")" \
         '{"decision": "block", "reason": $reason}'
       exit 0
     fi
@@ -196,48 +195,6 @@ Execute: Skill(\"open\", args=\"$FEATURE_NAME\")" \
     # Plan exists but not approved
     jq -n \
       --arg reason "Plan exists but not approved. Call Task(subagent_type=\"plan-reviewer\") and handle result." \
-      '{"decision": "block", "reason": $reason}'
-    exit 0
-    ;;
-
-  # --------------------------------------------------------
-  # Phase: opening
-  # Check: PR created → trigger /execute
-  # --------------------------------------------------------
-  "opening")
-    # Check if PR/branch exists
-    PR_EXISTS=false
-
-    if command -v git &> /dev/null && git -C "$CWD" rev-parse --is-inside-work-tree &>/dev/null; then
-      if git -C "$CWD" branch -a 2>/dev/null | grep -qE "feat/$FEATURE_NAME"; then
-        PR_EXISTS=true
-      fi
-    fi
-
-    if command -v gh &> /dev/null; then
-      PR_NUMBER=$(cd "$CWD" && gh pr list --head "feat/$FEATURE_NAME" --json number -q '.[0].number' 2>/dev/null || echo "")
-      if [[ -n "$PR_NUMBER" ]]; then
-        PR_EXISTS=true
-      fi
-    fi
-
-    if [[ "$PR_EXISTS" == "true" ]]; then
-      update_phase "executing"
-      echo "🔀 Ultrawork: PR #$PR_NUMBER created → /execute" >&2
-
-      jq -n \
-        --arg pr "$PR_NUMBER" \
-        --arg reason "Draft PR #$PR_NUMBER created! Start implementation.
-
-Execute: Skill(\"execute\", args=\"$PR_NUMBER\")" \
-        '{"decision": "block", "reason": $reason}'
-      exit 0
-    fi
-
-    # PR not created yet
-    jq -n \
-      --arg name "$FEATURE_NAME" \
-      --arg reason "Continue creating the PR. Run Skill(\"open\", args=\"$FEATURE_NAME\")." \
       '{"decision": "block", "reason": $reason}'
     exit 0
     ;;

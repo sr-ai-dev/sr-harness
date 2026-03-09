@@ -21,10 +21,16 @@ set -euo pipefail
 HOOK_INPUT=$(cat)
 
 SESSION_ID=$(echo "$HOOK_INPUT" | jq -r '.session_id')
+HOOK_EVENT=$(echo "$HOOK_INPUT" | jq -r '.hook_event_name')
 CWD=$(echo "$HOOK_INPUT" | jq -r '.cwd')
 PROMPT=$(echo "$HOOK_INPUT" | jq -r '.prompt // ""')
 SKILL_NAME=$(echo "$HOOK_INPUT" | jq -r '.tool_input.skill // ""')
 SKILL_ARGS=$(echo "$HOOK_INPUT" | jq -r '.tool_input.args // ""')
+
+# ── Always inject session ID on UserPromptSubmit (stdout → Claude context) ──
+if [[ "$HOOK_EVENT" == "UserPromptSubmit" ]]; then
+  echo "CLAUDE_SESSION_ID=$SESSION_ID"
+fi
 
 # ── Detect skill + args from either path ──
 

@@ -174,7 +174,7 @@ Split into two phases: API sources in parallel (shell backgrounding), then all G
 
 **Bash call 1 — API sources (parallel):**
 ```bash
-SESSION_ID="${CLAUDE_SESSION_ID:-unknown}"
+SESSION_ID="[session ID from UserPromptSubmit hook]"
 RUN_ID="dev-scan-$(date +%s)-$RANDOM"
 D="$HOME/.hoyeon/$SESSION_ID/tmp/$RUN_ID"
 mkdir -p "$D"

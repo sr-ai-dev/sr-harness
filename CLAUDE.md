@@ -84,17 +84,19 @@ Hooks are registered in `.claude/settings.local.json` and automate pipeline tran
 
 ```
 1. All features merged to develop
-2. Version bump commit on develop (plugin.json + marketplace.json)
+2. Version bump commit on develop (plugin.json + marketplace.json + cli/package.json)
 3. Update CLAUDE.md (Recent Changes) and README.md (if new skills/agents added)
-4. git checkout main && git merge develop --no-ff -m "Release X.Y.Z"
-5. git tag vX.Y.Z && git push origin main --tags && git push origin develop
-6. gh release create vX.Y.Z --title "vX.Y.Z" --notes "## What's New in X.Y.Z ..."
+4. cd cli && npm run build && npm publish --access public
+5. git checkout main && git merge develop --no-ff -m "Release X.Y.Z"
+6. git tag vX.Y.Z && git push origin main --tags && git push origin develop
+7. gh release create vX.Y.Z --title "vX.Y.Z" --notes "## What's New in X.Y.Z ..."
 ```
 
 ## Versioning
 
-- Plugin version is in `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
-- **Bump both files** in a single commit on `develop` before merging to `main`
+- Plugin version is in `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `cli/package.json`
+- **Bump all three files** in a single commit on `develop` before merging to `main`
+- CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
 ## Recent Changes (v0.8.0)
 

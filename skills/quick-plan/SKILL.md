@@ -186,7 +186,7 @@ SPEC_PATH="$SESSION_DIR/spec.json"
 #### 8.2 Initialize spec.json
 
 ```bash
-node dev-cli/bin/dev-cli.js spec init {plan-name} --goal "{user's goal}" ${SPEC_PATH}
+node cli/dist/cli.js spec init {plan-name} --goal "{user's goal}" ${SPEC_PATH}
 ```
 
 `{plan-name}`: derive from user's goal (kebab-case, max 30 chars).
@@ -197,7 +197,7 @@ Merge **all tasks in a single call** — this replaces the placeholder T1 from `
 Do NOT call merge per task (without `--append`, each call overwrites the previous tasks array).
 
 ```bash
-node dev-cli/bin/dev-cli.js spec merge ${SPEC_PATH} --json '{
+node cli/dist/cli.js spec merge ${SPEC_PATH} --json '{
   "tasks": [
     {
       "id": "T1",
@@ -241,13 +241,13 @@ Map from plan:
 Update the session state to point to the generated spec:
 
 ```bash
-node dev-cli/bin/dev-cli.js session set --sid $SESSION_ID --spec "$SPEC_PATH"
+node cli/dist/cli.js session set --sid $SESSION_ID --spec "$SPEC_PATH"
 ```
 
 #### 8.5 Validate
 
 ```bash
-node dev-cli/bin/dev-cli.js spec validate ${SPEC_PATH}
+node cli/dist/cli.js spec validate ${SPEC_PATH}
 ```
 
 If validation fails, fix and retry once.

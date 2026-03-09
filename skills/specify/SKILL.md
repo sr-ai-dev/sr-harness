@@ -1,9 +1,9 @@
 ---
 name: specify
 description: |
-  Full-featured spec generator that outputs unified spec.json v4 via dev-cli.
+  Full-featured spec generator that outputs unified spec.json v4 via cli.
   Interview-driven planning with mode support (quick/standard × interactive/autopilot).
-  Incremental spec.json build via dev-cli spec merge.
+  Incremental spec.json build via cli spec merge.
   Use when: "/specify", "specify", "plan this", "계획 짜줘", "스펙 만들어줘"
 allowed-tools:
   - Read
@@ -14,7 +14,7 @@ allowed-tools:
   - Write
   - AskUserQuestion
 validate_prompt: |
-  Must produce a valid spec.json that passes both dev-cli spec validate and dev-cli spec check.
+  Must produce a valid spec.json that passes both cli spec validate and cli spec check.
   spec.json must include: meta.mode, context.research (structured), tasks with acceptance_criteria, requirements with scenarios.
   Standard mode must include: verification_summary (derived from requirements), constraints, meta.non_goals.
   Output files must be in .dev/specs/{name}/ directory.
@@ -23,11 +23,11 @@ validate_prompt: |
 # /specify — Full Spec Generator (spec.json v4)
 
 Generate a schema-validated, machine-executable spec.json through interview-driven planning.
-Single file output — no DRAFT.md, no PLAN.md. All data flows through `dev-cli spec` commands.
+Single file output — no DRAFT.md, no PLAN.md. All data flows through `node cli/dist/cli.js spec` commands.
 
 ## Core Principles
 
-1. **dev-cli is the writer** — Never hand-write spec.json. Use `spec init`, `spec merge`, `spec task`
+1. **cli is the writer** — Never hand-write spec.json. Use `spec init`, `spec merge`, `spec task`
 2. **Validate on every write** — `spec merge` auto-validates. Errors caught immediately
 3. **Mode-aware** — Depth and interaction control agent count and user involvement
 4. **Incremental build** — spec.json evolves from v0 (meta only) to final (all sections)
@@ -87,7 +87,7 @@ Throughout this document, `{depth}` and `{interaction}` refer to the resolved mo
 ## Phase 0: Initialize
 
 ```bash
-dev-cli spec init {name} --goal "{goal}" --depth {depth} --interaction {interaction} \
+node cli/dist/cli.js spec init {name} --goal "{goal}" --depth {depth} --interaction {interaction} \
   .dev/specs/{name}/spec.json
 ```
 
@@ -99,13 +99,13 @@ Immediately update session state with the spec path:
 
 ```bash
 SESSION_ID="[session ID from UserPromptSubmit hook]"
-node dev-cli/bin/dev-cli.js session set --sid $SESSION_ID --spec ".dev/specs/{name}/spec.json"
+node cli/dist/cli.js session set --sid $SESSION_ID --spec ".dev/specs/{name}/spec.json"
 ```
 
 After init, if non-goals are already apparent from the user's request, merge them early:
 
 ```bash
-dev-cli spec merge .dev/specs/{name}/spec.json --json '{
+node cli/dist/cli.js spec merge .dev/specs/{name}/spec.json --json '{
   "meta": {
     "non_goals": ["...", "..."]
   }
@@ -140,7 +140,7 @@ After `spec init`, classify the task intent and apply the corresponding strategy
 Merge intent classification into spec.json:
 
 ```bash
-dev-cli spec merge .dev/specs/{name}/spec.json --json '{
+node cli/dist/cli.js spec merge .dev/specs/{name}/spec.json --json '{
   "context": {
     "intent_classification": {
       "type": "[Intent Type]",
@@ -195,7 +195,7 @@ Task(subagent_type="ux-reviewer",
 > **Continuous Update**: spec.json is updated incrementally after each interaction. Each agent completion triggers a `spec merge`. Do not batch — merge immediately after each phase completes.
 
 ```bash
-dev-cli spec merge .dev/specs/{name}/spec.json --json '{
+node cli/dist/cli.js spec merge .dev/specs/{name}/spec.json --json '{
   "context": {
     "request": "[user original request]",
     "research": {
@@ -249,7 +249,7 @@ dev-cli spec merge .dev/specs/{name}/spec.json --json '{
 Apply Autopilot Decision Rules, then:
 
 ```bash
-dev-cli spec merge .dev/specs/{name}/spec.json --append --json '{
+node cli/dist/cli.js spec merge .dev/specs/{name}/spec.json --append --json '{
   "context": {
     "assumptions": [
       {"id": "A1", "belief": "...", "if_wrong": "...", "impact": "minor"}
@@ -308,7 +308,7 @@ Let me know if you prefer a different approach."
 After each decision, immediately merge (continuous update):
 
 ```bash
-dev-cli spec merge .dev/specs/{name}/spec.json --append --json '{
+node cli/dist/cli.js spec merge .dev/specs/{name}/spec.json --append --json '{
   "context": {
     "decisions": [
       {"id": "D1", "decision": "...", "rationale": "...",
@@ -462,7 +462,7 @@ When merging verification-planner results into `requirements`, apply these fallb
 
 ```bash
 # known_gaps from gap-analyzer
-dev-cli spec merge .dev/specs/{name}/spec.json --append --json '{
+node cli/dist/cli.js spec merge .dev/specs/{name}/spec.json --append --json '{
   "context": {
     "known_gaps": [
       {"gap": "...", "severity": "medium", "mitigation": "..."}
@@ -471,7 +471,7 @@ dev-cli spec merge .dev/specs/{name}/spec.json --append --json '{
 }'
 
 # constraints from gap-analyzer
-dev-cli spec merge .dev/specs/{name}/spec.json --json '{
+node cli/dist/cli.js spec merge .dev/specs/{name}/spec.json --json '{
   "constraints": [
     {"id": "C1", "type": "must_not_do", "rule": "...",
      "verified_by": "agent", "verify": {"type": "assertion", "checks": ["..."]}}
@@ -481,7 +481,7 @@ dev-cli spec merge .dev/specs/{name}/spec.json --json '{
 # requirements from verification-planner (apply S-items fallback rules above)
 # Requirements are the SINGLE SOURCE OF TRUTH for all verification.
 # verification_summary is DERIVED from requirements (not stored independently).
-dev-cli spec merge .dev/specs/{name}/spec.json --json '{
+node cli/dist/cli.js spec merge .dev/specs/{name}/spec.json --json '{
   "requirements": [
     {
       "id": "R1", "behavior": "...", "priority": 1,
@@ -508,7 +508,7 @@ dev-cli spec merge .dev/specs/{name}/spec.json --json '{
 #
 # pre_work: things the human must complete BEFORE /execute starts
 # post_work: things the human must do AFTER execution completes
-dev-cli spec merge .dev/specs/{name}/spec.json --json '{
+node cli/dist/cli.js spec merge .dev/specs/{name}/spec.json --json '{
   "external_dependencies": {
     "pre_work": [
       {"id": "PW-1", "dependency": "PostgreSQL", "action": "Create DB instance and set DATABASE_URL", "blocking": true}
@@ -564,7 +564,7 @@ Always generate the `requirements` section with Given-When-Then scenarios — do
 ### Merge tasks
 
 ```bash
-dev-cli spec merge .dev/specs/{name}/spec.json --json '{
+node cli/dist/cli.js spec merge .dev/specs/{name}/spec.json --json '{
   "tasks": [
     {
       "id": "T1", "action": "...", "type": "work", "status": "pending",
@@ -601,7 +601,7 @@ dev-cli spec merge .dev/specs/{name}/spec.json --json '{
 Requirements are the **single source of truth** for all verification. Each scenario specifies WHO verifies (`verified_by`) and WHERE it runs (`execution_env`).
 
 ```bash
-dev-cli spec merge .dev/specs/{name}/spec.json --json '{
+node cli/dist/cli.js spec merge .dev/specs/{name}/spec.json --json '{
   "requirements": [
     {
       "id": "R1", "behavior": "...", "priority": 1,
@@ -628,8 +628,8 @@ dev-cli spec merge .dev/specs/{name}/spec.json --json '{
 ### 5a. Mechanical validation
 
 ```bash
-dev-cli spec validate .dev/specs/{name}/spec.json
-dev-cli spec check .dev/specs/{name}/spec.json
+node cli/dist/cli.js spec validate .dev/specs/{name}/spec.json
+node cli/dist/cli.js spec check .dev/specs/{name}/spec.json
 ```
 
 If either fails → fix and retry (max 2 attempts).
@@ -637,7 +637,7 @@ If either fails → fix and retry (max 2 attempts).
 ### 5b. DAG visualization
 
 ```bash
-dev-cli spec plan .dev/specs/{name}/spec.json
+node cli/dist/cli.js spec plan .dev/specs/{name}/spec.json
 ```
 
 Show the output to user.
@@ -837,7 +837,7 @@ Assumptions (auto-decided — not confirmed by user)
         Re-run with --interactive to override.
 ────────────────────────────────────────
 
-DAG: {output from dev-cli spec plan}
+DAG: {output from node cli/dist/cli.js spec plan}
 Constraints: {n} items
 ```
 
@@ -874,7 +874,7 @@ AskUserQuestion(
 ## Rules
 
 - **spec.json is the ONLY output** — no DRAFT.md, no PLAN.md, no state.json
-- **Always use dev-cli** — `spec init`, `spec merge`, `spec validate`, `spec check`
+- **Always use cli** — `node cli/dist/cli.js spec init`, `spec merge`, `spec validate`, `spec check`
 - **Never hand-write spec.json** — always go through `spec merge` for auto-validation
 - **--append for arrays** — use `--append` when adding to existing arrays (decisions, assumptions, known_gaps)
 - **Validate before presenting** — Phase 5 must pass before Phase 6
@@ -888,8 +888,8 @@ AskUserQuestion(
 
 ### Common (all modes)
 - [ ] spec.json exists at `.dev/specs/{name}/spec.json`
-- [ ] `dev-cli spec validate` passes
-- [ ] `dev-cli spec check` passes
+- [ ] `node cli/dist/cli.js spec validate` passes
+- [ ] `node cli/dist/cli.js spec check` passes
 - [ ] All tasks have `status: "pending"`
 - [ ] All tasks have `must_not_do` and `acceptance_criteria`
 - [ ] All tasks have `inputs` field

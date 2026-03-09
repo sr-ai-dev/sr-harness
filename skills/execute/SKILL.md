@@ -1,7 +1,7 @@
 ---
 name: execute
 description: |
-  Spec-driven orchestrator that reads spec.json via dev-cli, dispatches workers,
+  Spec-driven orchestrator that reads spec.json via cli, dispatches workers,
   verifies acceptance criteria, and handles adaptation.
   spec.json-native execution (no PLAN.md).
   Use when: "/execute", "execute", "실행해줘", "스펙 실행"
@@ -21,7 +21,7 @@ allowed-tools:
   - AskUserQuestion
 validate_prompt: |
   All tasks in spec.json must have status "done" at completion.
-  dev-cli spec check must pass (internal consistency).
+  node cli/dist/cli.js spec check must pass (internal consistency).
   Context files (learnings.md, issues.md, audit.md) must exist and be populated.
   Final report must be output.
 ---
@@ -30,14 +30,14 @@ validate_prompt: |
 
 **You are the conductor. You do not play instruments directly.**
 Delegate to worker agents, verify results via verify workers, manage parallelization.
-All task data comes from spec.json via `dev-cli spec plan`.
+All task data comes from spec.json via `node cli/dist/cli.js spec plan`.
 
 ## Core Principles
 
 1. **DELEGATE** — All code writing goes to `Agent(subagent_type="worker")`. You only Read, Grep, Glob, Bash (for orchestration), and manage Tasks.
 2. **VERIFY** — After every Worker, dispatch a verify worker to independently check acceptance criteria. Workers can lie.
 3. **PARALLELIZE** — Run all unblocked tasks within a round simultaneously via `run_in_background: true`.
-4. **spec.json is truth** — Task status, adaptation, and progress all flow through `dev-cli spec` commands.
+4. **spec.json is truth** — Task status, adaptation, and progress all flow through `node cli/dist/cli.js spec` commands.
 5. **Context flows forward** — Workers write learnings/issues to shared context files. Next workers read them.
 
 ---
@@ -91,7 +91,7 @@ SESSION_ID="[session ID from UserPromptSubmit hook]"
    spec_path = ".dev/specs/{arg}/spec.json"
 
 3) No arg: session state (quick-plan, specify 등이 등록한 경로)
-   node dev-cli/bin/dev-cli.js session get --sid $SESSION_ID
+   node cli/dist/cli.js session get --sid $SESSION_ID
    → state.spec 필드가 있으면 spec_path = state.spec
 
 If none found → error: "spec.json을 찾을 수 없습니다. /specify 또는 /quick-plan으로 먼저 생성해주세요."
@@ -100,15 +100,15 @@ If none found → error: "spec.json을 찾을 수 없습니다. /specify 또는 
 Read spec.json and validate:
 
 ```bash
-node dev-cli/bin/dev-cli.js spec validate {spec_path}
-node dev-cli/bin/dev-cli.js spec check {spec_path}
+node cli/dist/cli.js spec validate {spec_path}
+node cli/dist/cli.js spec check {spec_path}
 ```
 
 ### 0.2 Get Execution Plan
 
 ```bash
-plan_text = Bash("node dev-cli/bin/dev-cli.js spec plan {spec_path}")
-plan_json = Bash("node dev-cli/bin/dev-cli.js spec plan {spec_path} --format slim")
+plan_text = Bash("node cli/dist/cli.js spec plan {spec_path}")
+plan_json = Bash("node cli/dist/cli.js spec plan {spec_path} --format slim")
 plan = JSON.parse(plan_json)
 ```
 
@@ -232,7 +232,7 @@ rp = TaskCreate(subject="Finalize:Report",
 #### Description Templates
 
 > **Why descriptions, not orchestrator-built prompts?**
-> Workers self-read task details via `dev-cli`. This means:
+> Workers self-read task details via `cli`. This means:
 > 1. **Orchestrator saves tokens** — no need to Read spec.json or context files
 > 2. **Compaction-resilient** — even if orchestrator context is compressed, the description
 >    in TaskCreate survives and workers can always re-fetch from CLI/files
@@ -243,13 +243,13 @@ WORKER_DESCRIPTION(task_id) = """
 You are a Worker agent. Implement task {task_id}.
 
 ## Step 1: Read your task spec
-Run: `node dev-cli/bin/dev-cli.js spec task {task_id} --get {spec_path}`
+Run: `node cli/dist/cli.js spec task {task_id} --get {spec_path}`
 This returns JSON with: action, steps, file_scope, acceptance_criteria,
 must_not_do, inputs, outputs, references.
 
 ## Step 2: Resolve dependency inputs (if any)
 If your task has `inputs[].from_task`, fetch each dependency:
-Run: `node dev-cli/bin/dev-cli.js spec task {from_task} --get {spec_path}`
+Run: `node cli/dist/cli.js spec task {from_task} --get {spec_path}`
 Use its `outputs` to understand what was produced.
 
 ## Step 3: Read context files
@@ -285,7 +285,7 @@ VERIFY_DESCRIPTION(task_id) = """
 You are a Verification agent. Verify task {task_id} independently.
 
 ## Step 1: Read task spec
-Run: `node dev-cli/bin/dev-cli.js spec task {task_id} --get {spec_path}`
+Run: `node cli/dist/cli.js spec task {task_id} --get {spec_path}`
 
 ## Step 2: Run ALL acceptance criteria commands
 Re-execute every command from acceptance_criteria yourself.
@@ -354,7 +354,7 @@ TaskUpdate(taskId=fv, addBlocks=[rp])
 
 > **Compaction recovery**: A `SessionStart(compact)` hook automatically re-injects
 > spec_path, task progress, and context_dir after compaction. Workers self-read
-> task details via `dev-cli spec task <id> --get` and context files directly.
+> task details via `node cli/dist/cli.js spec task <id> --get` and context files directly.
 > The orchestrator does NOT need to read spec.json or context files.
 
 ```
@@ -397,7 +397,7 @@ ELSE:
 
 > **Self-read pattern**: The orchestrator does NOT read spec.json or context files.
 > The worker's description (set at TaskCreate time) contains all instructions for
-> the worker to self-read via `dev-cli` and context files.
+> the worker to self-read via `cli` and context files.
 
 ```
 # Description was already set in Phase 0.5 TaskCreate via WORKER_DESCRIPTION(task_id).
@@ -415,7 +415,7 @@ Agent(
 
 ```
 IF result.status == "DONE":
-  Bash("node dev-cli/bin/dev-cli.js spec task {task_id} --status in_progress {spec_path}")
+  Bash("node cli/dist/cli.js spec task {task_id} --status in_progress {spec_path}")
   TaskUpdate(taskId, status="completed")
   # Next: :Verify (standard) or :Commit (quick)
 
@@ -438,7 +438,7 @@ Dispatch a verify worker. The description was already set at TaskCreate time via
 
 ```
 # Description was already set in Phase 0.5 TaskCreate via VERIFY_DESCRIPTION(task_id).
-# The verifier self-reads task spec via dev-cli and runs acceptance criteria commands.
+# The verifier self-reads task spec via cli and runs acceptance criteria commands.
 
 Agent(
   subagent_type="worker",
@@ -555,7 +555,7 @@ function adapt(task_id, verify_result):
 
   # 1. Add new fix task to spec.json
   fix_task_id = "T{next_id}"
-  Bash("""node dev-cli/bin/dev-cli.js spec merge {spec_path} --json '{
+  Bash("""node cli/dist/cli.js spec merge {spec_path} --json '{
     "tasks": [{
       "id": "{fix_task_id}",
       "action": "{adaptation.suggested_todo.title}",
@@ -576,7 +576,7 @@ function adapt(task_id, verify_result):
   log_to_audit("ADAPT: created {fix_task_id} for {task_id} — {adaptation.blockage_type}")
 
   # 2. Re-plan to get updated DAG
-  new_plan = Bash("node dev-cli/bin/dev-cli.js spec plan {spec_path} --format slim")
+  new_plan = Bash("node cli/dist/cli.js spec plan {spec_path} --format slim")
 
   # 3. Create tracking tasks for the fix (use same self-read pattern)
   fw = TaskCreate(subject="{fix_task_id}.1:Worker — {adaptation.suggested_todo.title}",
@@ -626,7 +626,7 @@ Agent(
 On completion:
 
 ```
-Bash("node dev-cli/bin/dev-cli.js spec task {task_id} --status done --summary '{summary}' {spec_path}")
+Bash("node cli/dist/cli.js spec task {task_id} --status done --summary '{summary}' {spec_path}")
 TaskUpdate(taskId, status="completed")
 ```
 
@@ -882,10 +882,10 @@ Details: {verify result summary}
 ## Rules
 
 1. **spec.json is the ONLY source** — no PLAN.md, no state.json
-2. **Always use dev-cli** — `spec plan`, `spec task`, `spec merge`, `spec check`
+2. **Always use cli** — `spec plan`, `spec task`, `spec merge`, `spec check`
 3. **Two turns for task setup** — Turn 1: all TaskCreate, Turn 2: all TaskUpdate
 4. **Dual tracking** — both spec.json (via `spec task`) and TaskList (via TaskUpdate)
-5. **Workers self-read everything** — Workers use `dev-cli spec task --get` and Read context files themselves. Orchestrator does NOT read spec.json or context files during dispatch. Orchestrator only writes audit.md.
+5. **Workers self-read everything** — Workers use `node cli/dist/cli.js spec task --get` and Read context files themselves. Orchestrator does NOT read spec.json or context files during dispatch. Orchestrator only writes audit.md.
 6. **Description = recipe** — TaskCreate description contains the full self-read recipe (CLI commands, context paths, output format). At dispatch time, orchestrator just passes `TaskGet(id).description` as the Agent prompt.
 7. **Per-task commit** — every task gets its own commit via git-master
 8. **Verify is standard-only** — quick mode skips per-task verification
@@ -897,14 +897,14 @@ Details: {verify result summary}
 
 ### Common (all modes)
 - [ ] spec.json found and validated
-- [ ] `dev-cli spec plan` executed and shown to user
+- [ ] `node cli/dist/cli.js spec plan` executed and shown to user
 - [ ] Context directory initialized (learnings.md, issues.md, audit.md)
 - [ ] Pre-work status logged explicitly (none/pass/fail)
 - [ ] All TaskCreate in single turn, all TaskUpdate in single turn
 - [ ] Worker descriptions use self-read pattern (WORKER_DESCRIPTION / VERIFY_DESCRIPTION)
 - [ ] Orchestrator does NOT Read spec.json or context files during dispatch
-- [ ] All spec tasks have `status: "done"` (via `dev-cli spec task`)
-- [ ] `dev-cli spec check` passes at end
+- [ ] All spec tasks have `status: "done"` (via `node cli/dist/cli.js spec task`)
+- [ ] `node cli/dist/cli.js spec check` passes at end
 - [ ] Residual commit handled
 - [ ] Final report output
 - [ ] H-items listed for human follow-up

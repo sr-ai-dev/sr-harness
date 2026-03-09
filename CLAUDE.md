@@ -96,7 +96,15 @@ Hooks are registered in `.claude/settings.local.json` and automate pipeline tran
 - Plugin version is in `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
 - **Bump both files** in a single commit on `develop` before merging to `main`
 
-## Recent Changes (v0.7.1)
+## Recent Changes (v0.8.0)
+
+- refactor(cli): rename `dev-cli/` to `cli/`, bundle with esbuild into single `dist/cli.js` (all deps inlined, no node_modules needed)
+- feat(cli): prepare npm publish as `@team-attention/hoyeon-cli` (package.json, bin entry, publishConfig)
+- refactor(cli): rename user-facing strings from `dev-cli` to `hoyeon-cli` in all help/error output
+- refactor(hooks,skills,docs): update all references from `dev-cli/bin/dev-cli.js` to `cli/dist/cli.js`
+- feat(hooks): add pre-commit hook to auto-rebuild `cli/dist/cli.js` on source changes (`scripts/pre-commit-cli-build.sh`)
+
+## Previous Changes (v0.7.1)
 
 - refactor(hooks): migrate session state from `~/.claude/.hook-state/` to `~/.hoyeon/{session_id}/` directory structure
 - refactor(hooks): unify rulph/rph/rv state into single `state.json` with namespaced fields (`.rulph`, `.rph`, `.rv`)

@@ -326,7 +326,7 @@ v3의 자유 텍스트 → v4에서 typed object:
     ],
     "deliverables": [
       { "path": "scripts/stop-router.sh", "description": "단일 Stop hook entry point" },
-      { "path": "dev-cli/src/handlers/stop-evaluate.js", "description": "통합 평가 핸들러" },
+      { "path": "cli/src/handlers/stop-evaluate.js", "description": "통합 평가 핸들러" },
       { "path": ".claude/settings.json", "description": "Stop hook 등록 업데이트" }
     ],
     "derived_from": ".dev/specs/stop-router/PLAN.md",
@@ -440,7 +440,7 @@ v3의 자유 텍스트 → v4에서 typed object:
       "type": "work",
       "risk": "low",
       "file_scope": [
-        "dev-cli/src/handlers/stop-evaluate.js",
+        "cli/src/handlers/stop-evaluate.js",
         "cli/dist/cli.js"
       ],
       "fulfills": ["R1"],
@@ -454,12 +454,12 @@ v3의 자유 텍스트 → v4에서 typed object:
         { "path": "scripts/chain-stop-hook.sh", "start_line": 40, "end_line": 75 },
         { "path": "scripts/rv-validator.sh", "start_line": 23, "end_line": 36 },
         { "path": "scripts/rph-loop.sh", "start_line": 23, "end_line": 33 },
-        { "path": "dev-cli/src/handlers/chain-status.js" },
+        { "path": "cli/src/handlers/chain-status.js" },
         { "path": "cli/dist/cli.js", "start_line": 7, "end_line": 33 }
       ],
       "inputs": [],
       "outputs": [
-        { "id": "handler_path", "path": "dev-cli/src/handlers/stop-evaluate.js" }
+        { "id": "handler_path", "path": "cli/src/handlers/stop-evaluate.js" }
       ],
       "task_constraints": [
         { "type": "preserve_string", "target": "blockReason values in existing hooks" },
@@ -604,11 +604,11 @@ v3의 자유 텍스트 → v4에서 typed object:
     {
       "id": "C3",
       "type": "must_not_do",
-      "rule": "허용 경로 외 파일 수정 금지 (scripts/, .claude/settings.json, dev-cli/ 만 허용)",
+      "rule": "허용 경로 외 파일 수정 금지 (scripts/, .claude/settings.json, cli/ 만 허용)",
       "verified_by": "machine",
       "verify": {
         "type": "command",
-        "run": "git diff --name-only | grep -vcE '^(scripts/|.claude/settings.json|dev-cli/)' || true",
+        "run": "git diff --name-only | grep -vcE '^(scripts/|.claude/settings.json|cli/)' || true",
         "expect": { "exit_code": 0, "stdout_contains": "0" }
       }
     }

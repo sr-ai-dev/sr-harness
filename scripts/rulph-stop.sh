@@ -38,7 +38,7 @@ STATUS=$(jq -r '.rulph.status // "active"' "$STATE_FILE")
 
 # Completed — remove rulph namespace and allow exit
 if [[ "$STATUS" == "completed" ]]; then
-  jq 'del(.rulph)' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+  jq 'del(.rulph)' "$STATE_FILE" > "${STATE_FILE}.tmp.$$" && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
   exit 0
 fi
 
@@ -48,11 +48,11 @@ max_iterations=$(jq -r '.rulph.max_iterations // 15' "$STATE_FILE")
 iteration=$((iteration + 1))
 
 # Update iteration counter
-jq --argjson iter "$iteration" '.rulph.iteration = $iter' "$STATE_FILE" > "$STATE_FILE.tmp" \
-  && mv "$STATE_FILE.tmp" "$STATE_FILE"
+jq --argjson iter "$iteration" '.rulph.iteration = $iter' "$STATE_FILE" > "${STATE_FILE}.tmp.$$" \
+  && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
 
 if [[ "$iteration" -gt "$max_iterations" ]]; then
-  jq 'del(.rulph)' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+  jq 'del(.rulph)' "$STATE_FILE" > "${STATE_FILE}.tmp.$$" && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
   exit 0
 fi
 
@@ -64,13 +64,13 @@ max_rounds=$(jq -r '.rulph.max_rounds // 5' "$STATE_FILE")
 
 # Threshold met — remove rulph namespace and allow exit
 if [[ "$score" -ge "$threshold" ]] && [[ "$threshold" -gt 0 ]]; then
-  jq 'del(.rulph)' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+  jq 'del(.rulph)' "$STATE_FILE" > "${STATE_FILE}.tmp.$$" && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
   exit 0
 fi
 
 # Circuit breaker — remove rulph namespace and allow exit
 if [[ "$round" -gt "$max_rounds" ]] && [[ "$max_rounds" -gt 0 ]]; then
-  jq 'del(.rulph)' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+  jq 'del(.rulph)' "$STATE_FILE" > "${STATE_FILE}.tmp.$$" && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
   exit 0
 fi
 

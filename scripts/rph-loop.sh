@@ -28,11 +28,11 @@ max_iterations=$(jq -r '.rph.max_iterations // 10' "$STATE_FILE")
 iteration=$((iteration + 1))
 
 # Update iteration count in state file (atomic write)
-jq --argjson iter "$iteration" '.rph.iteration = $iter' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+jq --argjson iter "$iteration" '.rph.iteration = $iter' "$STATE_FILE" > "${STATE_FILE}.tmp.$$" && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
 
 # Safety: max iterations exceeded -> force cleanup and exit
 if [ "$iteration" -gt "$max_iterations" ]; then
-    jq 'del(.rph)' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+    jq 'del(.rph)' "$STATE_FILE" > "${STATE_FILE}.tmp.$$" && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
     rm -f "$DOD_FILE" "$VERIFY_FLAG"
     jq -n --arg reason "RALPH LOOP: Max iterations ($max_iterations) exceeded. Force-stopping to prevent infinite loop. State cleaned up. Please review the task manually." \
       '{decision: "block", reason: $reason}'
@@ -75,6 +75,6 @@ if [ "$unchecked" -gt 0 ]; then
 fi
 
 # All items checked -> cleanup and allow stop
-jq 'del(.rph)' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+jq 'del(.rph)' "$STATE_FILE" > "${STATE_FILE}.tmp.$$" && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
 rm -f "$DOD_FILE" "$VERIFY_FLAG"
 exit 0

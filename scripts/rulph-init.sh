@@ -37,7 +37,7 @@ fi
 
 # Merge rulph namespace into existing state.json (or create if missing)
 if [[ -f "$STATE_FILE" ]]; then
-  jq --arg sid "$SESSION_ID" '. + {rulph: {status: "init", session_id: $sid, iteration: 0, max_iterations: 15}}' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+  jq --arg sid "$SESSION_ID" '. + {rulph: {status: "init", session_id: $sid, iteration: 0, max_iterations: 15}}' "$STATE_FILE" > "${STATE_FILE}.tmp.$$" && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
 else
   mkdir -p "$SESSION_DIR/files" "$SESSION_DIR/tmp"
   jq -n --arg sid "$SESSION_ID" '{rulph: {status: "init", session_id: $sid, iteration: 0, max_iterations: 15}}' > "$STATE_FILE"

@@ -25,7 +25,7 @@ if [[ "$prompt" =~ \!rv([0-9]*) ]]; then
 
     mkdir -p "$SESSION_DIR/files" "$SESSION_DIR/tmp"
     if [[ -f "$STATE_FILE" ]]; then
-        jq --argjson count "$count" '. + {rv: {remaining: $count}}' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+        jq --argjson count "$count" '. + {rv: {remaining: $count}}' "$STATE_FILE" > "${STATE_FILE}.tmp.$$" && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
     else
         jq -n --argjson count "$count" '{rv: {remaining: $count}}' > "$STATE_FILE"
     fi

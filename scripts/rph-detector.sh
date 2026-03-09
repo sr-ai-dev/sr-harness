@@ -29,7 +29,7 @@ if [[ "$prompt" == *"!rph"* ]]; then
     if [[ -f "$STATE_FILE" ]]; then
         jq --arg prompt "$stripped_prompt" --arg dod_file "$DOD_FILE" --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           '. + {rph: {prompt: $prompt, iteration: 0, max_iterations: 10, dod_file: $dod_file, created_at: $created_at}}' \
-          "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+          "$STATE_FILE" > "${STATE_FILE}.tmp.$$" && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
     else
         jq -n --arg prompt "$stripped_prompt" --arg dod_file "$DOD_FILE" --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           '{rph: {prompt: $prompt, iteration: 0, max_iterations: 10, dod_file: $dod_file, created_at: $created_at}}' \
@@ -51,7 +51,7 @@ fi
 
 # No !rph in prompt — check if rph state exists (zombie cleanup)
 if [[ -f "$STATE_FILE" ]] && jq -e '.rph' "$STATE_FILE" >/dev/null 2>&1; then
-    jq 'del(.rph)' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+    jq 'del(.rph)' "$STATE_FILE" > "${STATE_FILE}.tmp.$$" && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
     rm -f "$DOD_FILE" "$VERIFY_FLAG"
     cat << 'EOF'
 {

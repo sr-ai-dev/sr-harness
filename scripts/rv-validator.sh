@@ -22,10 +22,10 @@ if [[ -f "$STATE_FILE" ]] && jq -e '.rv' "$STATE_FILE" >/dev/null 2>&1; then
 
     if [ "$remaining" -le 0 ]; then
         # Last round - remove rv namespace from state
-        jq 'del(.rv)' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+        jq 'del(.rv)' "$STATE_FILE" > "${STATE_FILE}.tmp.$$" && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
     else
         # More rounds remaining - update count
-        jq --argjson r "$remaining" '.rv.remaining = $r' "$STATE_FILE" > "$STATE_FILE.tmp" && mv "$STATE_FILE.tmp" "$STATE_FILE"
+        jq --argjson r "$remaining" '.rv.remaining = $r' "$STATE_FILE" > "${STATE_FILE}.tmp.$$" && mv "${STATE_FILE}.tmp.$$" "$STATE_FILE"
     fi
 
     # Block and demand re-verification

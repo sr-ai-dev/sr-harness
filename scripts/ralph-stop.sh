@@ -68,7 +68,7 @@ if [ "$total" -eq 0 ]; then
     exit 0
 fi
 
-# Unchecked items remain -> set verify flag + block with prompt re-injection
+# Unchecked items remain -> set verify flag + block with verifier agent instruction
 if [ "$unchecked" -gt 0 ]; then
     # Create verify flag so ralph-dod-guard.sh allows DoD edits during verification
     touch "$VERIFY_FLAG"
@@ -82,10 +82,11 @@ if [ "$unchecked" -gt 0 ]; then
       --argjson unchecked "$unchecked" \
       --argjson total "$total" \
       --arg items "$remaining" \
+      --arg dod_file "$DOD_FILE" \
       '{
         decision: "block",
         reason: $prompt,
-        systemMessage: ("Ralph iteration " + ($iter|tostring) + "/" + ($max|tostring) + ". " + ($unchecked|tostring) + " of " + ($total|tostring) + " DoD items NOT verified.\n\nINDEPENDENTLY VERIFY each remaining item — read actual files, run code, check real state. Do NOT assume done. Change - [ ] to - [x] for each verified item.\n\nRemaining:\n" + $items)
+        systemMessage: ("Ralph iteration " + ($iter|tostring) + "/" + ($max|tostring) + ". " + ($unchecked|tostring) + " of " + ($total|tostring) + " DoD items NOT verified.\n\n⚡ SPAWN VERIFIER AGENT: Use the Agent tool with subagent_type=\"ralph-verifier\" to independently verify DoD items.\n⚠️ MUST use FOREGROUND (run_in_background=false). Background spawn causes the main agent to stop early, triggering the Stop hook and breaking the loop.\n\nPass this prompt to the agent:\n  \"Verify the DoD checklist at: " + $dod_file + "\nOriginal task: " + $prompt + "\"\n\nAfter the verifier returns:\n1. Parse the JSON results\n2. For each PASS item → change - [ ] to - [x] in the DoD file\n3. For each FAIL item → fix the issue, then let the next iteration re-verify\n\nRemaining items:\n" + $items)
       }'
     exit 0
 fi

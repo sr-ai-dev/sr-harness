@@ -149,10 +149,20 @@ When you believe the work is complete, simply finish your response normally. The
 
 **On re-entry (after Stop hook blocks):**
 - You will receive the original prompt again as your task
-- The `systemMessage` will tell you which DoD items are still unchecked
-- Review the remaining items, do the work, then verify each one independently
-- For each verified item, change `- [ ]` to `- [x]` in the DoD file (allowed during verification phase)
-- Do NOT blindly check items — actually read files, run tests, verify the real state
+- The `systemMessage` will instruct you to spawn a **ralph-verifier** agent
+
+**Verification via separate agent (context isolation):**
+1. Spawn `ralph-verifier` agent with `subagent_type="ralph-verifier"` in **FOREGROUND** (do NOT use `run_in_background=true`)
+   - Background spawn causes the main agent to stop → Stop hook fires → loop breaks
+   - Pass the DoD file path and original prompt
+2. The verifier runs in a **fresh context** — no bias from the work phase
+3. Parse the verifier's JSON results:
+   - `PASS` items → change `- [ ]` to `- [x]` in the DoD file
+   - `FAIL` items → fix the underlying issue in this iteration
+4. If FAIL items were fixed, the next Stop hook will trigger another verification round
+
+**Why a separate agent?**
+The agent that wrote the code should NOT verify its own work. The verifier agent starts clean, reads actual files/tests, and judges objectively.
 
 ---
 

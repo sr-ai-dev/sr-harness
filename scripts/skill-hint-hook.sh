@@ -161,16 +161,16 @@ for s in matched_skills:
     if slug:
         hint_lines.append(f"- /{slug} - {hint}")
 
-matched_hints = "\\n".join(hint_lines)
+matched_hints = "\n".join(hint_lines)
 
 additional_context = (
-    "<skill-suggestion>\\n"
-    "BLOCKING REQUIREMENT: Before responding to the user, you MUST use AskUserQuestion to ask which skill to use.\\n"
-    f"Matched skills:\\n{matched_hints}\\n"
-    "Options to present:\\n"
-    + "\\n".join([f"- {h}" for h in hint_lines])
-    + "\\n- Continue without skill\\n"
-    "Do NOT skip this step. Do NOT proceed without asking.\\n"
+    "<skill-suggestion>\n"
+    "BLOCKING REQUIREMENT: Before responding to the user, you MUST use AskUserQuestion to ask which skill to use.\n"
+    f"Matched skills:\n{matched_hints}\n"
+    "Options to present:\n"
+    + "\n".join([f"- {h}" for h in hint_lines])
+    + "\n- Continue without skill\n"
+    "Do NOT skip this step. Do NOT proceed without asking.\n"
     "</skill-suggestion>"
 )
 

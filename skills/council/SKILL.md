@@ -6,7 +6,8 @@ description: |
   or wants deep multi-perspective deliberation with tradeoff mapping.
   Combines tribunal (structured adversarial review), agent-council (external LLM opinions),
   dev-scan (community sentiment), and step-back (meta-level review) into a unified
-  decision-making committee. Uses Agent Teams for real peer-to-peer debate.
+  decision-making committee. Uses Agent Teams for real peer-to-peer debate with
+  iterative step-back moderation loop.
 allowed-tools:
   - Read
   - Grep
@@ -27,41 +28,52 @@ validate_prompt: |
   3. Contention Points section
   4. Step-back Insight section
   5. Team Mode debate with SendMessage (peer-to-peer)
+  6. Iterative debate loop (debate → step-back → targeted re-debate)
 ---
 
 # /council — Multi-Perspective Decision Committee
 
 You are a council orchestrator (team lead). You dynamically assemble a deliberation committee
-as an **Agent Team**, run multi-round debates where panelists argue with each other directly
-via SendMessage, then synthesize findings into a **Tradeoff Map**.
+as an **Agent Team**, run iterative debates where panelists argue with each other directly
+via SendMessage, with a step-back reviewer acting as **in-loop judge** who decides whether
+more debate is needed. Then synthesize findings into a **Tradeoff Map**.
 
 ## Architecture
 
 ```
 Phase 1: 의제 파싱 + 위원회 구성
    │
-Phase 2: 위원회 토론 (Team Mode Debate)
-   │  ├─ 2.1: TeamCreate + spawn panelists + external agents
-   │  ├─ 2.2: Round 1 — 입장 표명 (independent analysis)
-   │  ├─ 2.3: Round 2 — 교차 토론 (peer-to-peer debate via SendMessage)
-   │  └─ 2.4: Round 3 — 최종 입장 (convergence, optional)
+Phase 2: 위원회 토론 (Iterative Debate Loop)
+   │  ├─ 2.1: TeamCreate + spawn ALL (panelists + step-back + external agents)
+   │  ├─ 2.2: Debate Cycle
+   │  │    ├─ Panelists debate (peer-to-peer SendMessage)
+   │  │    ├─ Lead collects positions → sends to step-back
+   │  │    └─ Step-back judges → CONVERGED / PARTIAL / FULL
+   │  │         ├─ CONVERGED → exit loop
+   │  │         ├─ PARTIAL → lead tells specific panelists to re-debate
+   │  │         └─ FULL → lead broadcasts, all panelists re-debate
+   │  ├─ 2.3: Repeat cycle (max 3 cycles)
+   │  └─ 2.4: Collect external results + shutdown all teammates
    │
-Phase 3: Step-back Review (메타 레벨 점검)
-   │
-Phase 4: 트레이드오프 맵 + 판결
+Phase 3: 트레이드오프 맵 + 판결
 ```
 
 ```
-                    ┌─────── TeamCreate("council") ───────┐
-                    │                                      │
-                    │   Panelist A ←──SendMessage──→ B     │
-         Input ─────┤   Panelist C ←──SendMessage──→ A     ├──→ Step-back ──→ Tradeoff Map
-                    │        ↕ debate rounds ↕             │      Review
-                    │   Lead moderates + broadcasts        │
-                    │                                      │
-                    └──────────────────────────────────────┘
-                           ↑ parallel (background agents)
-                    External LLM + dev-scan (main agent spawns)
+         ┌──────────── TeamCreate("council") ────────────┐
+         │                                                │
+         │   Panelist A ←─ SendMessage ─→ B               │
+         │   Panelist C ←─ SendMessage ─→ A               │
+Input ───┤        ↕ debate ↕                              ├──→ Tradeoff Map
+         │                                                │
+         │   Lead collects ──→ Step-back Judge             │
+         │                       │                        │
+         │              CONVERGED? ──No──→ re-debate ─┐   │
+         │                  │Yes                      │   │
+         │                  ↓                    ←────┘   │
+         │              exit loop                         │
+         └────────────────────────────────────────────────┘
+                ↑ parallel (background agents)
+         External LLM + dev-scan (main agent spawns)
 ```
 
 ---
@@ -71,13 +83,14 @@ Phase 4: 트레이드오프 맵 + 판결
 | Agent | Role | Model | Type | Phase |
 |-------|------|-------|------|-------|
 | **Lead (you)** | Orchestrator, moderator, synthesizer | — | main agent | All |
-| **Panelist ×3~5** | Perspective-specific analysis + debate | opus | teammate | Phase 2 |
-| **Step-back Reviewer** | Meta-level review after debate | opus | teammate | Phase 3 |
+| **Panelist ×2~4** | Perspective-specific analysis + debate | opus | teammate | Phase 2 |
+| **Step-back Judge** | In-loop meta-reviewer, decides if debate continues | opus | teammate | Phase 2 |
 | **Codex (external)** | Independent external LLM opinion | codex | background agent | Phase 2 |
-| **Gemini (external)** | Independent external LLM opinion | gemini | background agent | Phase 2 |
-| **Community Scanner** | dev-scan community sentiment | haiku | background agent | Phase 2 |
+| **Community Scanner** | dev-scan community sentiment (optional) | haiku | background agent | Phase 2 |
 
-**Why two patterns**: Teammates (panelists) use SendMessage for real debate. Background agents handle external CLI calls (codex/gemini) because teammates cannot spawn subagents.
+**Why two patterns**: Teammates (panelists + step-back) use SendMessage for real debate. Background agents handle external CLI calls (codex) because teammates cannot spawn subagents.
+
+**Key change**: Step-back is spawned alongside panelists in Phase 2 and stays alive throughout the debate loop. It acts as the **judge** who decides when debate quality is sufficient.
 
 ---
 
@@ -85,11 +98,12 @@ Phase 4: 트레이드오프 맵 + 판결
 
 | Tribunal | Council (extends) |
 |----------|-------------------|
-| Fixed 3 roles (Risk/Value/Feasibility) | **Dynamic 3~5 roles** designed per topic |
-| Internal Claude agents only | + **External LLMs** (Codex, Gemini) |
+| Fixed 3 roles (Risk/Value/Feasibility) | **Dynamic 3 roles** designed per topic |
+| Internal Claude agents only | + **External LLM** (Codex) |
 | No community data | + **dev-scan** community sentiment |
 | Independent analysis, no interaction | **Multi-round debate** via SendMessage |
-| Single-round hearings | Round 1 (positions) → Round 2 (debate) → Round 3 (convergence) |
+| Single-round hearings | **Iterative loop**: debate → step-back judge → re-debate |
+| No meta-review feedback loop | Step-back can **send panelists back** for more debate |
 | Verdict Matrix → APPROVE/REVISE/REJECT | → **Tradeoff Map** with Decision Confidence Score |
 
 ---
@@ -99,9 +113,8 @@ Phase 4: 트레이드오프 맵 + 판결
 | Phase | Input | Output Artifact | Consumed By |
 |-------|-------|-----------------|-------------|
 | Phase 1 | User args + topic | `committee_config` (panelist list, mode, topic) | Phase 2 |
-| Phase 2 | `committee_config` | `debate_transcript` + `final_positions[]` + `community_sentiment` | Phase 3, 4 |
-| Phase 3 | `final_positions[]` + `community_sentiment` | `meta_review` (step-back analysis) | Phase 4 |
-| Phase 4 | All above | **Tradeoff Map** (final output to user) | User |
+| Phase 2 | `committee_config` | `debate_log[]` + `final_positions[]` + `stepback_reviews[]` + `community_sentiment` | Phase 3 |
+| Phase 3 | All above | **Tradeoff Map** (final output to user) | User |
 
 ---
 
@@ -121,10 +134,11 @@ Determine the deliberation target from arguments:
 
 ### 1.2 Dynamic Panelist Design
 
-Analyze the topic and design **3~5 panelists** with distinct perspectives.
+Analyze the topic and design **2~4 panelists** with distinct perspectives.
 Do NOT use fixed roles — design roles that fit the specific topic.
 
 **Design rules:**
+- **2~4 panelists** — keeps debate focused and token-efficient
 - Each panelist must have a **distinct analytical lens** (not overlapping)
 - At least one panelist should be **adversarial** (find problems)
 - At least one panelist should be **constructive** (find value)
@@ -132,36 +146,33 @@ Do NOT use fixed roles — design roles that fit the specific topic.
 
 **Examples of dynamic design:**
 
-| Topic | Panelists |
+| Topic | Panelists (2~4) |
 |-------|-----------|
-| "Redis vs Memcached" | Performance Engineer, Ops Complexity Analyst, Cost Optimizer, DX Advocate |
+| "Redis vs Memcached" | Performance Engineer, Ops Complexity Analyst, DX Advocate |
 | "Monorepo migration" | Build System Expert, Team Workflow Analyst, Migration Risk Assessor |
-| "New auth system" | Security Analyst, UX Impact Reviewer, Implementation Feasibility, Compliance Checker |
+| "New auth system" | Security Analyst, UX Impact Reviewer, Compliance Checker |
 
 ### 1.3 Capability Check
 
 ```bash
 CODEX_AVAILABLE=$(command -v codex >/dev/null 2>&1 && echo "yes" || echo "no")
-GEMINI_AVAILABLE=$(command -v gemini >/dev/null 2>&1 && echo "yes" || echo "no")
 DEVSCAN_AVAILABLE="yes"
 ```
 
-**Graceful degradation**: If a CLI is not found, skip that external LLM silently. Mark as `SKIPPED` in the final report. The council operates with whatever is available.
+**Graceful degradation**: If a CLI is not found, skip that external LLM silently. Mark as `SKIPPED` in the final report.
 
 ### 1.4 Mode Selection
-
-Present the committee composition to the user:
 
 ```
 AskUserQuestion(
   question: "위원회를 구성했습니다. 어떤 모드로 진행할까요?",
   options: [
     { label: "Full Council (Recommended)",
-      description: "팀 토론 + 외부 LLM + dev-scan + step-back. 가장 깊은 분석" },
+      description: "반복 토론 + 외부 LLM + dev-scan + step-back 심판. 가장 깊은 분석" },
     { label: "Standard",
-      description: "팀 토론 + step-back만. 외부 LLM/dev-scan 생략. 빠르고 경제적" },
+      description: "반복 토론 + step-back 심판. 외부 LLM/dev-scan 생략. 빠르고 경제적" },
     { label: "Quick",
-      description: "팀 토론 1라운드만. 교차 토론 없이 바로 합의. 가장 빠름" }
+      description: "토론 1사이클만. Step-back 판정 없이 바로 합의. 가장 빠름" }
   ]
 )
 ```
@@ -176,11 +187,9 @@ Display the panelist table before asking:
 | 1 | [name] | [analytical perspective] | Teammate (opus) | Phase 2 |
 | 2 | [name] | [analytical perspective] | Teammate (opus) | Phase 2 |
 | 3 | [name] | [analytical perspective] | Teammate (opus) | Phase 2 |
-| 4 | [name] | [analytical perspective] | Teammate (opus) | Phase 2 (if 4+ designed) |
-| 5 | Step-back Reviewer | 메타 레벨 점검 | Teammate (opus) | Phase 3 |
-| 6 | Codex (external) | 독립 외부 관점 | Background agent | Phase 2 (Full only) |
-| 7 | Gemini (external) | 독립 외부 관점 | Background agent | Phase 2 (Full only) |
-| 8 | dev-scan | 커뮤니티 센티멘트 | Background agent (haiku) | Phase 2 (Full only) |
+| 4 | Step-back Judge | 메타 레벨 심판 | Teammate (opus) | Phase 2 (loop) |
+| 5 | Codex (external) | 독립 외부 관점 | Background agent | Phase 2 (optional) |
+| 6 | dev-scan | 커뮤니티 센티멘트 (optional) | Background agent (haiku) | Phase 2 (optional) |
 ```
 
 ### 1.5 State Init
@@ -192,12 +201,13 @@ hoyeon-cli session set --sid $SESSION_ID --json '{"council": {"phase": 1, "mode"
 
 ---
 
-## Phase 2: 위원회 토론 (Team Mode Debate)
+## Phase 2: 위원회 토론 (Iterative Debate Loop)
 
-The core innovation: panelists are **teammates** who debate with each other via SendMessage,
-not isolated background agents producing independent reports.
+The core innovation: panelists AND step-back are all **teammates** spawned together.
+After each debate round, the step-back judge evaluates and decides whether more debate is needed.
+Panelists stay alive until the loop completes.
 
-### 2.1 Setup — TeamCreate + Parallel Launch
+### 2.1 Setup — TeamCreate + Spawn ALL
 
 **Step 1**: Create the council team.
 
@@ -205,20 +215,12 @@ not isolated background agents producing independent reports.
 TeamCreate(team_name: "council", description: "[topic summary]")
 ```
 
-**Step 2**: Create tasks for tracking.
-
-```
-TaskCreate(title: "Round 1 — Initial position", description: "Each panelist analyzes independently")
-TaskCreate(title: "Round 2 — Cross-debate", description: "Panelists challenge each other's positions")
-TaskCreate(title: "Round 3 — Final position", description: "Convergence round (if needed)")
-```
-
-**Step 3**: Spawn panelists as teammates + external agents as background agents — **all in ONE message**.
+**Step 2**: Spawn ALL teammates + background agents — **all in ONE message**.
 
 ```
 # Spawn ALL in a single message for parallel execution
 
-# --- Teammates (panelists) ---
+# --- Panelist teammates ---
 Agent(
   name="panelist-[kebab-name-1]",
   model="opus",
@@ -233,19 +235,21 @@ You are [panelist name], a council panelist analyzing from the perspective of **
 [full topic content]
 
 ## Debate Protocol
-You are part of a deliberation council. The debate has 3 rounds:
+You are part of an iterative deliberation council. You will go through multiple cycles:
 
-**Round 1 (NOW)**: Analyze the topic independently through your lens. When done, send your position to the team lead using SendMessage.
+**Cycle 1 — Round 1 (NOW)**: Analyze the topic independently through your lens. Send your position to the team lead.
 
-**Round 2 (after lead broadcasts)**: You will receive ALL panelists' positions via broadcast. Read each position carefully. Then:
-- For each position you **disagree** with: SendMessage(type="message", recipient="panelist-[name]") explaining WHY you disagree with specific counter-arguments
-- For each position you **agree** with but want to add nuance: SendMessage to that panelist
+**Cycle 1 — Round 2 (after lead broadcasts)**: You will receive ALL panelists' positions. Then:
+- SendMessage(type="message", recipient="panelist-[name]") to challenge positions you disagree with
 - You MUST engage with at least 2 other panelists
+- After debating, send your updated position to the team lead
 
-**Round 3 (after lead signals)**: Consolidate your final position considering the debate. Send to team lead.
+**Subsequent Cycles (if step-back judge requests)**: The lead will message you with step-back feedback and specific questions. Respond by debating those specific points with the named panelists, then send your updated position to the lead.
 
-## Round 1 Output Format
-Send this as a message to the team lead:
+**IMPORTANT**: Do NOT shut down after a round. Stay alive and wait for further instructions from the lead. Only shut down when you receive a shutdown_request.
+
+## Position Output Format
+Send this as a message to the team lead each time you update your position:
 
 Position: [support_A | support_B | conditional | neutral]
 Confidence: [0-100]
@@ -254,13 +258,69 @@ Tradeoffs: [dimension → option_a pro/con, option_b pro/con]
 Risks: [specific risks from your lens]
 Conditions: [what would change your mind]
 Evidence: [concrete evidence]
+Cycle: [current cycle number]
 
 Be specific and evidence-based. No generic statements.
 """)
 
-# ... repeat for each panelist (3~5 total) ...
+# ... repeat for each panelist (3 total) ...
 
-# --- Background agents (external LLMs, Full mode only) ---
+# --- Step-back Judge teammate ---
+Agent(
+  name="step-back-judge",
+  model="opus",
+  subagent_type="general-purpose",
+  mode="bypassPermissions",
+  team_name="council",
+  prompt="""
+## Role
+You are the Step-back Judge of a deliberation council. You operate at a META level — above the panelists. You do NOT argue for any option. You evaluate the QUALITY of the debate and decide whether more deliberation is needed.
+
+## Deliberation Topic
+[full topic content]
+
+## Your Protocol
+You will receive debate summaries from the team lead after each debate round. For each summary, you must:
+
+1. Evaluate the debate quality
+2. Return a VERDICT to the team lead
+
+**IMPORTANT**: Do NOT analyze until the lead sends you a debate summary. Wait for the lead's message. Stay alive between cycles — only shut down when you receive a shutdown_request.
+
+## Evaluation Criteria
+When the lead sends you a debate summary, analyze:
+1. **Framing Check**: Are panelists solving the right problem? Is there an Option C?
+2. **Assumption Audit**: What shared assumptions are dangerous?
+3. **Debate Quality**: Did positions shift, or just entrench? Are arguments evidence-based or hand-waving?
+4. **Blind Spots**: What dimensions are panelists NOT discussing that matter?
+5. **Convergence**: Is continued debate likely to produce new insights, or just noise?
+
+## Verdict Format
+Send this to the team lead via SendMessage:
+
+Verdict: [CONVERGED | PARTIAL | FULL]
+Confidence: [0-100]
+Framing Issues: [list or "none"]
+Hidden Assumptions: [list or "none"]
+Blind Spots: [list or "none"]
+Option C: [alternative nobody mentioned, or "none"]
+
+If PARTIAL:
+  Target Panelists: [panelist-name-1, panelist-name-2]
+  Debate Focus: [specific question or dimension they should address]
+
+If FULL:
+  Debate Focus: [what the entire group missed or needs to reconsider]
+
+Meta Insight: [1-2 sentence high-level observation]
+
+## Verdict Meanings
+- **CONVERGED**: Debate quality is sufficient. Positions are well-reasoned with evidence. No major blind spots. OK to proceed to synthesis.
+- **PARTIAL**: Specific panelists need to address specific gaps. Send only those panelists back to debate the named issue.
+- **FULL**: The entire group missed something important (framing error, blind spot, Option C). All panelists need another full round.
+""")
+
+# --- Background agents (external LLMs, optional) ---
 
 # Codex (if CODEX_AVAILABLE == "yes")
 Agent(
@@ -286,22 +346,7 @@ Return as JSON with keys: position, key_argument, tradeoffs, risks, conditions
 PROMPT
 """)
 
-# Gemini (if GEMINI_AVAILABLE == "yes")
-Agent(
-  name="external-gemini",
-  model="sonnet",
-  subagent_type="general-purpose",
-  run_in_background=true,
-  prompt="""
-Run the following command and return its output:
-
-gemini -p "$(cat <<'PROMPT'
-[same prompt as Codex above]
-PROMPT
-)"
-""")
-
-# dev-scan (Full mode only)
+# dev-scan (optional — launch if user requested or topic benefits from community input)
 Agent(
   name="community-scanner",
   model="haiku",
@@ -332,92 +377,177 @@ Search developer communities (Reddit, HN, dev blogs) for real-world opinions on 
 """)
 ```
 
-### 2.2 Round 1 — 입장 표명 (Independent Analysis)
+### 2.2 Debate Cycle — The Iterative Loop
 
-After spawning, each panelist teammate independently analyzes the topic and sends their position to the lead via SendMessage.
+```
+cycle = 1
+max_cycles = 3
 
-**Lead behavior**: Wait for all panelist teammates to send their Round 1 positions. Messages are delivered automatically — do NOT poll. As each panelist goes idle after sending their message, that signals Round 1 completion for that panelist.
+LOOP:
+  2.2a: Debate Round (panelists exchange positions)
+  2.2b: Lead collects → sends summary to step-back judge
+  2.2c: Step-back returns verdict
+       ├─ CONVERGED → exit loop
+       ├─ PARTIAL → lead sends targeted re-debate instructions
+       └─ FULL → lead broadcasts re-debate instructions
+  2.2d: cycle += 1, if cycle > max_cycles → exit loop
+  REPEAT
+```
 
-**Collect**: Store each panelist's position in `round1_positions[]`.
+#### 2.2a — Debate Round
 
-### 2.3 Round 2 — 교차 토론 (Peer-to-Peer Debate)
+**Cycle 1 follows the Round 1 → Round 2 pattern:**
 
-**Skip condition**: Quick mode → skip to Phase 2.5 directly.
-
-Once all Round 1 positions are collected, the lead broadcasts them to trigger debate:
+1. Wait for all panelists to send their initial positions (Round 1)
+2. Collect all positions into `positions[]`
+3. Broadcast all positions to trigger cross-debate (Round 2):
 
 ```
 SendMessage(
   type: "broadcast",
   content: """
-## Round 2 — 교차 토론 시작
+## Cycle 1 — 교차 토론 시작
 
-All panelist positions from Round 1:
+All panelist positions:
 
-### [Panelist 1 name] — [position] (confidence: [N]%)
+### [Panelist 1] — [position] (confidence: [N]%)
 [key argument + tradeoffs summary]
 
-### [Panelist 2 name] — [position] (confidence: [N]%)
-[key argument + tradeoffs summary]
-
-### [Panelist 3 name] — [position] (confidence: [N]%)
+### [Panelist 2] — [position] (confidence: [N]%)
 [key argument + tradeoffs summary]
 
 [... all panelists ...]
 
 ## Instructions
-Now debate. Challenge positions you disagree with by sending messages DIRECTLY to those panelists (SendMessage type="message", recipient="panelist-[name]").
+Debate: challenge positions you disagree with by messaging those panelists directly.
 You MUST engage with at least 2 other panelists.
 After debating, send your updated position to the team lead.
 """,
-  summary: "Round 2 debate — all positions shared"
+  summary: "Cycle 1 debate — all positions shared"
 )
 ```
 
-**Lead behavior during debate**:
-- Panelists exchange messages directly with each other via SendMessage
-- The lead receives idle notifications with DM summaries showing who messaged whom
-- Do NOT intervene unless debate stalls (no messages for 2+ idle cycles)
-- If debate stalls, send a targeted message to the silent panelist prompting engagement
+4. Wait for all panelists to send their updated positions after debate
 
-**Debate convergence**: After all panelists have sent their Round 2 updated positions to the lead, check for convergence:
-- If all positions align (same direction) → skip Round 3
-- If contention remains (opposing positions with confidence > 60) → proceed to Round 3
+**Subsequent cycles follow step-back judge instructions:**
 
-### 2.4 Round 3 — 최종 입장 정리 (Convergence)
+For PARTIAL verdicts — send targeted messages:
+```
+SendMessage(
+  type: "message",
+  recipient: "panelist-[target-name]",
+  content: """
+## Step-back Judge Feedback — Cycle [N]
 
-**Skip conditions**: Quick mode, or Round 2 already converged.
+The step-back judge identified a gap in your analysis:
 
-Send a targeted message to panelists who are still in contention:
+**Issue**: [debate focus from step-back]
+**You need to address**: [specific question]
+**Discuss with**: panelist-[other-name]
+
+Debate this specific point, then send your updated position to the team lead.
+""",
+  summary: "Cycle [N] — targeted re-debate request"
+)
+```
+
+For FULL verdicts — broadcast to all:
+```
+SendMessage(
+  type: "broadcast",
+  content: """
+## Step-back Judge Feedback — Cycle [N]
+
+The step-back judge found a significant gap:
+
+**Issue**: [debate focus from step-back]
+**Option C identified**: [if any]
+**Everyone must address**: [specific question or reframing]
+
+Debate this with other panelists, then send your updated position to the team lead.
+""",
+  summary: "Cycle [N] — full re-debate required"
+)
+```
+
+#### 2.2b — Send Summary to Step-back Judge
+
+After collecting all updated positions for the cycle, compile a summary and send to the step-back judge:
 
 ```
 SendMessage(
   type: "message",
-  recipient: "panelist-[name]",
+  recipient: "step-back-judge",
   content: """
-## Round 3 — Final Position
+## Debate Summary — Cycle [N]
 
-The debate raised these key points against your position:
-[summary of counter-arguments received]
+### Current Positions
+[Panelist 1]: [position] (confidence [N]%, shifted: yes/no from last cycle)
+[Panelist 2]: [position] (confidence [N]%, shifted: yes/no)
+[Panelist N]: [position] (confidence [N]%, shifted: yes/no)
 
-Please send your FINAL position to the team lead. You may:
-1. Maintain your position (explain why counter-arguments don't change your mind)
-2. Shift your position (explain what convinced you)
-3. Add conditions (under what circumstances you'd change)
+### Key Debate Exchanges This Cycle
+- [Panelist A] challenged [Panelist B] on [topic]: [summary]
+- [Panelist C] agreed with [Panelist A] but added [nuance]
+
+### External Data (if available)
+Community sentiment: [dev-scan summary]
+Codex opinion: [summary]
+
+### Cycle History
+Cycle 1: [positions and shifts]
+Cycle [N]: [current]
+
+Please evaluate and return your verdict (CONVERGED / PARTIAL / FULL).
 """,
-  summary: "Round 3 — final position request"
+  summary: "Cycle [N] debate summary for judgment"
 )
 ```
 
-**Max 3 rounds total**. After Round 3, the lead collects final positions regardless of convergence.
+#### 2.2c — Process Step-back Verdict
 
-### 2.5 Collect External Results
+Wait for the step-back judge to respond. Parse the verdict:
 
-While the debate runs, external background agents (Codex, Gemini, dev-scan) complete independently. Collect their results now.
+- **CONVERGED**: Log the step-back's meta-insights. Exit the loop.
+- **PARTIAL**: Note target panelists and debate focus. Continue to next cycle with targeted messages.
+- **FULL**: Note debate focus and Option C. Continue to next cycle with broadcast.
 
-For each completed background agent, extract output and store in:
-- `external_opinions[]` (Codex, Gemini)
+#### 2.2d — Circuit Breaker
+
+```
+if cycle > max_cycles:
+  → Log: "Max cycles reached. Proceeding with current positions."
+  → Exit loop
+```
+
+**Quick mode**: Skip the loop entirely. Run only Cycle 1 Round 1 (positions only, no cross-debate, no step-back). Proceed directly to Phase 3.
+
+### 2.3 Collect External Results
+
+While the debate loop runs, external background agents (Codex, dev-scan) complete independently. Collect their results.
+
+- `external_opinions[]` (Codex)
 - `community_sentiment` (dev-scan)
+
+**Timing**: External results may arrive during any cycle. The lead includes them in the step-back summary as soon as available.
+
+### 2.4 Shutdown All Teammates
+
+After the loop exits (CONVERGED or max cycles):
+
+```
+# Shutdown each panelist
+SendMessage(type: "shutdown_request", recipient: "panelist-[name-1]", content: "Deliberation complete")
+SendMessage(type: "shutdown_request", recipient: "panelist-[name-2]", content: "Deliberation complete")
+# ... for all panelists
+SendMessage(type: "shutdown_request", recipient: "step-back-judge", content: "Deliberation complete")
+```
+
+Wait for all shutdown responses.
+
+```
+TeamDelete()
+```
 
 **Failure handling**:
 
@@ -426,111 +556,23 @@ For each completed background agent, extract output and store in:
 | External LLM CLI not found | Skip, mark as UNAVAILABLE |
 | External LLM call fails | Mark as DEGRADED, proceed without |
 | dev-scan fails or times out | Mark as UNAVAILABLE |
-| Panelist teammate unresponsive | Send reminder message, then proceed after 1 retry |
+| Panelist teammate unresponsive | Send reminder, then proceed after 1 retry |
+| Step-back judge unresponsive | Lead self-evaluates convergence |
 | All panelists fail | Fall back to main agent self-analysis |
 
-### 2.6 Shutdown Panelists
-
-After all rounds complete:
-
-```
-# Shutdown each panelist
-SendMessage(type: "shutdown_request", recipient: "panelist-[name-1]", content: "Debate complete, thank you")
-SendMessage(type: "shutdown_request", recipient: "panelist-[name-2]", content: "Debate complete, thank you")
-# ... for all panelists
-```
-
-Wait for shutdown responses before proceeding.
-
 ```bash
-hoyeon-cli session set --sid $SESSION_ID --json '{"council": {"phase": 2, "status": "active"}}'
+hoyeon-cli session set --sid $SESSION_ID --json '{"council": {"phase": 2, "status": "active", "cycle": [N]}}'
 ```
 
 ---
 
-## Phase 3: Step-back Review
-
-**Skip condition**: Quick mode → skip entirely.
-
-Launch the step-back reviewer as a **teammate** (not background agent) so it can access the debate context:
-
-```
-Agent(
-  name="step-back-reviewer",
-  model="opus",
-  subagent_type="general-purpose",
-  mode="bypassPermissions",
-  team_name="council",
-  prompt="""
-## Role
-You are the Step-back Reviewer. You operate at a META level — above the panelists.
-You do NOT argue for A or B. You question the framing itself.
-
-## Debate Summary
-### Round 1 Positions
-[all round 1 positions]
-
-### Round 2 Debate Highlights
-[key exchanges — who challenged whom, what shifted]
-
-### Final Positions
-[all final positions after debate]
-
-### Community Sentiment (if available)
-[dev-scan results]
-
-### External LLM Opinions (if available)
-[Codex + Gemini results]
-
-## Your Task
-Answer these meta-questions:
-1. **Framing Check**: Are we solving the right problem? Is there an Option C nobody mentioned?
-2. **Assumption Audit**: What shared assumptions do ALL panelists make? Are any dangerous?
-3. **Debate Quality**: Did the debate actually change positions, or did panelists just entrench?
-4. **Sentiment Gap**: If community data disagrees with panelists, why? Who's likely right?
-5. **Time Horizon**: Are panelists optimizing for short-term or long-term?
-6. **Reversal Test**: If we chose the opposite of the majority position, what would happen?
-
-## Output
-Send your analysis to the team lead via SendMessage with these sections:
-- Framing Issues
-- Hidden Assumptions
-- Option C (if any)
-- Debate Quality Assessment
-- Sentiment Gap Analysis (if applicable)
-- Time Horizon Bias
-- Reversal Insight
-- Meta Recommendation (1-2 sentences)
-""")
-```
-
-Wait for the step-back reviewer to send its analysis, then shut it down:
-
-```
-SendMessage(type: "shutdown_request", recipient: "step-back-reviewer", content: "Review complete, thank you")
-```
-
-```bash
-hoyeon-cli session set --sid $SESSION_ID --json '{"council": {"phase": 3, "status": "active"}}'
-```
-
----
-
-## Phase 4: 트레이드오프 맵 + 판결
+## Phase 3: 트레이드오프 맵 + 판결
 
 The main agent (lead) synthesizes everything. No more teammates needed.
 
-**Quick mode note**: Rounds 2-3 were skipped — lead extracts contention points directly from Round 1 `final_positions[]`. Step-back Insight shows `(Quick mode — skipped)`.
+**Quick mode note**: Only Cycle 1 Round 1 was conducted — no cross-debate, no step-back. Lead extracts contention points directly from initial positions.
 
-### 4.1 Team Cleanup
-
-```
-TeamDelete()
-```
-
-### 4.2 Build Tradeoff Map
-
-Aggregate all debate results into a unified map:
+### 3.1 Build Tradeoff Map
 
 ```markdown
 ## Council Deliberation Report
@@ -541,15 +583,16 @@ Aggregate all debate results into a unified map:
 ### Committee
 | Panelist | Lens | Final Position | Confidence | Shifted? | Status |
 |----------|------|----------------|------------|----------|--------|
-| [name] | [lens] | [position] | [N]% | Yes/No | AVAILABLE |
+| [name] | [lens] | [position] | [N]% | Yes/No (cycle X→Y) | AVAILABLE |
 | Codex | External LLM | [position] | - | - | AVAILABLE/SKIPPED |
-| Gemini | External LLM | [position] | - | - | AVAILABLE/SKIPPED |
 | dev-scan | Community | [sentiment] | - | - | AVAILABLE/SKIPPED |
 
 ### Debate Summary
-**Rounds**: [N] rounds conducted
-**Position shifts**: [N] panelists changed position during debate
-**Key exchanges**: [brief summary of most impactful debate moments]
+**Cycles**: [N] cycles conducted (max: 3)
+**Exit reason**: [CONVERGED at cycle N / Max cycles reached]
+**Position shifts**: [N] panelists changed position across all cycles
+**Step-back interventions**: [list of PARTIAL/FULL verdicts and their impact]
+**Key debate moments**: [brief summary of most impactful exchanges]
 
 ### Tradeoff Map
 
@@ -562,90 +605,106 @@ Aggregate all debate results into a unified map:
 **Weight** = how many panelists flagged this dimension as important.
 ```
 
-### 4.3 Contention Points
+### 3.2 Contention Points
 
 ```markdown
 ### Contention Points
 
-| Point | Side A | Side B | Debate Outcome |
-|-------|--------|--------|----------------|
-| [disagreement] | [panelist]: [argument] | [panelist]: [counter] | [resolved/shifted/unresolved] |
+| Point | Side A | Side B | Debate Outcome | Step-back Comment |
+|-------|--------|--------|----------------|-------------------|
+| [disagreement] | [panelist]: [argument] | [panelist]: [counter] | [resolved/shifted/unresolved] | [step-back insight if any] |
 ```
 
-### 4.4 Step-back Insight
+### 3.3 Step-back Insight (Aggregated)
+
+Aggregate ALL step-back verdicts across cycles:
 
 ```markdown
 ### Step-back Insight
 
-**Framing issues**: [from step-back reviewer]
-**Hidden assumptions**: [from step-back reviewer]
-**Debate quality**: [did positions actually shift, or just entrench?]
-**Alternative (Option C)**: [if identified]
-**Meta-recommendation**: [step-back reviewer's meta insight]
+**Total cycles**: [N] (verdicts: [FULL, PARTIAL, CONVERGED])
+**Framing issues raised**: [aggregated from all verdicts]
+**Hidden assumptions found**: [aggregated]
+**Blind spots surfaced**: [aggregated]
+**Option C**: [if identified in any cycle]
+**Debate quality trajectory**: [did quality improve across cycles? entrenchment vs convergence?]
+**Final meta-recommendation**: [from last step-back verdict]
 ```
 
-### 4.5 Preference Tally
+### 3.4 Preference Tally
 
 ```markdown
 ### Preference Tally
 
-| Source | Preference | Rationale | Shifted During Debate? |
-|--------|-----------|-----------|----------------------|
-| [panelist 1] | Option A | [key argument] | No |
-| [panelist 2] | Option B | [key argument] | Yes (was A → B) |
-| [panelist 3] | Conditional | [condition] | No |
+| Source | Preference | Rationale | Position History |
+|--------|-----------|-----------|-----------------|
+| [panelist 1] | Option A | [key argument] | A→A→A (stable) |
+| [panelist 2] | Option B | [key argument] | A→B→B (shifted cycle 2) |
+| [panelist 3] | Conditional | [condition] | B→conditional (shifted cycle 2) |
 | Codex | Option A | [key argument] | - |
 | Community | Option B | [top sentiment] | - |
 
 **Tally**: Option A: N votes · Option B: M votes · Conditional: K
 ```
 
-### 4.6 Final Recommendation
+### 3.5 Final Recommendation
 
 ```markdown
 ### Council Recommendation
 
 **Lean**: [Option A / Option B / No clear winner]
 
-**Decision Confidence**: [N]% — computed as: average panelist confidence × (1 - max_contention_gap/100)
+**Decision Confidence**: [N]%
 - Average panelist confidence: [X]%
-- Max contention gap: [Y] points (between [panelist A] and [panelist B])
-- Position shifts during debate: [N] (more shifts = more robust deliberation)
+- Max contention gap: [Y] points
+- Cycles to convergence: [N] (fewer = stronger consensus)
+- Position shifts: [N] (some shifts = healthy debate, many shifts = unstable)
+- Step-back final verdict: [CONVERGED / max cycles reached]
 - Interpretation: >80% = strong consensus · 50-80% = moderate · <50% = highly contested
 
 [2-3 sentence synthesis explaining the recommendation]
 
 **Choose Option A if**: [conditions]
 **Choose Option B if**: [conditions]
-**Revisit the question if**: [step-back insight suggests reframing]
+**Revisit the question if**: [step-back identified Option C or framing issues]
 
 ---
 
 <details>
-<summary>Full Debate Transcript</summary>
+<summary>Full Debate Log</summary>
 
-### Round 1 — Initial Positions
+### Cycle 1
+#### Round 1 — Initial Positions
 [All panelist initial positions]
 
-### Round 2 — Cross-Debate
+#### Round 2 — Cross-Debate
 [Key exchanges between panelists]
 
-### Round 3 — Final Positions (if conducted)
-[Final positions after debate]
+#### Step-back Verdict
+[Verdict + reasoning]
+
+### Cycle 2 (if conducted)
+#### Re-debate
+[Targeted or full re-debate exchanges]
+
+#### Step-back Verdict
+[Verdict + reasoning]
+
+### Cycle N...
 
 </details>
 
 <details>
-<summary>Step-back Review</summary>
+<summary>Step-back Review History</summary>
 
-[Full step-back reviewer output]
+[All step-back verdicts with full analysis]
 
 </details>
 
 <details>
 <summary>External Opinions</summary>
 
-[Codex + Gemini results, if available]
+[Codex results, if available]
 
 </details>
 
@@ -657,10 +716,10 @@ Aggregate all debate results into a unified map:
 </details>
 ```
 
-### 4.7 State Completion
+### 3.6 State Completion
 
 ```bash
-hoyeon-cli session set --sid $SESSION_ID --json '{"council": {"phase": 4, "status": "completed"}}'
+hoyeon-cli session set --sid $SESSION_ID --json '{"council": {"phase": 3, "status": "completed"}}'
 ```
 
 ---
@@ -669,22 +728,23 @@ hoyeon-cli session set --sid $SESSION_ID --json '{"council": {"phase": 4, "statu
 
 | Feature | Quick | Standard | Full |
 |---------|-------|----------|------|
-| Internal panelists | 3 (teammates) | 3~5 (teammates) | 3~5 (teammates) |
-| Debate rounds | Round 1 only | Rounds 1-3 | Rounds 1-3 |
+| Internal panelists | 3 (teammates) | 3 (teammates) | 3 (teammates) |
+| Step-back judge | - | In-loop (teammate) | In-loop (teammate) |
+| Debate cycles | 1 (no cross-debate) | Up to 3 | Up to 3 |
 | Peer-to-peer debate | - | SendMessage exchanges | SendMessage exchanges |
-| External LLMs | - | - | Codex + Gemini |
-| dev-scan | - | - | Community sentiment |
-| Step-back review | - | Phase 3 | Phase 3 |
+| Step-back re-debate loop | - | CONVERGED/PARTIAL/FULL | CONVERGED/PARTIAL/FULL |
+| External LLM | - | - | Codex |
+| dev-scan | Optional | Optional | Optional |
 | Tradeoff Map | Basic | Full | Full + community data |
-| Estimated agents | 3 teammates | 5~7 (teammates + step-back) | 7~10 (teammates + bg agents) |
+| Estimated agents | 3 teammates | 4~5 (+ step-back) | 4~6 (+ bg agents) |
 
 ---
 
 ## Team Mode Constraints
 
-Teammates (panelists) **CAN**:
+Teammates (panelists + step-back) **CAN**:
 - SendMessage to other teammates directly (peer-to-peer debate)
-- SendMessage to the lead (report positions)
+- SendMessage to the lead (report positions / verdicts)
 - Read files, search code, run bash commands
 - Use all standard tools (Read, Grep, Glob, Bash, etc.)
 
@@ -694,7 +754,7 @@ Teammates **CANNOT**:
 - Ask the user questions (AskUserQuestion not available)
 - Call external LLMs (no agent spawning → must be done by lead via background agents)
 
-**Implication**: External LLM calls (codex/gemini) MUST be launched by the lead as background agents, not delegated to teammates.
+**Implication**: External LLM calls (codex) MUST be launched by the lead as background agents, not delegated to teammates.
 
 ---
 
@@ -710,10 +770,10 @@ Teammates **CANNOT**:
 # Review a PR with multiple perspectives
 /council --pr 421
 
-# Quick deliberation (1 round, no debate)
+# Quick deliberation (1 cycle, no step-back loop)
 /council --quick "Should we use TypeScript strict mode?"
 
-# Full council with community data + debate
+# Full council with community data + iterative debate
 /council --full "Monorepo migration: Nx vs Turborepo"
 ```
 
@@ -723,13 +783,15 @@ Teammates **CANNOT**:
 
 - [ ] Dynamic panelists designed (not fixed 3 roles)
 - [ ] TeamCreate used to create the council team
-- [ ] All panelists spawned as teammates (not background agents)
-- [ ] Round 1 positions collected from all panelists
-- [ ] Round 2 debate conducted via SendMessage (Standard/Full)
-- [ ] External LLM results collected (Full mode)
-- [ ] Step-back review completed (Standard/Full)
-- [ ] TeamDelete called after all debates complete
+- [ ] All panelists + step-back judge spawned as teammates in ONE message
+- [ ] Cycle 1: positions collected + cross-debate conducted (Standard/Full)
+- [ ] Step-back judge verdict received after each cycle
+- [ ] Re-debate triggered if step-back returned PARTIAL/FULL
+- [ ] Max 3 cycles enforced (circuit breaker)
+- [ ] External LLM results collected (if launched)
+- [ ] All teammates shut down + TeamDelete called
 - [ ] Tradeoff Map generated as primary output
-- [ ] Contention Points identified with debate outcomes
-- [ ] Full debate transcript in collapsible details
+- [ ] Contention Points with debate outcomes + step-back comments
+- [ ] Step-back Insight aggregated across all cycles
+- [ ] Full debate log in collapsible details
 - [ ] State updated at each phase transition

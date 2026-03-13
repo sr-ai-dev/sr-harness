@@ -60,7 +60,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 
 | Script | Type | Purpose |
 |--------|------|---------|
-| `execute-compact-hook.sh` | SessionStart | Handle compact session resume for /execute |
+| `session-compact-hook.sh` | SessionStart | Unified compact recovery — outputs skill name + state.json path |
 | `ultrawork-init-hook.sh` | UserPromptSubmit | Initialize ultrawork pipeline state when `/ultrawork` is typed |
 | `skill-session-init.sh` | UserPromptSubmit + PreToolUse[Skill] | Initialize session state for specify/execute skills |
 | `rv-detector.sh` | UserPromptSubmit | Detect `!rv` keyword to trigger re-validation loop |

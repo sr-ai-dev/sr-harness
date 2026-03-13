@@ -15,11 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/execute-compact-hook.sh"
-          },
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/bugfix-compact-hook.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/session-compact-hook.sh"
           }
         ]
       }

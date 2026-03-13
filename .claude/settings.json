@@ -22,7 +22,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/execute-compact-hook.sh"
+            "command": ".claude/scripts/session-compact-hook.sh"
           }
         ]
       }

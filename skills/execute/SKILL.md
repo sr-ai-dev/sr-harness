@@ -362,10 +362,9 @@ TaskUpdate(taskId=fv, addBlocks=[rp])
 
 ## Phase 1: Execute Loop
 
-> **Compaction recovery**: A `SessionStart(compact)` hook automatically re-injects
-> spec_path, task progress, and context_dir after compaction. Workers self-read
-> task details via `hoyeon-cli spec task <id> --get` and context files directly.
-> The orchestrator does NOT need to read spec.json or context files.
+> **Compaction recovery**: `session-compact-hook.sh` re-injects skill name + state.json path.
+> Read state.json to get spec_path, then use `hoyeon-cli spec plan` to rebuild task state.
+> Workers self-read task details via `hoyeon-cli spec task <id> --get` and context files.
 
 ```
 WHILE TaskList() has pending tasks:

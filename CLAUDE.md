@@ -106,7 +106,18 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v0.9.1)
+## Recent Changes (v0.10.0)
+
+- feat(specify): add AC Quality Gate (Phase 5d) with checklist-based AC validation loop
+- feat(specify): add H→S conversion suggestions and env detection to AC Quality Gate
+- feat(bugfix): add stagnation pattern detection (SPINNING/OSCILLATION/NO_PROGRESS) with pattern-specific retry strategies
+- feat(bugfix): add persistent debug-state.md lifecycle (session-scoped working state + project-scoped final report)
+- feat(bugfix): add bugfix-compact-hook.sh for compaction recovery
+- feat(debugger): add attempt_history output schema and retry context
+- feat(skills): add `/issue` skill for structured GitHub issue creation
+- fix(web-search): defensive chromux --check with ps fallback
+
+## Previous Changes (v0.9.1)
 
 - feat(ralph): add separate ralph-verifier agent for context-isolated DoD verification
 

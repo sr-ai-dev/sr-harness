@@ -204,7 +204,8 @@ Task(worker):
    {attempt > 0일 때:}
    ## Previous Attempt Failed
    Attempt {attempt}: {이전 실패 정보}
-   Do NOT repeat the same approach. Try a different angle.
+   Stagnation Pattern: {패턴 분류 — SPINNING | OSCILLATION | NO_PROGRESS | (없음)}
+   Strategy: {retry_hint}
 
    ## Output Format (MANDATORY)
    Your response MUST be a JSON code block matching the worker output schema:
@@ -248,11 +249,39 @@ if all_pass:
 
 if any_fail AND attempt < MAX_ATTEMPTS:
   attempt += 1
+
   실패 정보 기록:
-    - 어떤 커맨드가 실패했는지
-    - 실패 output
-    - Worker가 보고한 issues
-  → Step 2.1 재실행 (실패 정보 포함)
+    attempt_history.append({
+      attempt: attempt,
+      approach: worker가 시도한 방법,
+      result: "FAIL",
+      failed_criteria: [실패한 커맨드 목록],
+      broken_component: 실패한 커맨드에서 식별된 컴포넌트/파일
+    })
+
+  패턴 분류 (attempt >= 2일 때):
+    SPINNING:    attempt_history[-2].broken_component == attempt_history[-1].broken_component
+                 (같은 컴포넌트가 2회 이상 연속 실패)
+    OSCILLATION: attempt_history[-2].broken_component != attempt_history[-1].broken_component
+                 AND attempt >= 3
+                 AND attempt_history[-3].broken_component == attempt_history[-1].broken_component
+                 (A 실패 → B 실패 → A 실패 패턴: 순환 의존)
+    NO_PROGRESS: 매번 다른 커맨드가 실패하고, 이전 attempt에서 통과했던 항목이 다시 실패
+                 (전반적으로 개선 없음)
+
+  패턴별 retry_hint 선택:
+    SPINNING    → "Different root cause likely. Re-run debugger with constraint:
+                   previous root cause was wrong. The error in {broken_component}
+                   is a symptom — trace further back."
+    OSCILLATION → "Circular dependency detected. Architect approach: define interface
+                   contract between {component_A} and {component_B} first, then fix
+                   both sides simultaneously in a single worker call."
+    NO_PROGRESS → "Fundamental misunderstanding. Re-read error output carefully.
+                   Consider: (1) is the bug description itself wrong? (2) are there
+                   multiple independent bugs? (3) is there a missing dependency?"
+    (패턴 없음)  → "Do NOT repeat the same approach. Try a different angle."
+
+  → Step 2.1 재실행 (실패 정보 + retry_hint 포함)
 
 if any_fail AND attempt >= MAX_ATTEMPTS:
   → CIRCUIT BREAKER (Step 2.4)

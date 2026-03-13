@@ -253,6 +253,8 @@ hoyeon-cli spec merge ${SPEC_PATH} --json '{
       "file_scope": ["{touch zone files}"],
       "depends_on": [],
       "tool": "{tool from Phase 5, e.g. worker or /skill-name}",
+      "steps": ["{step 1}", "{step 2}"],
+      "must_not_do": ["Do not run git commands"],
       "acceptance_criteria": {
         "functional": [{"description": "{done-when condition}"}],
         "static": [],
@@ -268,6 +270,8 @@ hoyeon-cli spec merge ${SPEC_PATH} --json '{
       "file_scope": ["{touch zone files}"],
       "depends_on": ["T1"],
       "tool": "{tool from Phase 5}",
+      "steps": ["{step 1}", "{step 2}"],
+      "must_not_do": ["Do not run git commands"],
       "acceptance_criteria": {
         "functional": [{"description": "{done-when condition}"}],
         "static": [],

@@ -87,7 +87,7 @@ Throughout this document, `{depth}` and `{interaction}` refer to the resolved mo
 ## Phase 0: Initialize
 
 ```bash
-hoyeon-cli spec init {name} --goal "{goal}" --depth {depth} --interaction {interaction} \
+hoyeon-cli spec init {name} --goal "{goal}" --type dev --depth {depth} --interaction {interaction} \
   .dev/specs/{name}/spec.json
 ```
 
@@ -572,7 +572,7 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
     {
       "id": "TF", "action": "Full verification", "type": "verification", "status": "pending",
       "depends_on": ["T1"],
-      "inputs": [{"id": "all_outputs", "from_task": "T1", "type": "deliverables"}],
+      "inputs": [{"from_task": "T1", "artifact": "all_outputs"}],
       "must_not_do": ["Do not modify any files", "Do not run git commands"],
       "acceptance_criteria": {
         "functional": [{"description": "All deliverables exist and work"}],

@@ -8057,7 +8057,9 @@ var dev_spec_v4_schema_default = {
           type: "array",
           items: { type: "string" }
         },
-        acceptance_criteria: { $ref: "#/$defs/taskAcceptanceCriteria" }
+        acceptance_criteria: { $ref: "#/$defs/taskAcceptanceCriteria" },
+        tool: { type: "string" },
+        args: { type: "string" }
       }
     },
     historyEntry: {
@@ -8838,7 +8840,9 @@ function formatSlim(spec2, rounds, criticalPath) {
           action: t.action,
           type: t.type,
           status: t.status || "pending",
-          depends_on: t.depends_on || []
+          depends_on: t.depends_on || [],
+          ...t.tool ? { tool: t.tool } : {},
+          ...t.args ? { args: t.args } : {}
         };
       })
     }))

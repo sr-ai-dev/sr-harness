@@ -430,7 +430,9 @@
           "type": "array",
           "items": { "type": "string" }
         },
-        "acceptance_criteria": { "$ref": "#/$defs/taskAcceptanceCriteria" }
+        "acceptance_criteria": { "$ref": "#/$defs/taskAcceptanceCriteria" },
+        "tool": { "type": "string" },
+        "args": { "type": "string" }
       }
     },
     "historyEntry": {

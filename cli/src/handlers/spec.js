@@ -553,6 +553,8 @@ function formatSlim(spec, rounds, criticalPath) {
           type: t.type,
           status: t.status || 'pending',
           depends_on: t.depends_on || [],
+          ...(t.tool ? { tool: t.tool } : {}),
+          ...(t.args ? { args: t.args } : {}),
         };
       }),
     })),

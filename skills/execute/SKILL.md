@@ -22,7 +22,7 @@ allowed-tools:
 validate_prompt: |
   All tasks in spec.json must have status "done" at completion.
   hoyeon-cli spec check must pass (internal consistency).
-  Context files (learnings.md, issues.md, audit.md) must exist and be populated.
+  Context files (learnings.md, issues.md) must exist. audit.md must be populated if meta.type == "dev".
   Final report must be output.
 ---
 

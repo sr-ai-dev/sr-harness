@@ -7836,7 +7836,12 @@ var dev_spec_v4_schema_default = {
         created_at: { type: "string" },
         updated_at: { type: "string" },
         approved_by: { type: "string" },
-        approved_at: { type: "string" }
+        approved_at: { type: "string" },
+        type: {
+          type: "string",
+          enum: ["dev", "plain"],
+          description: "Spec type: dev = developer task spec (default), plain = lightweight plain task spec"
+        }
       }
     },
     context: {
@@ -8052,7 +8057,9 @@ var dev_spec_v4_schema_default = {
           type: "array",
           items: { type: "string" }
         },
-        acceptance_criteria: { $ref: "#/$defs/taskAcceptanceCriteria" }
+        acceptance_criteria: { $ref: "#/$defs/taskAcceptanceCriteria" },
+        tool: { type: "string" },
+        args: { type: "string" }
       }
     },
     historyEntry: {
@@ -8483,6 +8490,15 @@ async function handleInit(args) {
       { ts: now, type: "spec_created" }
     ]
   };
+  if (parsed.type !== void 0) {
+    const validTypes = ["dev", "plain"];
+    if (!validTypes.includes(parsed.type)) {
+      process.stderr.write(`Error: invalid --type '${parsed.type}'. Valid values: ${validTypes.join(", ")}
+`);
+      process.exit(1);
+    }
+    specData.meta.type = parsed.type;
+  }
   if (parsed.depth || parsed.interaction) {
     specData.meta.mode = {};
     if (parsed.depth) specData.meta.mode.depth = parsed.depth;
@@ -8824,7 +8840,9 @@ function formatSlim(spec2, rounds, criticalPath) {
           action: t.action,
           type: t.type,
           status: t.status || "pending",
-          depends_on: t.depends_on || []
+          depends_on: t.depends_on || [],
+          ...t.tool ? { tool: t.tool } : {},
+          ...t.args ? { args: t.args } : {}
         };
       })
     }))
@@ -9988,7 +10006,7 @@ async function main() {
     process.exit(0);
   }
   if (args[0] === "--version") {
-    const version = true ? "0.9.0" : "dev";
+    const version = true ? "0.11.0" : "dev";
     process.stdout.write(`hoyeon-cli v${version}
 `);
     process.exit(0);

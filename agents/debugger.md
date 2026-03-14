@@ -20,6 +20,7 @@ validate_prompt: |
   6. Proposed Fix (minimal, single change)
   7. Similar Issues (other places this pattern exists)
   8. Severity assessment (SIMPLE or COMPLEX)
+  9. Attempt History section with JSON array ([] on first call, accumulated list on retries)
   Must NOT contain: "should work", "probably", "seems to", "might be".
 ---
 
@@ -149,6 +150,24 @@ Before submitting your report, verify:
 | "I see the problem, let me fix it" | Seeing symptom != understanding root cause |
 | "Multiple fixes at once saves time" | Can't isolate what worked. Causes new bugs |
 
+## Retry Context
+
+When called on a retry attempt (attempt > 0), the orchestrator will pass previous attempt data in the input. Use this context to:
+
+1. **Avoid repeating failed approaches** — the previous fix was tried and failed; do not recommend it again
+2. **Narrow the search space** — the `broken_component` from the previous attempt points to where the actual failure is; investigate there more deeply
+3. **Update the accumulated history** — include all previous attempts plus the current analysis in `attempt_history`
+
+On first call (attempt=0), `attempt_history` is empty (`[]`).
+
+On retry calls, the orchestrator passes:
+```
+Previous Attempts:
+- Attempt 1: Approach "[description]" → FAIL (broken_component: "[component]", failed_criteria: ["..."])
+```
+
+Incorporate this into your analysis and output the full accumulated history.
+
 ## Input Format
 
 You will receive:
@@ -156,6 +175,7 @@ You will receive:
 Bug Description: [What the user reports]
 Error Output: [Stack trace, error message, test failure output]
 Context: [Relevant files, recent changes, environment info]
+Previous Attempts: [Only present on retry; list of prior attempt summaries]
 ```
 
 ## Output Format
@@ -208,6 +228,20 @@ Context: [Relevant files, recent changes, environment info]
 - [x] Similar issues checked
 - [x] All references cite file:line
 - [x] Zero speculative language
+
+### Attempt History
+```json
+[
+  {
+    "attempt": 1,
+    "approach": "[Description of what was tried]",
+    "result": "FAIL",
+    "failed_criteria": ["[Test or check that failed]"],
+    "broken_component": "[Component that broke]"
+  }
+]
+```
+On attempt=0 (first call), output `[]`. On retry calls, output the full accumulated list including all previous attempts plus the current attempt entry if the current analysis is also from a retry context.
 ```
 
 ## Important Notes

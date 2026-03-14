@@ -87,7 +87,7 @@ Throughout this document, `{depth}` and `{interaction}` refer to the resolved mo
 ## Phase 0: Initialize
 
 ```bash
-hoyeon-cli spec init {name} --goal "{goal}" --depth {depth} --interaction {interaction} \
+hoyeon-cli spec init {name} --goal "{goal}" --type dev --depth {depth} --interaction {interaction} \
   .dev/specs/{name}/spec.json
 ```
 
@@ -572,7 +572,7 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
     {
       "id": "TF", "action": "Full verification", "type": "verification", "status": "pending",
       "depends_on": ["T1"],
-      "inputs": [{"id": "all_outputs", "from_task": "T1", "type": "deliverables"}],
+      "inputs": [{"from_task": "T1", "artifact": "all_outputs"}],
       "must_not_do": ["Do not modify any files", "Do not run git commands"],
       "acceptance_criteria": {
         "functional": [{"description": "All deliverables exist and work"}],
@@ -659,13 +659,132 @@ Read the file and evaluate:
 
 **If OKAY** → proceed.
 
-### 5d. Verification Summary Confirmation (standard + interactive only)
+### 5d. AC Quality Gate (standard only)
 
 > **Mode Gate**:
 > - **Quick**: Skip. Proceed directly to Phase 5e.
-> - **Autopilot**: Skip. Proceed directly to Phase 5e.
 
-After plan review passes, derive the Verification Summary from `requirements[].scenarios` and present it to the user for lightweight confirmation.
+Inspect **every** AC across `tasks[].acceptance_criteria` and `requirements[].scenarios` to ensure classification completeness AND semantic quality. This gate runs a checklist-based loop (max 5 iterations) — NOT an LLM self-score.
+
+#### Checklist (all must pass)
+
+**Classification completeness:**
+- Every `requirements[].scenarios[]` has `verified_by` set (`machine` | `agent` | `human`)
+- Every `requirements[].scenarios[]` has a non-empty `verify` object matching its type
+- `verification_summary.gaps` is empty (all ACs classified)
+
+**Semantic quality:**
+- **Machine ACs**: `verify.run` is an executable shell command (not pseudocode, not natural language). `verify.expect` has a concrete value (e.g., `exit_code: 0`, not "should work")
+- **Agent ACs**: `verify.assert` is **falsifiable** — can be proven wrong by inspecting code/output (FAIL: "code is correct". PASS: "all public functions have JSDoc with @param and @returns")
+- **Human ACs**: `verify.ask` is **actionable** — a person can follow it step-by-step (FAIL: "verify it". PASS: "Open /login, enter invalid password, confirm error message shows 'Invalid password' not 'Login failed'")
+
+#### Environment Detection (once, before loop)
+
+Detect available sandbox capabilities so the agent can suggest H→S conversions:
+
+```
+env_capabilities = []
+IF Bash("docker --version").exit_code == 0:
+  env_capabilities.push("docker")
+IF Bash("which chromux").exit_code == 0 OR Bash("npx @team-attention/chromux --check").exit_code == 0:
+  env_capabilities.push("browser")
+
+print("Sandbox capabilities: {env_capabilities or 'none'}")
+```
+
+#### Gate Loop
+
+The orchestrator (this skill) owns the loop. The `ac-quality-gate` agent owns single-pass judgment + fix.
+
+```
+FOR iteration IN 1..5:
+  result = Agent(
+    subagent_type="ac-quality-gate",
+    description="AC quality check iteration {iteration}",
+    prompt="Check AC quality for spec: .dev/specs/{name}/spec.json
+            env_capabilities: {env_capabilities}"
+  )
+
+  IF result.status == "PASS":
+    print("AC Quality Gate: PASS ({iteration} iteration(s), {result.total_checked} items checked)")
+    BREAK
+
+  IF result.status == "FAIL":
+    print("AC Quality Gate: iteration {iteration} — {result.fixed} fixed, {len(result.remaining_failures)} remaining")
+    # Agent already applied fixes via spec merge. Loop continues to re-check.
+
+  # Re-validate after fixes
+  hoyeon-cli spec validate .dev/specs/{name}/spec.json
+
+IF iteration > 5 AND result.status == "FAIL":
+  # Escalate remaining issues to user
+  print("AC Quality Gate: {len(result.remaining_failures)} items could not be auto-fixed after 5 rounds.")
+  FOR EACH f IN result.remaining_failures:
+    print("  - {f.id}: {f.detail}")
+  AskUserQuestion(
+    question: "These ACs could not be auto-fixed. How should we proceed?",
+    options: [
+      { label: "Fix manually", description: "I'll provide specific verify commands" },
+      { label: "Accept as-is", description: "Proceed with current quality level" },
+      { label: "Abort", description: "Stop and rethink requirements" }
+    ]
+  )
+```
+
+#### H→S Conversion Suggestions (after gate completes)
+
+After the quality gate passes (or user accepts as-is), check the last result for `h_to_s_suggestions`:
+
+```
+IF result.h_to_s_suggestions AND len(result.h_to_s_suggestions) > 0:
+  print("Some Human verification items could be automated with sandbox capabilities:")
+  FOR EACH s IN result.h_to_s_suggestions:
+    print("  - {s.id}: {s.current} → {s.suggested} ({s.method})")
+    print("    Requires: {s.requires} | Reason: {s.reason}")
+
+  AskUserQuestion(
+    question: "Apply these H→S conversions?",
+    options: [
+      { label: "Apply all", description: "Convert all suggested items to agent/sandbox verification" },
+      { label: "Let me pick", description: "I'll choose which ones to convert" },
+      { label: "Skip", description: "Keep all as human verification" }
+    ]
+  )
+
+  IF answer == "Apply all":
+    FOR EACH s IN result.h_to_s_suggestions:
+      Bash("hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{...}'")
+      # Update scenario: verified_by → s.suggested, execution_env → s.execution_env, verify → appropriate format
+
+  IF answer == "Let me pick":
+    # Present each suggestion individually for user selection
+    FOR EACH s IN result.h_to_s_suggestions:
+      choice = AskUserQuestion(
+        question: "{s.id}: Convert from {s.current} to {s.suggested}? ({s.method})",
+        options: [
+          { label: "Yes", description: "Convert" },
+          { label: "No", description: "Keep as human" }
+        ]
+      )
+      IF choice == "Yes":
+        Bash("hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{...}'")
+```
+
+#### Examples of auto-fix rewrites
+
+| Before (FAIL) | After (PASS) | Type |
+|---------------|-------------|------|
+| `run: "check auth works"` | `run: "npm test -- --grep 'auth'"`, `expect: { exit_code: 0 }` | machine |
+| `assert: "code is correct"` | `assert: "All API endpoints return JSON with 'status' field; no endpoint returns raw strings"` | agent |
+| `ask: "verify it"` | `ask: "Navigate to /dashboard after login. Confirm: (1) page loads within 3s, (2) username appears in top-right, (3) sidebar shows 5 menu items"` | human |
+
+### 5e. Verification Summary Confirmation (standard + interactive only)
+
+> **Mode Gate**:
+> - **Quick**: Skip. Proceed directly to Phase 5f.
+> - **Autopilot**: Skip. Proceed directly to Phase 5f.
+
+After plan review and AC Quality Gate pass, derive the Verification Summary from `requirements[].scenarios` and present it to the user for lightweight confirmation.
 
 **Derivation rules** (from requirements scenarios):
 - **A-items** = scenarios where `verified_by` is `"machine"` or `"agent"` AND `execution_env` is `"host"` (or omitted)
@@ -712,9 +831,9 @@ AskUserQuestion(
 )
 ```
 
-**If "Corrections needed"**: Ask which items to change, update via `spec merge` on `requirements` scenarios (the source of truth), then proceed to Phase 5e.
+**If "Corrections needed"**: Ask which items to change, update via `spec merge` on `requirements` scenarios (the source of truth), then proceed to Phase 5f.
 
-### 5e. Decision Summary (standard + interactive only)
+### 5f. Decision Summary (standard + interactive only)
 
 > **Mode Gate**:
 > - **Quick**: Skip
@@ -835,7 +954,7 @@ Constraints: {n} items
 |---------|---------------------|------|
 | Non-goals | `meta.non_goals[]` — strategic scope exclusions | When non_goals exist |
 | Task Overview | `tasks[]` — id, action, type, risk, depends_on | Always |
-| Verification | Derived from `requirements[].scenarios` — A/H/S classification (see Phase 5d rules) | Always |
+| Verification | Derived from `requirements[].scenarios` — A/H/S classification (see Phase 5e rules) | Always |
 | Pre-work | `external_dependencies.pre_work` — list all, mark blocking=true as Blocking | Always |
 | Post-work | `external_dependencies.post_work` — list all | Always |
 | Key Decisions | `context.decisions[]` — decision, rationale | Always |
@@ -891,7 +1010,9 @@ AskUserQuestion(
 
 ### Standard mode (additional)
 - [ ] `context.research` is structured object (not string)
-- [ ] `verification_summary` derived from `requirements[].scenarios` (A/H/S classification presented in Phase 5d/6)
+- [ ] AC Quality Gate passed (Phase 5d) — all ACs classified + semantically valid
+- [ ] H→S conversion suggestions presented to user (if any from ac-quality-gate)
+- [ ] `verification_summary` derived from `requirements[].scenarios` (A/H/S classification presented in Phase 5e/6)
 - [ ] `constraints` populated from gap-analyzer
 - [ ] Analysis agents ran (gap + tradeoff + verification-planner)
 - [ ] TESTING.md pre-read and inlined into verification-planner prompt
@@ -907,8 +1028,8 @@ AskUserQuestion(
 
 ### Interactive mode (additional)
 - [ ] Standard + Interactive: user explicitly triggered plan generation (not auto-transitioned)
-- [ ] Verification Summary Confirmation presented and confirmed (Phase 5d)
-- [ ] Decision Summary presented and confirmed (Phase 5e)
+- [ ] Verification Summary Confirmation presented and confirmed (Phase 5e)
+- [ ] Decision Summary presented and confirmed (Phase 5f)
 - [ ] All HIGH risk decision_points resolved with user
 
 ### Autopilot mode (overrides)

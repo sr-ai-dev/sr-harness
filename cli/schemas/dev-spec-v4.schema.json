@@ -209,7 +209,12 @@
         "created_at": { "type": "string" },
         "updated_at": { "type": "string" },
         "approved_by": { "type": "string" },
-        "approved_at": { "type": "string" }
+        "approved_at": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["dev", "plain"],
+          "description": "Spec type: dev = developer task spec (default), plain = lightweight plain task spec"
+        }
       }
     },
     "context": {
@@ -425,7 +430,9 @@
           "type": "array",
           "items": { "type": "string" }
         },
-        "acceptance_criteria": { "$ref": "#/$defs/taskAcceptanceCriteria" }
+        "acceptance_criteria": { "$ref": "#/$defs/taskAcceptanceCriteria" },
+        "tool": { "type": "string" },
+        "args": { "type": "string" }
       }
     },
     "historyEntry": {

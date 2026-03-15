@@ -137,6 +137,17 @@ Meet ALL acceptance_criteria (run commands to verify before reporting DONE).
 Respect must_not_do constraints.
 Do NOT run git commands — Orchestrator handles commits.
 
+### Verifying acceptance_criteria (v5 schema)
+Task AC has two parts:
+1. `acceptance_criteria.scenarios[]` — list of scenario IDs from `requirements[].scenarios[].id`
+   - Fetch full spec: `hoyeon-cli spec task {task_id} --get {spec_path}` to get scenario IDs
+   - Then look up each scenario in `requirements[].scenarios[]` to find verify commands
+   - Run each `verified_by: "machine"` scenario's `verify.run` command (skip `execution_env: "sandbox"`)
+   - For `verified_by: "agent"` scenarios, assert the checks manually
+   - For `verified_by: "human"` scenarios, skip (report only)
+2. `acceptance_criteria.checks[]` — automated checks (static/build/lint/format)
+   - Run each check's `run` command and verify exit code 0
+
 ## Step 5: Update context files
 Append to {CONTEXT_DIR}/learnings.md:
   ## {task_id}
@@ -162,9 +173,18 @@ You are a Verification agent. Verify task {task_id} independently.
 ## Step 1: Read task spec
 Run: `hoyeon-cli spec task {task_id} --get {spec_path}`
 
-## Step 2: Run ALL acceptance criteria commands
-Re-execute every command from acceptance_criteria yourself.
-Do NOT trust the Worker's self-reported status.
+## Step 2: Run ALL acceptance criteria
+Re-execute every check yourself. Do NOT trust the Worker's self-reported status.
+
+### AC verification (v5 schema)
+Task AC has two parts:
+1. `acceptance_criteria.scenarios[]` — list of scenario IDs from `requirements[].scenarios[].id`
+   - Look up each scenario ID in the full spec's `requirements[].scenarios[]`
+   - Run each `verified_by: "machine"` scenario's `verify.run` command (skip `execution_env: "sandbox"`)
+   - For `verified_by: "agent"` scenarios, assert the checks manually
+   - For `verified_by: "human"` scenarios, skip (report only)
+2. `acceptance_criteria.checks[]` — automated checks (static/build/lint/format)
+   - Run each check's `run` command and verify exit code 0
 
 ## Step 3: Check must_not_do violations
 Run `git diff` to check for violations.

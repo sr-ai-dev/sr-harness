@@ -391,13 +391,14 @@ function retry(task_id, verify_result, attempt):
   failed_summary = failed.map(f => f.description).join(", ")
 
   # Track retry attempt in spec.json via derive
-  Bash("""hoyeon-cli spec derive \
+  derive_result = Bash("""hoyeon-cli spec derive \
     --parent {task_id} \
     --source verify \
     --trigger retry \
     --action "Retry: fix {failed_summary}" \
     --reason "Attempt {attempt}: {failed_summary}" \
     {spec_path}""")
+  derived_task_id = derive_result.created
 
   Agent(subagent_type="worker", prompt="""
     ## FIX TASK
@@ -419,6 +420,8 @@ function retry(task_id, verify_result, attempt):
   re_verify_result = dispatch_verify_worker(task_id)
 
   IF re_verify_result.status == "VERIFIED":
+    # Mark retry-derived task as done (audit record)
+    Bash("hoyeon-cli spec task {derived_task_id} --status done --summary 'Retry completed' {spec_path}")
     TaskUpdate(taskId, status="completed")
     return
 

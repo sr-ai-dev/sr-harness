@@ -123,14 +123,14 @@ ELIF result.status == "FAILED":
       FOR EACH failure in result[category].results.filter(r => r.status == "FAIL"):
         parent_task_id = failure.task_id ?? last_planned_task_id
 
-        Bash("""hoyeon-cli spec derive \
+        derive_result = Bash("""hoyeon-cli spec derive \
           --parent {parent_task_id} \
           --source final-verify \
           --trigger final_verify \
           --action "FV fix: {failure.description}" \
           --reason "Final Verify {category} failure: {failure.reason}" \
           {spec_path}""")
-        fix_tasks.append(derived_task_id)
+        fix_tasks.append(derive_result.created)
 
     # Execute fix tasks WITHOUT per-task verify (no :Verify step for FV-derived tasks)
     FOR EACH fix_task_id in fix_tasks:

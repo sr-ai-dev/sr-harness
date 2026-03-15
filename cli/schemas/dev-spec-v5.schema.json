@@ -129,7 +129,21 @@
           "enum": ["host", "sandbox", "ci"],
           "description": "WHERE verification runs: host=local, sandbox=docker/container, ci=CI pipeline"
         },
-        "verify": { "$ref": "#/$defs/verify" }
+        "verify": { "$ref": "#/$defs/verify" },
+        "status": {
+          "type": "string",
+          "enum": ["pass", "fail", "pending", "skipped"],
+          "default": "pending",
+          "description": "Verification result for this scenario"
+        },
+        "verified_by_task": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "null" }
+          ],
+          "default": null,
+          "description": "The task ID that verified this scenario (e.g. 'T1' or 'T_SV1')"
+        }
       },
       "allOf": [
         {

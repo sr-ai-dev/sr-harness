@@ -260,7 +260,8 @@ Before asking any questions, mirror the user's goal back to confirm alignment:
 ```
 
 **Mirror rules:**
-- Mirror must include at least one **inference** beyond the literal request (assumed scope, technology choice, or boundary). A parrot echo ("You want auth, correct?") confirms nothing. An interpretive mirror ("You want JWT auth middleware for /api/* routes, with session stored in httpOnly cookies, correct?") reveals assumptions the user can correct.
+- Mirror confirms **goal, scope, and done criteria ONLY**. Do NOT make technology choices, implementation decisions, or architectural picks in the mirror — those belong in Step 1 Questions.
+- Mirror must include at least one **inference** beyond the literal request (assumed scope boundary or success criterion). A parrot echo ("You want auth, correct?") confirms nothing. An interpretive mirror ("You want auth middleware for /api/* routes, with session management, correct?") reveals scope assumptions the user can correct — without prescribing *how* (JWT, sessions, etc.).
 - If you cannot fill goal, scope, or done criteria → ask that specific item directly instead of mirroring
 - Max 3 mirror attempts. If still unclear after 3 → transition to questions with the unfilled items
 - When the user corrects, update understanding and re-mirror
@@ -275,15 +276,17 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
 }'
 ```
 
-#### Step 1: Structured Questions
+#### Step 1: Structured Questions (MANDATORY, iterative)
 
-Ask only what you cannot discover. Internally evaluate: scope boundaries? dependencies? constraints? success criteria? — then surface only the gaps as questions.
+**This step MUST run after Mirror confirmation.** Even if the Mirror feels "complete", there are always technology choices, trade-offs, and constraints that need explicit user input.
+
+Ask only what you cannot discover. Internally evaluate: scope boundaries? dependencies? constraints? success criteria? technology choices? — then surface the gaps as questions.
 
 **Question rules:**
-- Max **3-5 questions**, prioritized by importance (not numeric scoring — use judgment)
+- **Minimum 2 questions, max 5 per round**, prioritized by importance (not numeric scoring — use judgment)
 - Each question includes a **recommended answer** based on Discovery research
+- Technology/framework choices deferred from Mirror MUST appear here as questions
 - User can **skip** any question ("leave it to the agent's judgment")
-- **Escape hatch**: user can say "enough, proceed" at any point → transition to Phase 3
 - Propose based on research; don't ask what you can discover
 
 **What to DISCOVER** (agent finds — do NOT ask):
@@ -303,9 +306,7 @@ AskUserQuestion(
 )
 ```
 
-> **Core Principle**: Mirror first, then minimize questions with recommended answers.
-
-After each decision, immediately merge (continuous update):
+After each round of questions, immediately merge decisions:
 
 ```bash
 hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json '{
@@ -317,6 +318,44 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json '{
   }
 }'
 ```
+
+#### Step 2: Interview Progress Check (iterative loop)
+
+After each question round, present a progress summary and let the user decide whether to continue:
+
+```markdown
+## Interview Progress
+
+### Confirmed (what we know)
+- Goal: [confirmed goal from Mirror]
+- D1: [decision 1]
+- D2: [decision 2]
+- ...
+
+### Open Items (what we could still clarify)
+- [remaining gap 1 — e.g., "error handling strategy not discussed"]
+- [remaining gap 2 — e.g., "performance requirements unclear"]
+- [or "None — all major areas covered"]
+```
+
+Then ask:
+
+```
+AskUserQuestion(
+  question: "How should we proceed?",
+  header: "Interview Progress",
+  options: [
+    { label: "Continue interviewing", description: "Clarify the open items above" },
+    { label: "Enough, proceed to planning", description: "Use agent judgment for remaining gaps" }
+  ]
+)
+```
+
+- **"Continue interviewing"** → generate 2-5 new questions targeting the listed open items, then loop back to Step 2
+- **"Enough, proceed to planning"** → merge remaining gaps as assumptions, transition to Phase 3
+- **Max 3 interview rounds** (circuit breaker). After round 3, auto-transition to Phase 3 with remaining gaps as assumptions.
+
+> **Core Principle**: Mirror first, then iteratively clarify with visibility into what's known vs unknown.
 
 ### Phase 2.5: Tech-Decision Support (Conditional)
 

@@ -8415,6 +8415,7 @@ Usage:
   hoyeon-cli spec check <path>                      Check internal consistency
   hoyeon-cli spec amend --reason <feedback-id> --spec <path>  Amend spec.json based on feedback
   hoyeon-cli spec guide [section]                             Show schema guide for a section
+  hoyeon-cli spec derive --parent <id> --source <src> --trigger <t> --action <a> --reason <r> <path>  Create a derived task
 
 Options:
   --help, -h    Show this help message
@@ -8457,13 +8458,26 @@ function validateSpec(specData) {
     process.exit(1);
   }
 }
-function deepMerge(target, source, append = false) {
+function deepMerge(target, source, append = false, patch = false) {
   for (const key of Object.keys(source)) {
     if (source[key] === null || source[key] === void 0) {
       continue;
     }
     if (Array.isArray(source[key])) {
-      if (append && Array.isArray(target[key])) {
+      if (patch && Array.isArray(target[key])) {
+        for (const item of source[key]) {
+          if (item && typeof item === "object" && item.id) {
+            const idx = target[key].findIndex((t) => t && t.id === item.id);
+            if (idx >= 0) {
+              target[key][idx] = { ...target[key][idx], ...item };
+            } else {
+              target[key].push(item);
+            }
+          } else {
+            target[key].push(item);
+          }
+        }
+      } else if (append && Array.isArray(target[key])) {
         target[key] = target[key].concat(source[key]);
       } else {
         target[key] = source[key];
@@ -8472,7 +8486,7 @@ function deepMerge(target, source, append = false) {
       if (!target[key] || typeof target[key] !== "object" || Array.isArray(target[key])) {
         target[key] = {};
       }
-      deepMerge(target[key], source[key], append);
+      deepMerge(target[key], source[key], append, patch);
     } else {
       target[key] = source[key];
     }
@@ -8564,7 +8578,7 @@ async function handleMerge(args) {
   }
   if (!parsed.json) {
     process.stderr.write("Error: --json '{...}' is required\n");
-    process.stderr.write("Usage: hoyeon-cli spec merge <path> --json '{...}' [--append]\n");
+    process.stderr.write("Usage: hoyeon-cli spec merge <path> --json '{...}' [--append] [--patch]\n");
     process.exit(1);
   }
   let fragment;
@@ -8582,7 +8596,12 @@ async function handleMerge(args) {
   const specPath = resolve(filePath);
   const specData = loadSpec(specPath);
   const append = parsed.append === true;
-  deepMerge(specData, fragment, append);
+  const patch = parsed.patch === true;
+  if (append && patch) {
+    process.stderr.write("Error: --append and --patch are mutually exclusive\n");
+    process.exit(1);
+  }
+  deepMerge(specData, fragment, append, patch);
   const now = (/* @__PURE__ */ new Date()).toISOString();
   if (!specData.history) specData.history = [];
   const mergedKeys = Object.keys(fragment).join(", ");
@@ -8601,6 +8620,7 @@ async function handleMerge(args) {
   process.stdout.write(`  merged keys: ${mergedKeys}
 `);
   if (append) process.stdout.write("  mode: append (arrays concatenated)\n");
+  if (patch) process.stdout.write("  mode: patch (ID-based merge)\n");
   process.exit(0);
 }
 async function handleValidate(args) {
@@ -9428,6 +9448,91 @@ async function handleGuide(args) {
   process.stdout.write(output + "\n");
   process.exit(0);
 }
+function generateDerivedId(tasks, parentId, trigger) {
+  const prefix = `${parentId}.${trigger}-`;
+  let maxN = 0;
+  for (const t of tasks) {
+    if (t.id.startsWith(prefix)) {
+      const suffix = t.id.slice(prefix.length);
+      const n = parseInt(suffix, 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    }
+  }
+  return `${prefix}${maxN + 1}`;
+}
+async function handleDerive(args) {
+  const parsed = parseArgs(args);
+  const requiredFlags = ["parent", "source", "trigger", "action", "reason"];
+  for (const flag of requiredFlags) {
+    if (!parsed[flag]) {
+      process.stderr.write(`Error: --${flag} is required
+`);
+      process.stderr.write("Usage: hoyeon-cli spec derive --parent <id> --source <src> --trigger <trigger> --action <action> --reason <reason> [--attempt <n>] [--file-scope <f1,f2>] [--steps <s1,s2>] <path>\n");
+      process.exit(1);
+    }
+  }
+  const validTriggers = ["adapt", "retry", "code_review", "final_verify"];
+  if (!validTriggers.includes(parsed.trigger)) {
+    process.stderr.write(`Error: --trigger must be one of: ${validTriggers.join(", ")}
+`);
+    process.exit(1);
+  }
+  const filePath = parsed._[0];
+  if (!filePath) {
+    process.stderr.write("Error: <path> to spec.json is required\n");
+    process.exit(1);
+  }
+  const specPath = resolve(filePath);
+  const specData = loadSpec(specPath);
+  const parentTask = (specData.tasks || []).find((t) => t.id === parsed.parent);
+  if (!parentTask) {
+    process.stderr.write(`Error: parent task '${parsed.parent}' not found in spec
+`);
+    process.exit(1);
+  }
+  const parentOrigin = parentTask.origin || "planned";
+  if (parentOrigin === "derived" || parentOrigin === "adapted") {
+    process.stderr.write(`Error: Parent must be a planned task (depth-1 enforcement)
+`);
+    process.exit(1);
+  }
+  const newId = generateDerivedId(specData.tasks || [], parsed.parent, parsed.trigger);
+  const fileScope = parsed["file-scope"] ? parsed["file-scope"].split(",").map((s) => s.trim()).filter(Boolean) : void 0;
+  const steps = parsed.steps ? parsed.steps.split(",").map((s) => s.trim()).filter(Boolean) : void 0;
+  const derivedFrom = {
+    parent: parsed.parent,
+    trigger: parsed.trigger,
+    source: parsed.source,
+    reason: parsed.reason
+  };
+  const newTask = {
+    id: newId,
+    action: parsed.action,
+    type: "work",
+    status: "pending",
+    origin: "derived",
+    derived_from: derivedFrom,
+    depends_on: [parsed.parent]
+  };
+  if (fileScope) newTask.file_scope = fileScope;
+  if (steps) newTask.steps = steps;
+  if (!specData.tasks) specData.tasks = [];
+  specData.tasks = specData.tasks.concat([newTask]);
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  if (!specData.history) specData.history = [];
+  specData.history.push({
+    ts: now,
+    type: "tasks_changed",
+    task: newId,
+    detail: `derived from ${parsed.parent} via ${parsed.trigger}`
+  });
+  if (specData.meta) specData.meta.updated_at = now;
+  validateSpec(specData);
+  buildPlan(specData.tasks);
+  writeState(specPath, specData);
+  process.stdout.write(JSON.stringify({ created: newId }) + "\n");
+  process.exit(0);
+}
 async function spec(args) {
   const subcommand = args[0];
   if (!subcommand || subcommand === "--help" || subcommand === "-h") {
@@ -9454,6 +9559,8 @@ async function spec(args) {
     await handleAmend(args.slice(1));
   } else if (subcommand === "guide") {
     await handleGuide(args.slice(1));
+  } else if (subcommand === "derive") {
+    await handleDerive(args.slice(1));
   } else {
     process.stderr.write(`Error: unknown spec subcommand '${subcommand}'
 `);

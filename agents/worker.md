@@ -76,22 +76,7 @@ When work is complete, **always** report in the following JSON format:
     "exported_name": "authMiddleware"
   },
   "acceptance_criteria": {
-    "scenarios": [
-      {
-        "id": "REQ-1.S1",
-        "description": "Auth middleware rejects unauthenticated requests",
-        "verified_by": "machine",
-        "command": "npm test -- auth.test.ts",
-        "status": "PASS"
-      },
-      {
-        "id": "REQ-1.S2",
-        "description": "Middleware reads JWT from Authorization header",
-        "verified_by": "agent",
-        "status": "PASS",
-        "detail": "src/auth/middleware.ts line 12 reads req.headers.authorization"
-      }
-    ],
+    "scenarios": ["REQ-1.S1", "REQ-1.S2"],
     "checks": [
       {
         "type": "static",
@@ -106,6 +91,22 @@ When work is complete, **always** report in the following JSON format:
       }
     ]
   },
+  "scenario_results": [
+    {
+      "id": "REQ-1.S1",
+      "description": "Auth middleware rejects unauthenticated requests",
+      "verified_by": "machine",
+      "command": "npm test -- auth.test.ts",
+      "status": "PASS"
+    },
+    {
+      "id": "REQ-1.S2",
+      "description": "Middleware reads JWT from Authorization header",
+      "verified_by": "agent",
+      "status": "PASS",
+      "detail": "src/auth/middleware.ts line 12 reads req.headers.authorization"
+    }
+  ],
   "learnings": [
     "This project uses ESM only",
     "Test files use .test.ts extension"
@@ -124,12 +125,15 @@ When work is complete, **always** report in the following JSON format:
 | Field | Required | Description |
 |-------|----------|-------------|
 | `outputs` | ✅ | Values defined in EXPECTED OUTCOME's Outputs |
-| `acceptance_criteria` | ✅ | Object with `scenarios` and `checks` arrays (see below) |
+| `acceptance_criteria` | ✅ | Object with `scenarios` (string[]) and `checks` arrays — echoes the task spec unchanged |
+| `scenario_results` | ✅ | Full verification evidence objects for each scenario ID in `acceptance_criteria.scenarios` |
 | `learnings` | ❌ | Discovered and **applied** patterns/conventions |
 | `issues` | ❌ | Problems discovered but **not resolved** (out of scope/unresolved) |
 | `decisions` | ❌ | Decisions made and their reasons |
 
-**acceptance_criteria.scenarios item structure:**
+**acceptance_criteria.scenarios** — `string[]` of scenario IDs copied verbatim from the task spec (e.g., `["REQ-1.S1", "REQ-1.S2"]`). Do not expand or modify.
+
+**scenario_results item structure:**
 
 | Field | Required | Description |
 |-------|----------|-------------|
@@ -149,7 +153,7 @@ When work is complete, **always** report in the following JSON format:
 | `status` | ✅ | `PASS` / `FAIL` / `SKIP` |
 | `reason` | ❌ | Reason for FAIL/SKIP |
 
-**Completion condition**: All `scenarios` (machine/agent) are `PASS` AND all `checks` are `PASS`
+**Completion condition**: All `scenario_results` entries (machine/agent) are `PASS` AND all `checks` are `PASS`
 
 **learnings vs issues distinction:**
 ```

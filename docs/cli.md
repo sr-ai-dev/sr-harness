@@ -92,7 +92,7 @@ hoyeon-cli spec merge ./spec.json --json '{"tasks":[{"id":"T2","action":"test","
 
 #### spec validate
 
-Validate a spec.json file against the dev-spec-v4 JSON schema.
+Validate a spec.json file against the dev-spec v5 JSON schema (falls back to v4 if `meta.schema_version` is `"v4"`).
 
 ```
 hoyeon-cli spec validate <path>

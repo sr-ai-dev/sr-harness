@@ -4,7 +4,7 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import specSchema from '../../schemas/dev-spec-v4.schema.json' with { type: 'json' };
 import specSchemaV5 from '../../schemas/dev-spec-v5.schema.json' with { type: 'json' };
-// TODO(v5-validation): Wire specSchemaV5 when spec.meta.schema_version === 'v5'. Currently validates against v4 only.
+// v5 is the default schema. Pass specData with meta.schema_version === 'v4' to use legacy v4 validation.
 
 import { writeState } from '../lib/state-io.js';
 
@@ -51,8 +51,11 @@ Examples:
   hoyeon-cli spec sandbox-tasks ./spec.json
 `;
 
-function loadSchema() {
-  return specSchema;
+function loadSchema(specData) {
+  if (specData?.meta?.schema_version === 'v4') {
+    return specSchema;
+  }
+  return specSchemaV5;
 }
 
 /**
@@ -77,7 +80,7 @@ function printGuideHints(errors) {
 function validateSpec(specData) {
   let schema;
   try {
-    schema = loadSchema();
+    schema = loadSchema(specData);
   } catch (err) {
     process.stderr.write(`Error: could not load schema: ${err.message}\n`);
     process.exit(1);
@@ -314,7 +317,7 @@ async function handleValidate(args) {
 
   let schema;
   try {
-    schema = loadSchema();
+    schema = loadSchema(data);
   } catch (err) {
     process.stderr.write(`Error: could not load schema: ${err.message}\n`);
     process.exit(1);
@@ -843,7 +846,7 @@ async function handleTask(args) {
   // Validate before writing
   let schema;
   try {
-    schema = loadSchema();
+    schema = loadSchema(specData);
   } catch (err) {
     process.stderr.write(`Error: could not load schema: ${err.message}\n`);
     process.exit(1);
@@ -1037,7 +1040,7 @@ async function handleCheck(args) {
  * Resolves $ref, shows required/optional fields, types, enums, and minimal examples.
  */
 function generateGuide(section) {
-  const schema = loadSchema();
+  const schema = loadSchema(); // defaults to v5
   const defs = schema.$defs || {};
 
   const SECTIONS = {

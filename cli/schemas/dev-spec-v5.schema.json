@@ -228,6 +228,11 @@
           "type": "string",
           "enum": ["dev", "plain"],
           "description": "Spec type: dev = developer task spec (default), plain = lightweight plain task spec"
+        },
+        "schema_version": {
+          "type": "string",
+          "enum": ["v4", "v5"],
+          "description": "Schema version for validation routing. Defaults to v5 if omitted."
         }
       }
     },

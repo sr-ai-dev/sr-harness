@@ -1,7 +1,7 @@
 # spec.json Schema Design
 
 > Date: 2026-03-05
-> Status: v4 — spec/state separation + ambiguity resolution (Document v2)
+> Status: v5 — scenario-based AC + v4 backward compatibility (Document v3, supersedes v4 design)
 
 ## Background
 

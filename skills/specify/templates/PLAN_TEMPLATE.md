@@ -430,45 +430,14 @@ Worker outputs **JSON** in a ```json code block. The Verify Worker independently
     "config_path": "./config/app.json",
     "exported_name": "configLoader"
   },
-  "acceptance_criteria": [
-    {
-      "id": "file_exists",
-      "category": "functional",
-      "description": "File exists: ./config/app.json",
-      "command": "test -f ./config/app.json",
-      "status": "PASS"
-    },
-    {
-      "id": "exports_function",
-      "category": "functional",
-      "description": "File exports configLoader function",
-      "command": "grep -q 'export.*configLoader' ./config/app.json",
-      "status": "PASS"
-    },
-    {
-      "id": "tsc_check",
-      "category": "static",
-      "description": "tsc --noEmit passes",
-      "command": "tsc --noEmit ./config/app.json",
-      "status": "PASS"
-    },
-    {
-      "id": "eslint_check",
-      "category": "static",
-      "description": "eslint passes",
-      "command": "eslint ./config/app.json",
-      "status": "FAIL",
-      "reason": "Unexpected console.log statement (line 42)"
-    },
-    {
-      "id": "test_config",
-      "category": "runtime",
-      "description": "Config tests pass",
-      "command": "npm test -- config.test.ts",
-      "status": "SKIP",
-      "reason": "No test file exists"
-    }
-  ],
+  "acceptance_criteria": {
+    "scenarios": ["R1-S1", "R1-S2"],
+    "checks": [
+      { "type": "static", "run": "tsc --noEmit ./config/app.json" },
+      { "type": "lint", "run": "eslint ./config/app.json" },
+      { "type": "build", "run": "npm test -- config.test.ts" }
+    ]
+  },
   "learnings": ["Config uses JSON schema validation"],
   "issues": ["Existing type definitions incomplete (out of scope)"],
   "decisions": ["Used standard JSON format over YAML for simplicity"]
@@ -485,27 +454,23 @@ Worker outputs **JSON** in a ```json code block. The Verify Worker independently
 | `issues` | ❌ | Problems found but **not resolved** (out of scope) |
 | `decisions` | ❌ | Decisions made and why |
 
-### acceptance_criteria Item Structure
+### acceptance_criteria Structure (v5)
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `id` | ✅ | Unique identifier (e.g., `tsc_check`, `test_auth`) |
-| `category` | ✅ | `functional` / `static` / `runtime` / `cleanup` |
-| `description` | ✅ | Human-readable description |
-| `command` | ✅ | Re-executable shell command for verification |
-| `status` | ✅ | `PASS` / `FAIL` / `SKIP` |
-| `reason` | ❌ | Required when status is `FAIL` or `SKIP` |
+| `scenarios` | ✅ | Array of scenario IDs from `requirements[].scenarios[].id` this task fulfills |
+| `checks` | ✅ | Array of automated checks (`{ type, run }`) |
 
-### Category Requirements
+### Check Types
 
-| Category | Required | What to Verify |
-|----------|----------|----------------|
-| `functional` | ✅ | Feature works (file exists, exports correct, behavior correct) |
-| `static` | ✅ | `tsc --noEmit`, `eslint` pass for modified files |
-| `runtime` | ✅ | Related tests pass (SKIP if no tests) |
-| `cleanup` | ❌ | Unused imports/files removed (only if specified in TODO) |
+| Type | What to Verify |
+|------|----------------|
+| `static` | Type checking (`tsc --noEmit`) |
+| `build` | Compilation and tests (`npm test`) |
+| `lint` | Linting (`eslint`) |
+| `format` | Formatting (`prettier --check`) |
 
-**Completion Rule**: All required categories must have all items `PASS` or `SKIP`
+**Completion Rule**: All referenced scenarios verified AND all checks pass
 
 ### Verification Flow
 

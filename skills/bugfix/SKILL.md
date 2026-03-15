@@ -195,7 +195,7 @@ AskUserQuestion:
 
 ## Phase 2: SPEC GENERATION
 
-Convert diagnosis results into spec.json v4 format. spec.json is the standard format consumed by `/execute`, and serves as escalation context for `/specify` on failure.
+Convert diagnosis results into spec.json v5 format. spec.json is the standard format consumed by `/execute`, and serves as escalation context for `/specify` on failure.
 
 ### Step 2.1: Initialize
 

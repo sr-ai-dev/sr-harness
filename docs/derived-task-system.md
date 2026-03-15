@@ -30,7 +30,7 @@ T3 (planned)                            triage decision
 
 ## Schema
 
-### New fields on task object (`dev-spec-v4.schema.json`)
+### New fields on task object (`dev-spec-v5.schema.json`)
 
 ```json
 {

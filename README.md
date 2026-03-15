@@ -16,9 +16,13 @@ Hoyeon is a Claude Code plugin that takes the tools, agents, and workflows your 
 
 ## Principles
 
-1. **Spec-based** — every action traces back to a spec. `hoyeon-cli` validates and enforces spec.json deterministically — no ambiguity, no drift.
-2. **Dynamic task composition** — your request is decomposed into tasks, matched to the right skills and agents, and assembled on the fly.
-3. **Adaptation flow** — execution is predictable, but when things break, verification-first triage re-routes the plan instead of failing silently.
+1. **Spec-driven** — Every action traces back to a spec. No spec, no work. No matter how long or complex the workflow gets, spec.json keeps it consistent and traceable.
+
+2. **Self-improving** — No spec is perfect on day one. Gaps emerge mid-execution — that's expected. Derived tasks patch the plan at runtime, append-only, fully tracked. The spec gets better *because* it ran, not *before* it ran.
+
+3. **Verification-first** — Every step is verified before moving on. The goal: minimize human review by letting agents catch what agents can catch. AC Quality Gate, independent verifiers, multi-model code review — all pushing toward autonomous verification.
+
+4. **Dynamic composition** — No fixed pipeline. Skills and agents assemble on-the-fly based on what you asked. A bug fix routes differently than a feature request. The same worker agent serves different specs in different combinations.
 
 ## When Plans Meet Reality
 

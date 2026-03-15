@@ -197,18 +197,13 @@ AskUserQuestion:
 
 Convert diagnosis results into spec.json v4 format. spec.json is the standard format consumed by `/execute`, and serves as escalation context for `/specify` on failure.
 
-### Step 2.1: Paths
+### Step 2.1: Initialize
 
 ```
 SPEC_DIR = "$HOME/.hoyeon/$SESSION_ID"
 SPEC_PATH = "$SPEC_DIR/spec.json"
-```
 
-### Step 2.2: Initialize spec.json
-
-```bash
-depth = "quick"     # SIMPLE
-depth = "standard"  # COMPLEX
+depth = "quick" for SIMPLE, "standard" for COMPLEX
 
 hoyeon-cli spec init fix-{slug} \
   --goal "Fix: {bug description}" \
@@ -218,113 +213,24 @@ hoyeon-cli spec init fix-{slug} \
   ${SPEC_PATH}
 ```
 
-### Step 2.3: Merge diagnosis into spec
+### Step 2.2: Merge diagnosis into spec
 
-Single merge call with all fields. The `tasks` array replaces the placeholder T1 created by `spec init`.
+Use `hoyeon-cli spec merge` to populate the spec from diagnosis results. Single merge call.
 
-```bash
-hoyeon-cli spec merge ${SPEC_PATH} --json '{
-  "meta": {
-    "non_goals": [
-      "Do not refactor surrounding code",
-      "Do not add unrelated features"
-    ],
-    "deliverables": [
-      {"path": ".dev/debug/{slug}.md", "description": "Bugfix report"}
-    ]
-  },
-  "context": {
-    "request": "{original bug description + error output}",
-    "research": "{debugger root cause analysis — 1-2 paragraph summary}",
-    "assumptions": [
-      {FOR EACH assumption from debugger:}
-      {"id": "A{n}", "belief": "{assumption text}", "if_wrong": "{impact if wrong}", "impact": "major"}
-    ],
-    "decisions": [
-      {"id": "D1", "decision": "Root cause at {file:line}: {description}", "rationale": "{debugger rationale}"}
-    ]
-  },
-  "tasks": [
-    {
-      "id": "T1",
-      "action": "{debugger proposed fix — 1 line description}",
-      "type": "work",
-      "status": "pending",
-      "file_scope": ["{affected files from debugger}"],
-      "steps": [
-        "Write regression test that reproduces the bug (RED)",
-        "Apply minimal fix at root cause: {file:line} (GREEN)",
-        "Verify all acceptance criteria pass"
-      ],
-      "must_not_do": [
-        "Change more than necessary (<5% of affected file)",
-        "Refactor surrounding code",
-        "Add features not related to the bug",
-        "Fix at symptom location if root cause is elsewhere",
-        "Do not run git commands"
-      ],
-      "acceptance_criteria": {
-        "functional": [
-          {FOR EACH A-item from verification-planner:}
-          {"description": "{criterion}", "command": "{verification command}"}
-        ],
-        "static": [],
-        "runtime": []
-      }
-    }
-    {IF debugger.similar_issues not empty:}
-    ,{
-      "id": "T2",
-      "action": "Fix similar issues at: {locations list}",
-      "type": "work",
-      "status": "pending",
-      "depends_on": ["T1"],
-      "file_scope": ["{similar issue files}"],
-      "steps": ["Apply same fix pattern to similar locations"],
-      "must_not_do": ["Do not run git commands"],
-      "acceptance_criteria": {
-        "functional": [{"description": "Similar issue locations fixed and verified"}]
-      }
-    }
-  ],
-  "constraints": [
-    {
-      "id": "C1",
-      "type": "must_not_do",
-      "rule": "Changes must be minimal (<5% of affected file)",
-      "verified_by": "agent",
-      "verify": {"type": "assertion", "checks": ["Diff is focused on root cause only, no extraneous changes"]}
-    },
-    {
-      "id": "C2",
-      "type": "must_not_do",
-      "rule": "Fix must target root cause, not symptoms",
-      "verified_by": "agent",
-      "verify": {"type": "assertion", "checks": ["Fix location matches debugger-identified root cause"]}
-    }
-  ]
-}'
-```
+**What to include:**
 
-**Field mapping:**
+- **meta**: `non_goals` (no refactoring, no unrelated features), `deliverables` (debug report path)
+- **context**: `request` (original bug description), `research` (debugger analysis summary), `assumptions` (from debugger), `decisions` (root cause location + rationale)
+- **tasks**: Single task (T1) with:
+  - `action`: debugger's proposed fix
+  - `file_scope`: affected files from debugger
+  - `steps`: write regression test (RED) → apply minimal fix (GREEN) → verify
+  - `must_not_do`: minimal diff (<5%), no refactoring, no unrelated changes, no git commands, fix root cause not symptom
+  - `acceptance_criteria.functional`: verification-planner's A-items (description + command)
+  - If debugger found **similar issues**: add T2 (`depends_on: [T1]`) to fix those locations
+- **constraints**: minimal diff rule, root cause targeting rule (both `verified_by: agent`)
 
-| Debugger output | → | spec.json field |
-|---|---|---|
-| Root Cause | → | `context.decisions[0]`, `tasks[0].steps` |
-| Proposed Fix | → | `tasks[0].action` |
-| Bug Type | → | `context.research` |
-| Assumptions | → | `context.assumptions` |
-| Affected Files | → | `tasks[0].file_scope` |
-| Similar Issues | → | `tasks[1]` (optional T2) |
-| Severity | → | `meta.mode.depth` (quick/standard) |
-
-**verification-planner output:**
-
-| Output | → | spec.json field |
-|---|---|---|
-| A-items | → | `tasks[0].acceptance_criteria.functional` |
-
-### Step 2.4: Validate & Register
+### Step 2.3: Validate & Register
 
 ```bash
 hoyeon-cli spec validate ${SPEC_PATH}
@@ -333,12 +239,7 @@ hoyeon-cli session set --sid $SESSION_ID --spec "$SPEC_PATH"
 
 If validation fails, fix the JSON and retry once.
 
-**Update debug-state.md:**
-
-```
-Update DEBUG_STATE:
-  spec_path: ${SPEC_PATH}
-```
+Update debug-state.md with `spec_path: ${SPEC_PATH}`.
 
 ---
 

@@ -294,6 +294,18 @@ Map from plan:
 - Dependency DAG → `depends_on`
 - Agent Mapping → `tool` (from Phase 5 discovery result)
 
+#### 9.3.5 Auto-generate sandbox tasks
+
+After all tasks are merged, check for sandbox scenarios and generate infra + verification tasks:
+
+```bash
+# Auto-generates T_SANDBOX (infra prep) + T_SV1~N (per-scenario verification) tasks
+# No-ops if no execution_env: sandbox scenarios exist
+hoyeon-cli spec sandbox-tasks ${SPEC_PATH}
+```
+
+This command scans all scenarios for `execution_env: "sandbox"` and automatically creates the required infra and per-scenario verification tasks with correct `depends_on` wiring.
+
 #### 9.4 Update state.json
 
 Update the session state to point to the generated spec:

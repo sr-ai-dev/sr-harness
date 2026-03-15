@@ -579,44 +579,21 @@ Always generate the `requirements` section with Given-When-Then scenarios — do
 
 #### Sandbox Scenario Infra Auto-task
 
-When any scenario has `execution_env: "sandbox"`, check if the project already has sandbox infrastructure:
-
-```
-sandbox_infra_exists = Bash("test -f docker-compose.yml || test -f docker-compose.yaml || ls sandbox/features/*.feature 2>/dev/null | head -1").exit_code == 0
-```
-
-- **If `sandbox_infra_exists` is true**: No extra task needed — existing infra is used.
-- **If `sandbox_infra_exists` is false AND execution_env: sandbox scenarios exist**: Automatically add a sandbox infra build task to the task list **before** TF:
+When any scenario has `execution_env: "sandbox"`, run the following CLI command to automatically generate sandbox tasks:
 
 ```bash
-# Auto-insert when execution_env: sandbox scenarios found but no sandbox infra
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json '{
-  "tasks": [
-    {
-      "id": "T_SANDBOX", "action": "Build sandbox infrastructure for execution_env: sandbox scenario verification",
-      "type": "work", "status": "pending", "risk": "medium",
-      "file_scope": ["docker-compose.yml", "sandbox/"],
-      "inputs": [],
-      "outputs": [{"id": "sandbox_up_cmd", "path": "docker-compose.yml"}],
-      "steps": [
-        "Create docker-compose.yml with required services",
-        "Add sandbox/features/ directory with .feature files for execution_env: sandbox scenarios",
-        "Verify sandbox boots: docker-compose up -d && docker-compose ps"
-      ],
-      "must_not_do": ["Do not run git commands"],
-      "acceptance_criteria": {
-        "scenarios": [],
-        "checks": [
-          {"type": "build", "run": "docker-compose config --quiet"},
-          {"type": "build", "run": "docker-compose up -d && docker-compose ps | grep -c Up"}
-        ]
-      }
-    }
-  ]
-}'
+# Auto-generates T_SANDBOX (infra prep) + T_SV1~N (per-scenario verification) tasks
+# Also auto-calculates depends_on for all generated tasks
+hoyeon-cli spec sandbox-tasks .dev/specs/{name}/spec.json
 ```
 
-> TF must `depends_on: ["T_SANDBOX"]` when T_SANDBOX is added. Update TF's depends_on accordingly.
+This single command handles everything:
+- Checks whether sandbox infrastructure already exists
+- Creates **T_SANDBOX** (infra build task) if needed
+- Creates **T_SV1~N** tasks (one per sandbox scenario) for verification
+- Auto-sets `depends_on` so T_SV tasks wait for T_SANDBOX, and TF waits for all T_SV tasks
+
+> No manual docker-compose check or task JSON construction required — `sandbox-tasks` encapsulates all that logic.
 
 ### Merge tasks
 

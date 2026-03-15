@@ -8620,6 +8620,10 @@ var dev_spec_v5_schema_default = {
       additionalProperties: false,
       properties: {
         request: { type: "string" },
+        confirmed_goal: {
+          type: "string",
+          description: "The confirmed goal statement from the mirror phase. Set after user confirms the mirrored interpretation."
+        },
         interview: {
           type: "array",
           items: {
@@ -8692,7 +8696,11 @@ var dev_spec_v5_schema_default = {
                 type: "string",
                 enum: ["low", "medium", "high", "critical"]
               },
-              mitigation: { type: "string" }
+              mitigation: { type: "string" },
+              auto_merged: {
+                type: "boolean",
+                description: "True when this gap was auto-merged (medium/low severity) without asking the user"
+              }
             }
           }
         }

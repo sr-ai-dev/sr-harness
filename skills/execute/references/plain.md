@@ -68,13 +68,15 @@ Provide spec_path and parsed spec JSON.
 IF result.status == "VERIFIED":
   # proceed to report
 ELSE:
-  print("Final verification FAILED:")
+  # On FV failure: generate a partial report with failures noted, THEN halt.
+  # This ensures the user has actionable output even when verification fails.
+  fv_failed = true
+  fv_failures = []
   IF result.goal_alignment.status == "FAIL":
-    print("  GOAL MISALIGNMENT: {result.goal_alignment.reason}")
+    fv_failures.append("[goal_alignment] GOAL MISALIGNMENT: {result.goal_alignment.reason}")
   FOR EACH category in [constraints, acceptance_criteria, requirements, deliverables]:
     FOR EACH failure in result[category].results.filter(r => r.status == "FAIL"):
-      print("  [{category}] {failure.description} — {failure.reason}")
-  HALT
+      fv_failures.append("[{category}] {failure.description} — {failure.reason}")
 ```
 
 ### Report
@@ -101,6 +103,10 @@ TASKS
 VERIFICATION
 ───────────────────────────────────────────────────
 Final Verify: {result.status}
+{IF fv_failed:}
+FAILURES:
+{FOR EACH f in fv_failures:}
+  {f}
 
 ───────────────────────────────────────────────────
 MANUAL REVIEW (require human verification)
@@ -122,6 +128,9 @@ POST-WORK (human actions after completion)
 {IF no post_work: "None"}
 ═══════════════════════════════════════════════════
 """)
+
+IF fv_failed:
+  HALT
 ```
 
 ---

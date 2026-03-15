@@ -228,12 +228,13 @@ Use `hoyeon-cli spec merge` to populate the spec from diagnosis results. Single 
   - `must_not_do`: minimal diff (<5%), no refactoring, no unrelated changes, no git commands, fix root cause not symptom
   - `acceptance_criteria.scenarios`: list of scenario IDs from `requirements[].scenarios[].id` (verification-planner's Auto items map to machine scenarios)
   - `acceptance_criteria.checks`: automated static/build/lint checks if applicable
-  - If debugger found **similar issues**: add T2 (`depends_on: [T1]`) to fix those locations
+  - If debugger found **similar issues**: add T2 (`depends_on: [T1]`) to fix those locations — T2 must include all required task fields: `type: "work"`, `status: "pending"`, `must_not_do`, and `acceptance_criteria`
 - **constraints**: minimal diff rule, root cause targeting rule (both `verified_by: agent`)
 - **requirements**: Generate from debugger diagnosis. Each requirement describes a behavior that was broken:
   ```json
   {
     "id": "R1",
+    "priority": 1,
     "behavior": "{what should work — from debugger's expected behavior}",
     "scenarios": [{
       "id": "S1",

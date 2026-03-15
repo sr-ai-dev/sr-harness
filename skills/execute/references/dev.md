@@ -276,7 +276,7 @@ WHILE TaskList() has pending tasks:
 ### Parallel Dispatch Rules
 
 ```
-IF len(runnable) > 1 AND all are :Worker or :Verify or :Commit:
+IF len(runnable) > 1 AND all are :Worker or :Verify:
   # PARALLEL — mark in_progress FIRST, then send ALL in ONE message
   FOR EACH task in runnable:
     TaskUpdate(taskId=task.id, status="in_progress")
@@ -768,7 +768,7 @@ Audit: {count} triage decisions
 ───────────────────────────────────────────────────
 MANUAL REVIEW (require human verification)
 ───────────────────────────────────────────────────
-{FOR EACH req in spec.requirements:}
+{FOR EACH req in (spec.requirements ?? []):}
 {FOR EACH scenario where verified_by == "human":}
 - {scenario.id}: {scenario.then}
   Check: {scenario.verify.ask}

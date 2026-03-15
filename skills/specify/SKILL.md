@@ -690,7 +690,7 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
          "verify": {"type": "command", "run": "...", "expect": {"exit_code": 0}}},
         {"id": "R1-S2", "given": "...", "when": "...", "then": "...",
          "verified_by": "human",
-         "verify": {"type": "instruction", "check": "Visually confirm layout matches design"}},
+         "verify": {"type": "instruction", "ask": "Visually confirm layout matches design"}},
         {"id": "R1-S3", "given": "...", "when": "...", "then": "...",
          "verified_by": "machine", "execution_env": "sandbox",
          "verify": {"type": "command", "run": "docker exec ...", "expect": {"exit_code": 0}}}
@@ -766,7 +766,7 @@ Inspect **every** AC across `tasks[].acceptance_criteria` and `requirements[].sc
 
 **Semantic quality:**
 - **Machine ACs**: `verify.run` is an executable shell command (not pseudocode, not natural language). `verify.expect` has a concrete value (e.g., `exit_code: 0`, not "should work")
-- **Agent ACs**: `verify.assert` is **falsifiable** — can be proven wrong by inspecting code/output (FAIL: "code is correct". PASS: "all public functions have JSDoc with @param and @returns")
+- **Agent ACs**: `verify.checks` is **falsifiable** — can be proven wrong by inspecting code/output (FAIL: "code is correct". PASS: "all public functions have JSDoc with @param and @returns")
 - **Human ACs**: `verify.ask` is **actionable** — a person can follow it step-by-step (FAIL: "verify it". PASS: "Open /login, enter invalid password, confirm error message shows 'Invalid password' not 'Login failed'")
 
 #### Environment Detection (once, before loop)
@@ -876,6 +876,8 @@ IF result.reclassification_suggestions AND len(result.reclassification_suggestio
 > - **Autopilot**: Skip. Proceed directly to Phase 5f.
 
 After plan review and AC Quality Gate pass, derive the Verification Summary from `requirements[].scenarios` and present it to the user for lightweight confirmation.
+
+> **NOTE — verification_summary is DERIVED, never written**: The `verification_summary` section in spec.json (with fields `agent_items`, `human_items`, `sandbox_items`) is derived at reporting time and is NEVER merged into spec.json via `spec merge`. Because it is never written, the schema field naming (`agent_items`/`human_items`/`sandbox_items`) vs SKILL.md display naming (Auto/Manual/Agent) does NOT cause validation issues. Present the summary to the user using the SKILL.md labels (Auto, Manual, Agent [sandbox]) for readability — do not attempt to persist it.
 
 **Derivation rules** (from requirements scenarios, 2-axis model):
 - **Auto** = scenarios where `verified_by` is `"machine"` or `"agent"` AND `execution_env` is `"host"` (or omitted)

@@ -233,7 +233,7 @@ Determine the plan type based on task composition from Phase 5:
 - If **all tasks have `type: plain`** → use `--type plain` (lightweight skill-only pipeline)
 
 ```bash
-hoyeon-cli spec init {plan-name} --goal "{user's goal}" --type dev|plain ${SPEC_PATH}
+hoyeon-cli spec init {plan-name} --goal "{user's goal}" --type dev|plain --depth quick --interaction autopilot ${SPEC_PATH}
 ```
 
 `{plan-name}`: derive from user's goal (kebab-case, max 30 chars).
@@ -246,7 +246,7 @@ Each task's "Done when" condition becomes a requirement with one scenario.
 Rules:
 - One requirement per task (R1 maps to T1, R2 to T2, etc.)
 - Each requirement has exactly one scenario with `verified_by: "machine"` and a `verify.run` command derived from the task's done-when condition
-- If a task has no runnable verification (e.g., "review document"), use `verified_by: "human"` with `verify.type: "manual"`
+- If a task has no runnable verification (e.g., "review document"), use `verified_by: "human"` with `verify: {"type": "instruction", "ask": "..."}`
 - Keep it minimal — no gap analysis, no multi-scenario requirements
 
 ```bash

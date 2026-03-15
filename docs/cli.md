@@ -254,6 +254,7 @@ Checks performed:
 - `depends_on` references pointing to nonexistent tasks
 - `done` tasks missing `completed_at`
 - `in_progress` or `done` tasks whose dependencies are not yet `done`
+- `acceptance_criteria.scenarios[]` referencing scenario IDs that do not exist in `requirements[].scenarios[].id` (referential integrity)
 - `file_scope` overlap across tasks (reported as warnings, not errors)
 
 Exit code: 0 on pass, 1 on failure.
@@ -285,6 +286,203 @@ Displays the feedback message, updates `meta.updated_at`, and writes the spec. F
 
 ```bash
 hoyeon-cli spec amend --reason fb-001 --spec ./spec.json
+```
+
+---
+
+#### spec scenario
+
+Look up a scenario by ID across all `requirements[].scenarios[]` (legacy read-only).
+
+```
+hoyeon-cli spec scenario <scenario-id> --get <path>
+```
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<scenario-id>` | Yes | Scenario ID to look up (e.g., `R1-S1`) |
+| `--get <path>` | Yes | Path to spec.json (read-only) |
+
+Outputs the matching scenario object as JSON. Exits with code 1 if no scenario with that ID is found.
+
+Note: `spec requirement <id> --get <path>` provides the same functionality and is preferred.
+
+**Example:**
+
+```bash
+hoyeon-cli spec scenario R1-S1 --get ./spec.json
+```
+
+---
+
+#### spec requirement
+
+Show, retrieve, or update scenario verification status within `requirements[].scenarios[]`.
+
+This subcommand has three modes:
+
+**Status overview mode:**
+
+```
+hoyeon-cli spec requirement --status <path> [--json]
+```
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `--status` | Yes | Trigger status overview (no scenario ID) |
+| `<path>` | Yes | Path to spec.json |
+| `--json` | No | Output as JSON instead of text |
+
+Shows all requirements with their scenario verification status. Text format groups output by requirement; each scenario displays `verified_by`, `execution_env`, `status`, and associated task. With `--json`, returns an object with a `requirements` array and a `summary` with `pass`, `fail`, and `pending` counts.
+
+**Get mode:**
+
+```
+hoyeon-cli spec requirement <id> --get <path>
+```
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<id>` | Yes | Scenario ID (e.g., `R1-S1`) |
+| `--get <path>` | Yes | Path to spec.json (read-only) |
+
+Returns the individual scenario object as JSON. Equivalent to `spec scenario <id> --get <path>`.
+
+**Update mode:**
+
+```
+hoyeon-cli spec requirement <id> --status pass|fail|skipped --task <task_id> [--reason <msg>] <path>
+```
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<id>` | Yes | Scenario ID to update (e.g., `R1-S1`) |
+| `--status pass\|fail\|skipped` | Yes | Verification result |
+| `--task <task_id>` | Yes | ID of the task that performed verification |
+| `--reason <msg>` | No | Optional reason or notes for the status |
+| `<path>` | Yes | Path to spec.json |
+
+Updates the scenario's `status` and `verified_by_task` fields in spec.json. Used by worker agents after verifying each scenario.
+
+**Example:**
+
+```bash
+hoyeon-cli spec requirement --status ./spec.json
+hoyeon-cli spec requirement --status ./spec.json --json
+hoyeon-cli spec requirement R1-S1 --get ./spec.json
+hoyeon-cli spec requirement R1-S1 --status pass --task T3 ./spec.json
+hoyeon-cli spec requirement R1-S1 --status fail --task T3 --reason "assertion failed on line 42" ./spec.json
+```
+
+---
+
+#### spec sandbox-tasks
+
+Auto-generate sandbox verification tasks from `requirements[].scenarios[]` where `execution_env` is `"sandbox"`.
+
+```
+hoyeon-cli spec sandbox-tasks <path> [--json]
+```
+
+| Argument / Flag | Required | Description |
+|-----------------|----------|-------------|
+| `<path>` | Yes | Path to spec.json |
+| `--json` | No | Output result as JSON |
+
+Scans all scenarios with `execution_env: "sandbox"` and creates:
+- `T_SANDBOX` — infra preparation task (created only if it does not already exist)
+- `T_SV1` through `T_SVN` — one verification task per sandbox scenario
+
+`depends_on` fields are auto-calculated for each `T_SV` task. With `--json`, returns an object with `sandbox_scenarios` and `created_tasks` arrays.
+
+**Example:**
+
+```bash
+hoyeon-cli spec sandbox-tasks ./spec.json
+hoyeon-cli spec sandbox-tasks ./spec.json --json
+```
+
+---
+
+#### spec derive
+
+Create a derived task in spec.json (for retries, adaptations, or code review fixes).
+
+```
+hoyeon-cli spec derive --parent <id> --source <src> --trigger <t> --action <a> --reason <r> <path>
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--parent <id>` | Yes | Parent task ID (e.g., `T1`) |
+| `--source <src>` | Yes | Source of the derivation (e.g., `worker`, `verifier`) |
+| `--trigger <t>` | Yes | What triggered the derived task (e.g., `test_failure`, `review_comment`) |
+| `--action <a>` | Yes | Action description for the derived task |
+| `--reason <r>` | Yes | Human-readable reason for creating the derived task |
+| `<path>` | Yes | Path to spec.json |
+
+Auto-generates an ID (e.g., `T1.retry-1`, `T2.adapt-1`) based on the parent ID and trigger. Sets `origin: "derived"` and `derived_from: <parent>`, then appends the new task to the `tasks` array.
+
+Outputs JSON: `{"created": "T1.retry-1"}`.
+
+**Example:**
+
+```bash
+hoyeon-cli spec derive --parent T1 --source verifier --trigger test_failure --action "Fix broken assertion" --reason "Unit test failed in T1" ./spec.json
+```
+
+---
+
+#### spec drift
+
+Show the drift ratio between derived and planned tasks.
+
+```
+hoyeon-cli spec drift <path>
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `<path>` | Yes | Path to spec.json |
+
+Outputs the drift ratio: derived tasks divided by planned (non-derived) tasks. A high drift ratio indicates that the execution deviated significantly from the original plan.
+
+**Example:**
+
+```bash
+hoyeon-cli spec drift ./spec.json
+```
+
+---
+
+#### spec guide
+
+Show schema documentation for spec.json sections.
+
+```
+hoyeon-cli spec guide [section]
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `[section]` | No | Section name to display. Omit to show general usage. |
+
+Available sections:
+
+| Section | Description |
+|---------|-------------|
+| `list` | List all available guide sections |
+| `task` | Show task schema fields |
+| `acceptance-criteria` | Show v5 AC structure (scenarios + checks) |
+| `merge` | Show merge modes (`replace`, `--append`, `--patch`) |
+
+**Example:**
+
+```bash
+hoyeon-cli spec guide list
+hoyeon-cli spec guide task
+hoyeon-cli spec guide acceptance-criteria
+hoyeon-cli spec guide merge
 ```
 
 ---

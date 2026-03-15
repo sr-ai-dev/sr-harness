@@ -106,7 +106,19 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v0.11.3)
+## Recent Changes (v1.0.0)
+
+- feat(cli): wire v5 schema as default validation with v4 backward compatibility
+- feat(cli): add `schema_version` field to meta for version routing
+- feat(cli): add guide hints on spec merge validation errors
+- feat(cli): add scenario, requirement, sandbox-tasks, derive, drift, guide commands
+- feat(specify): add iterative interview loop with progress visibility
+- feat(quick-plan): add lightweight requirements before task merge
+- refactor(plan-reviewer): rewrite for spec.json v5 with 4-layer review
+- refactor(execute): simplify final-verify Step 4 to read recorded scenario statuses
+- fix(skills): resolve 12 schema/logic issues across specify, bugfix, quick-plan
+
+## Previous Changes (v0.11.3)
 
 - refactor(verification): replace A-item/H-item/S-item terminology with 2-axis model (Auto/Agent/Manual × host/sandbox)
 - refactor(execute): H-ITEMS report section renamed to MANUAL REVIEW in dev.md and plain.md

@@ -6351,14 +6351,14 @@ var require_format = __commonJS({
           }
         }
         function validateFormat() {
-          const formatDef = self.formats[schema];
-          if (!formatDef) {
+          const formatDef2 = self.formats[schema];
+          if (!formatDef2) {
             unknownFormat();
             return;
           }
-          if (formatDef === true)
+          if (formatDef2 === true)
             return;
-          const [fmtType, format, fmtRef] = getFormat(formatDef);
+          const [fmtType, format, fmtRef] = getFormat(formatDef2);
           if (fmtType === ruleType)
             cxt.pass(validCondition());
           function unknownFormat() {
@@ -6380,7 +6380,7 @@ var require_format = __commonJS({
             return ["string", fmtDef, fmt];
           }
           function validCondition() {
-            if (typeof formatDef == "object" && !(formatDef instanceof RegExp) && formatDef.async) {
+            if (typeof formatDef2 == "object" && !(formatDef2 instanceof RegExp) && formatDef2.async) {
               if (!schemaEnv.$async)
                 throw new Error("async format in sync schema");
               return (0, codegen_1._)`await ${fmtRef}(${data})`;
@@ -7958,6 +7958,31 @@ var dev_spec_v4_schema_default = {
         }
       }
     },
+    derivedFrom: {
+      type: "object",
+      required: ["parent", "trigger"],
+      additionalProperties: false,
+      description: "Provenance record linking a derived task back to its planned parent",
+      properties: {
+        parent: {
+          type: "string",
+          description: "ID of the planned parent task (depth-1 only)"
+        },
+        source: {
+          type: "string",
+          description: "Source context that triggered the derivation (e.g. file path, agent name)"
+        },
+        trigger: {
+          type: "string",
+          enum: ["adapt", "retry", "code_review", "final_verify"],
+          description: "Event that caused this task to be derived"
+        },
+        reason: {
+          type: "string",
+          description: "Human-readable explanation for the derivation"
+        }
+      }
+    },
     task: {
       type: "object",
       required: ["id", "action", "type"],
@@ -7968,6 +7993,16 @@ var dev_spec_v4_schema_default = {
         type: {
           type: "string",
           enum: ["work", "verification"]
+        },
+        origin: {
+          type: "string",
+          enum: ["planned", "derived", "adapted"],
+          default: "planned",
+          description: "How this task was created: planned=authored in spec, derived=created at runtime via spec derive, adapted=manually adjusted from a derived task"
+        },
+        derived_from: {
+          $ref: "#/$defs/derivedFrom",
+          description: "Provenance record \u2014 required when origin is derived or adapted"
         },
         risk: {
           type: "string",
@@ -8379,6 +8414,7 @@ Usage:
   hoyeon-cli spec meta <path>                       Show spec meta (name, goal, non_goals, mode, etc.)
   hoyeon-cli spec check <path>                      Check internal consistency
   hoyeon-cli spec amend --reason <feedback-id> --spec <path>  Amend spec.json based on feedback
+  hoyeon-cli spec guide [section]                             Show schema guide for a section
 
 Options:
   --help, -h    Show this help message
@@ -9168,6 +9204,203 @@ async function handleCheck(args) {
   process.stdout.write("Spec check passed: internal consistency OK\n");
   process.exit(0);
 }
+function generateGuide(section) {
+  const schema = loadSchema();
+  const defs = schema.$defs || {};
+  const SECTIONS = {
+    meta: { ref: "meta", desc: "Spec metadata (name, goal, mode, etc.)" },
+    context: { ref: "context", desc: "Request context, interview decisions, research, assumptions" },
+    tasks: { ref: "task", desc: "Task DAG (work items + verification)", isArray: true },
+    requirements: { ref: "requirement", desc: "Requirements with scenarios and verification", isArray: true },
+    constraints: { ref: "constraint", desc: "Must-not-do / preserve constraints", isArray: true },
+    history: { ref: "historyEntry", desc: "Spec change history entries", isArray: true },
+    verification: { ref: "verificationSummary", desc: "A/H/S verification classification summary" },
+    external: { ref: "externalDependencies", desc: "Human-only pre/post-work dependencies" }
+  };
+  if (!section || section === "list") {
+    const lines = ["Available guide sections:"];
+    for (const [name, info2] of Object.entries(SECTIONS)) {
+      lines.push(`  ${name.padEnd(16)} ${info2.desc}`);
+    }
+    lines.push("");
+    lines.push("Usage: hoyeon-cli spec guide <section>");
+    lines.push("       hoyeon-cli spec guide full      (all sections)");
+    lines.push("       hoyeon-cli spec guide root      (top-level structure)");
+    return lines.join("\n");
+  }
+  if (section === "root") {
+    return formatRoot(schema);
+  }
+  if (section === "full") {
+    const lines = [formatRoot(schema), ""];
+    for (const [name, info2] of Object.entries(SECTIONS)) {
+      const def2 = defs[info2.ref];
+      if (def2) {
+        lines.push(`--- ${name} ---`);
+        lines.push(formatDef(name, def2, defs, info2.isArray));
+        lines.push("");
+      }
+    }
+    return lines.join("\n");
+  }
+  const info = SECTIONS[section];
+  if (!info) {
+    return `Error: unknown section '${section}'. Run 'hoyeon-cli spec guide' to see available sections.`;
+  }
+  const def = defs[info.ref];
+  if (!def) {
+    return `Error: schema definition '${info.ref}' not found.`;
+  }
+  return formatDef(section, def, defs, info.isArray);
+}
+function formatRoot(schema) {
+  const lines = ["spec.json top-level structure:"];
+  lines.push(`  required: ${(schema.required || []).join(", ")}`);
+  lines.push("  fields:");
+  for (const [key, val] of Object.entries(schema.properties || {})) {
+    if (key === "$schema") continue;
+    const req = (schema.required || []).includes(key) ? "*" : " ";
+    const desc = val.description || "";
+    lines.push(`    ${req} ${key}${desc ? ` \u2014 ${desc}` : ""}`);
+  }
+  lines.push("");
+  lines.push("  * = required");
+  return lines.join("\n");
+}
+function formatDef(name, def, defs, isArray) {
+  const lines = [];
+  if (isArray) {
+    lines.push(`${name}: array of objects`);
+  } else {
+    lines.push(`${name}: object`);
+  }
+  const required = new Set(def.required || []);
+  if (required.size > 0) {
+    lines.push(`  required: ${[...required].join(", ")}`);
+  }
+  const props = def.properties || {};
+  for (const [key, prop] of Object.entries(props)) {
+    const req = required.has(key) ? "*" : " ";
+    const typeStr = resolveType(prop, defs, "    ");
+    lines.push(`  ${req} ${key}: ${typeStr}`);
+  }
+  const example = generateExample(name, def, defs, required);
+  if (example) {
+    lines.push("");
+    if (isArray) {
+      lines.push(`  example merge: --json '{"${name}":[${example}]}'`);
+    } else {
+      lines.push(`  example merge: --json '{"${name}":${example}}'`);
+    }
+  }
+  return lines.join("\n");
+}
+function resolveType(prop, defs, indent) {
+  if (prop.$ref) {
+    const refName = prop.$ref.replace("#/$defs/", "");
+    const refDef = defs[refName];
+    if (refDef) {
+      if (refDef.enum) return `enum(${refDef.enum.join("|")})`;
+      if (refDef.type === "object") return `{${refName}}`;
+      return refDef.type || refName;
+    }
+    return refName;
+  }
+  if (prop.oneOf) {
+    const types = prop.oneOf.map((o) => {
+      if (o.$ref) return `{${o.$ref.replace("#/$defs/", "")}}`;
+      if (o.type) return o.type;
+      return "?";
+    });
+    return types.join(" | ");
+  }
+  if (prop.enum) return `enum(${prop.enum.join("|")})`;
+  if (prop.type === "array") {
+    if (prop.items) {
+      if (prop.items.$ref) {
+        const refName = prop.items.$ref.replace("#/$defs/", "");
+        return `[{${refName}}]`;
+      }
+      if (prop.items.oneOf) return `[mixed]`;
+      if (prop.items.type === "object" && prop.items.properties) {
+        return formatInlineObject(prop.items, indent);
+      }
+      return `[${prop.items.type || "any"}]`;
+    }
+    return "[]";
+  }
+  if (prop.const) return `"${prop.const}"`;
+  if (prop.type === "object" && prop.properties) {
+    return formatInlineObject(prop, indent);
+  }
+  let t = prop.type || "any";
+  if (prop.minimum !== void 0 || prop.maximum !== void 0) {
+    const parts = [];
+    if (prop.minimum !== void 0) parts.push(`min:${prop.minimum}`);
+    if (prop.maximum !== void 0) parts.push(`max:${prop.maximum}`);
+    t += `(${parts.join(",")})`;
+  }
+  return t;
+}
+function formatInlineObject(schema, indent = "    ") {
+  const req = new Set(schema.required || []);
+  const props = schema.properties || {};
+  const fields = [];
+  for (const [k, v] of Object.entries(props)) {
+    const r = req.has(k) ? "*" : " ";
+    const t = v.enum ? `enum(${v.enum.join("|")})` : v.const ? `"${v.const}"` : v.type || "any";
+    fields.push(`${indent}  ${r} ${k}: ${t}`);
+  }
+  const isArray = schema === schema ? "" : "";
+  return `[object]
+${fields.join("\n")}`;
+}
+function generateExample(name, def, defs, required) {
+  const props = def.properties || {};
+  const obj = {};
+  for (const key of required) {
+    const prop = props[key];
+    if (!prop) continue;
+    obj[key] = exampleValue(key, prop, defs);
+  }
+  const optionals = Object.keys(props).filter((k) => !required.has(k));
+  let added = 0;
+  for (const key of optionals) {
+    if (added >= 2) break;
+    const prop = props[key];
+    if (prop.type === "string" || prop.enum) {
+      obj[key] = exampleValue(key, prop, defs);
+      added++;
+    }
+  }
+  try {
+    return JSON.stringify(obj);
+  } catch {
+    return null;
+  }
+}
+function exampleValue(key, prop, defs) {
+  if (prop.enum) return prop.enum[0];
+  if (prop.const) return prop.const;
+  if (prop.$ref) {
+    const refName = prop.$ref.replace("#/$defs/", "");
+    const refDef = defs[refName];
+    if (refDef?.enum) return refDef.enum[0];
+    return `<${refName}>`;
+  }
+  if (prop.type === "string") return `<${key}>`;
+  if (prop.type === "integer") return prop.minimum || 1;
+  if (prop.type === "boolean") return false;
+  if (prop.type === "array") return [];
+  if (prop.type === "object") return {};
+  return `<${key}>`;
+}
+async function handleGuide(args) {
+  const section = args[0];
+  const output = generateGuide(section);
+  process.stdout.write(output + "\n");
+  process.exit(0);
+}
 async function spec(args) {
   const subcommand = args[0];
   if (!subcommand || subcommand === "--help" || subcommand === "-h") {
@@ -9192,6 +9425,8 @@ async function spec(args) {
     await handleCheck(args.slice(1));
   } else if (subcommand === "amend") {
     await handleAmend(args.slice(1));
+  } else if (subcommand === "guide") {
+    await handleGuide(args.slice(1));
   } else {
     process.stderr.write(`Error: unknown spec subcommand '${subcommand}'
 `);

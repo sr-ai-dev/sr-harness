@@ -132,7 +132,7 @@ Task(verification-planner):
    Focus on A-items only (what commands prove the fix works).
    Keep it minimal — this is a bug fix, not a feature.
 
-   Note: /bugfix uses Tier 1-3 (A-items) only. Do not inline TESTING.md.
+   Note: /bugfix uses Tier 1-3 (A-items) only. Do not inline VERIFICATION.md.
    Tier 4 (S-items) are not needed. Mark S-items section as 'bugfix mode — Tier 1-3 only'."
 ```
 

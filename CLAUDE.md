@@ -159,7 +159,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 
 ## Testing Strategy
 
-See [TESTING.md](TESTING.md) for the 4-Tier Testing Model (Unit → Integration → E2E → Agent Sandbox). Verification agents use this as their framework.
+See [VERIFICATION.md](VERIFICATION.md) for the 4-Tier Testing Model (Unit → Integration → E2E → Agent Sandbox). Verification agents use this as their framework.
 
 ## Lessons Learned
 

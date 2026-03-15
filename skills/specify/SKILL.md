@@ -384,15 +384,15 @@ If all conditions are met but user hasn't explicitly requested plan generation, 
 > - **Quick**: 1 agent (tradeoff-analyzer lite)
 > - **Standard**: 3-4 agents parallel + codex-strategist sequential
 
-### Phase 3 Pre-read: TESTING.md
+### Phase 3 Pre-read: VERIFICATION.md
 
-**Before launching analysis agents**, read TESTING.md to inline into verification-planner's prompt:
+**Before launching analysis agents**, read VERIFICATION.md to inline into verification-planner's prompt:
 
 ```bash
-# Read TESTING.md from plugin root (3 levels up from skill baseDir)
+# Read VERIFICATION.md via the symlink in this skill's references/ directory
 # ${baseDir} is shown in the "Base directory for this skill:" header above.
-# Resolve: ${baseDir}/../../../TESTING.md
-TESTING_MD_CONTENT = Read("${baseDir}/../../../TESTING.md")
+# Resolve: ${baseDir}/references/VERIFICATION_GUIDE.md
+TESTING_MD_CONTENT = Read("${baseDir}/references/VERIFICATION_GUIDE.md")
 ```
 
 > **Why inline?** Subagents cannot resolve `${baseDir}` — it's only available as header context to the main agent. The main agent must read the file and pass the content directly into the subagent prompt.
@@ -425,7 +425,7 @@ Each scenario MUST include:
 - execution_env: 'host' (local), 'sandbox' (docker/container), or 'ci' (CI pipeline) — optional, default 'host'
 - verify: command (for machine), assertion (for agent), or instruction (for human)
 
-## Testing Strategy (from TESTING.md)
+## Testing Strategy (from VERIFICATION.md)
 [Paste TESTING_MD_CONTENT here — the full content read in the pre-read step above.
  If the file was not found, note this in Verification Gaps and proceed without it.]
 
@@ -1058,7 +1058,7 @@ AskUserQuestion(
 - [ ] `verification_summary` derived from `requirements[].scenarios` (A/H/S classification presented in Phase 5e/6)
 - [ ] `constraints` populated from gap-analyzer
 - [ ] Analysis agents ran (gap + tradeoff + verification-planner)
-- [ ] TESTING.md pre-read and inlined into verification-planner prompt
+- [ ] VERIFICATION.md pre-read and inlined into verification-planner prompt
 - [ ] S-items fallback rules applied (Tier 4 reclassification, UI screenshot check)
 - [ ] Codex strategist attempted (standard only)
 - [ ] plan-reviewer returned OKAY

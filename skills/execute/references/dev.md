@@ -267,6 +267,75 @@ ELSE:
 
 ---
 
+### Derived Task Helpers
+
+When `spec derive` creates a new task in spec.json, the orchestrator must also create
+Claude Code tracking tasks (TaskCreate/TaskUpdate) to keep both DAGs in sync.
+
+```
+function dispatch_derived_task(derive_result, spec_path, depth):
+  """
+  After spec derive, create tracking tasks and dispatch worker.
+  Returns {task_id, worker, commit} for the caller to chain dependencies.
+  """
+  task_id = derive_result.created        # e.g. "T1.retry-1"
+  task_action = derive_result.action     # from derive JSON output
+
+  # 1. Create tracking tasks
+  fw = TaskCreate(
+    subject="{task_id}.1:Worker — {task_action}",
+    description=WORKER_DESCRIPTION(task_id),
+    activeForm="{task_id}.1: Running Worker")
+
+  IF depth == "standard":
+    fv = TaskCreate(subject="{task_id}.2:Verify",
+                    description=VERIFY_DESCRIPTION(task_id),
+                    activeForm="{task_id}.2: Verifying")
+    fc = TaskCreate(subject="{task_id}.3:Commit",
+                    description="Commit {task_id} changes.",
+                    activeForm="{task_id}.3: Committing")
+    TaskUpdate(taskId=fw, addBlocks=[fv])
+    TaskUpdate(taskId=fv, addBlocks=[fc])
+  ELSE:  # quick
+    fc = TaskCreate(subject="{task_id}.2:Commit",
+                    description="Commit {task_id} changes.",
+                    activeForm="{task_id}.2: Committing")
+    TaskUpdate(taskId=fw, addBlocks=[fc])
+
+  # 2. Dispatch worker immediately
+  TaskUpdate(taskId=fw, status="in_progress")
+  Agent(subagent_type="worker", description="Implement: {task_id}",
+        prompt=TaskGet(fw).description)
+
+  # 3. On completion, mark spec task done
+  Bash("hoyeon-cli spec task {task_id} --status done --summary '{result.summary}' {spec_path}")
+  TaskUpdate(taskId=fw, status="completed")
+
+  return {task_id: task_id, worker: fw, commit: fc}
+
+
+function dispatch_fv_fix(derive_result, spec_path):
+  """
+  Lightweight dispatch for Final Verify fixes — NO per-task verify, NO per-task commit.
+  FV fixes are committed together after all fixes complete.
+  """
+  task_id = derive_result.created
+
+  fw = TaskCreate(
+    subject="{task_id}.1:Worker — FV fix",
+    description=WORKER_DESCRIPTION(task_id),
+    activeForm="{task_id}.1: FV fix")
+
+  TaskUpdate(taskId=fw, status="in_progress")
+  Agent(subagent_type="worker", description="FV fix: {task_id}",
+        prompt=TaskGet(fw).description)
+
+  Bash("hoyeon-cli spec task {task_id} --status done --summary 'FV fix applied' {spec_path}")
+  TaskUpdate(taskId=fw, status="completed")
+```
+
+---
+
 ### 1a. :Worker — Delegate Implementation
 
 > **Self-read pattern**: The orchestrator does NOT read spec.json or context files.
@@ -390,7 +459,7 @@ function retry(task_id, verify_result, attempt):
   failed = verify_result.acceptance_criteria.results.filter(r => r.status == "FAIL")
   failed_summary = failed.map(f => f.description).join(", ")
 
-  # Track retry attempt in spec.json via derive
+  # Track retry and dispatch fix worker via shared helper
   derive_result = Bash("""hoyeon-cli spec derive \
     --parent {task_id} \
     --source verify \
@@ -398,30 +467,13 @@ function retry(task_id, verify_result, attempt):
     --action "Retry: fix {failed_summary}" \
     --reason "Attempt {attempt}: {failed_summary}" \
     {spec_path}""")
-  derived_task_id = derive_result.created
 
-  Agent(subagent_type="worker", prompt="""
-    ## FIX TASK
-    Previous implementation of {task_id} failed verification.
+  tracking = dispatch_derived_task(derive_result, spec_path, depth)
 
-    ## FAILED CRITERIA
-    {FOR EACH f in failed:}
-    - {f.description}: {f.reason}
-      Command: {f.command}
-
-    ## MUST-NOT-DO VIOLATIONS
-    {verify_result.must_not_do.violations}
-
-    Fix these issues. Same rules as original task apply.
-    Update context files ({CONTEXT_DIR}/learnings.md, issues.md) with what you learn.
-  """)
-
-  # Re-verify
+  # Re-verify the ORIGINAL task (not the derived one)
   re_verify_result = dispatch_verify_worker(task_id)
 
   IF re_verify_result.status == "VERIFIED":
-    # Mark retry-derived task as done (audit record)
-    Bash("hoyeon-cli spec task {derived_task_id} --status done --summary 'Retry completed' {spec_path}")
     TaskUpdate(taskId, status="completed")
     return
 
@@ -440,9 +492,8 @@ function adapt(task_id, verify_result):
   adaptation = verify_result.suggested_adaptation
   # OR build from failed criteria if task_type == "verification"
 
-  # 1. Add new fix task to spec.json via derive
-  # derive handles: ID generation, origin=derived, derived_from, depends_on, re-plan
-  Bash("""hoyeon-cli spec derive \
+  # 1. Create derived fix task in spec.json + tracking tasks via helper
+  derive_result = Bash("""hoyeon-cli spec derive \
     --parent {task_id} \
     --source verify \
     --trigger adapt \
@@ -450,36 +501,21 @@ function adapt(task_id, verify_result):
     --reason "{adaptation.blockage_type}: {adaptation.reason}" \
     {spec_path}""")
 
-  # derive returns the generated fix_task_id (e.g. "T1.adapt-1")
-  fix_task_id = result of above command
+  log_to_audit("ADAPT: created {derive_result.created} for {task_id} — {adaptation.blockage_type}")
 
-  log_to_audit("ADAPT: created {fix_task_id} for {task_id} — {adaptation.blockage_type}")
+  # 2. Dispatch via shared helper (creates TaskCreate + dependencies + dispatches worker)
+  tracking = dispatch_derived_task(derive_result, spec_path, depth)
 
-  # 2. Re-plan to get updated DAG (derive already rebuilds DAG, but re-fetch for orchestrator)
-  new_plan = Bash("hoyeon-cli spec plan {spec_path} --format slim")
-
-  # 3. Create tracking tasks for the fix (use same self-read pattern)
-  fw = TaskCreate(subject="{fix_task_id}.1:Worker — {adaptation.suggested_todo.title}",
-                  description=WORKER_DESCRIPTION(fix_task_id))
-  fv = TaskCreate(subject="{fix_task_id}.2:Verify",
-                  description=VERIFY_DESCRIPTION(fix_task_id))  # standard only
-  fc = TaskCreate(subject="{fix_task_id}.3:Commit",
-                  description="Commit {fix_task_id} changes.")
-
-  # Set dependencies: fix task depends on current task's commit
-  # After fix completes, add a re-verify of original task
-
-  # 4. Create re-verify task for original
+  # 3. Create re-verify task for original
   rv = TaskCreate(subject="{task_id}.R:Re-Verify",
-       description="Re-verify {task_id} after fix {fix_task_id} applied.",
+       description="Re-verify {task_id} after fix {derive_result.created} applied.",
        activeForm="{task_id}: Re-verifying")
 
-  # Chain: fix commit → re-verify original
-  TaskUpdate(taskId=fc, addBlocks=[rv])
-  # Re-verify blocks finalize
+  # Chain: fix commit → re-verify original → finalize
+  TaskUpdate(taskId=tracking.commit, addBlocks=[rv])
   TaskUpdate(taskId=rv, addBlocks=[rc])  # rc = Residual Commit
 
-  # 5. Mark current verify as completed (adaptation handled)
+  # 4. Mark current verify as completed (adaptation handled)
   TaskUpdate(taskId=current_verify, status="completed")
   # Loop continues — fix task will be picked up
 ```
@@ -567,19 +603,19 @@ Agent(
 
 **If NEEDS_FIXES:**
 
-For each fix identified by the code reviewer, create a fix task via `spec derive`:
+For each fix identified by the code reviewer, create and dispatch via shared helper:
 
 ```
 FOR EACH fix in code_review_result.fixes:
-  Bash("""hoyeon-cli spec derive \
+  derive_result = Bash("""hoyeon-cli spec derive \
     --parent {closest_related_task_id or last_task_id} \
     --source code-reviewer \
     --trigger code_review \
     --action "{fix.title}" \
     --reason "{fix.reason}" \
     {spec_path}""")
-  fix_task_id = result of above command
-  log_to_audit("CODE_REVIEW ADAPT: created {fix_task_id} — {fix.reason}")
+  tracking = dispatch_derived_task(derive_result, spec_path, depth)
+  log_to_audit("CODE_REVIEW: created {derive_result.created} — {fix.reason}")
 ```
 
 - Execute fixes → re-review (max 1 round)
@@ -633,10 +669,9 @@ ELSE:
 
     log_to_audit("FINAL_VERIFY attempt {fv_attempt}: created {len(fix_tasks)} fix tasks")
 
-    # Execute fix tasks WITHOUT per-task verify (lightweight — go straight to commit)
+    # Execute fix tasks via lightweight FV helper (no per-task verify, no per-task commit)
     FOR EACH fix_task_id in fix_tasks:
-      Agent(subagent_type="worker", prompt=WORKER_DESCRIPTION(fix_task_id))
-      Bash("hoyeon-cli spec task {fix_task_id} --status done {spec_path}")
+      dispatch_fv_fix({created: fix_task_id}, spec_path)
 
     # Commit all FV fixes together
     Agent(subagent_type="git-master", prompt="Commit Final Verify fixes")

@@ -108,10 +108,10 @@ For each acceptance criterion in the work breakdown, assign a tier:
 
 | Tier | Verifiable by | Example |
 |------|--------------|---------|
-| 1 - Unit | `npm test` exit code | "함수가 올바른 값을 반환한다" |
-| 2 - Integration | `npm run test:integration` exit code | "API가 DB에 올바르게 저장한다" |
-| 3 - E2E | `npm run test:e2e` exit code | "로그인 → 대시보드 플로우가 작동한다" |
-| 4 - Agent Sandbox | Persona agent + LLM-as-Judge | "신규 유저가 구독 추가를 혼란 없이 완료할 수 있다" |
+| 1 - Unit | `npm test` exit code | "Function returns the correct value" |
+| 2 - Integration | `npm run test:integration` exit code | "API correctly persists data to DB" |
+| 3 - E2E | `npm run test:e2e` exit code | "Login → dashboard flow works end-to-end" |
+| 4 - Agent Sandbox | Persona agent + LLM-as-Judge | "New user can complete subscription signup without confusion" |
 
 ### 3. Agent-Verifiable Items (A-items) — Tier 1-3 ONLY
 
@@ -133,14 +133,14 @@ Items verifiable via sandbox agent infrastructure (BDD/Gherkin scenarios, browse
 - Screenshot-based visual verification (see below)
 
 **When sandbox infra does NOT exist**:
-- Output the section with: "S-items: sandbox 인프라 없음 — Tier 4 검증 불가"
+- Output the section with: "S-items: no sandbox infrastructure — Tier 4 verification not possible"
 - Move these items to H-items instead
 
 **Pattern detection rule**: Scan `sandbox/features/` for existing `.feature` files. If the project has a pattern of creating per-feature BDD files (e.g., `watch-redesign.feature`, `settings-redesign.feature`), recommend a new `.feature` file following the same naming convention for the current task. List the recommended scenarios as S-items even if the file doesn't exist yet — the file creation becomes part of the plan scope.
 
 **UI work — screenshot-based verification**: When the current task involves UI/frontend changes (component redesign, layout changes, styling), include screenshot verification as S-items:
-- S-item: "sandbox 기동 후 브라우저 스크린샷 캡처 → 디자인 스펙과 비교"
-- If `.pen` design files exist: "Pencil MCP `get_screenshot` vs 브라우저 렌더링 비교"
+- S-item: "Capture browser screenshot after sandbox startup → compare against design spec"
+- If `.pen` design files exist: "Pencil MCP `get_screenshot` vs browser rendering comparison"
 - Include specific pages/routes to screenshot (e.g., `/dashboard/inbox`, `/dashboard/inbox/:id`)
 - Mobile viewport screenshot if responsive design is in scope
 
@@ -170,35 +170,35 @@ Agent Findings: [Discovered patterns, structure, commands]
 ### 1. Test Infrastructure (4-Tier)
 | Tier | Status | Tool/Path | Command |
 |------|--------|-----------|---------|
-| 1 - Unit | [있음/없음] | [Jest/Vitest/...] | [pnpm test] |
-| 2 - Integration | [있음/없음] | [Supertest/...] | [pnpm test:integration] |
-| 3 - E2E | [있음/없음] | [Playwright/...] | [pnpm test:e2e] |
-| 4 - Agent Sandbox | [있음/없음] | [BDD features/sandbox Docker] | [pnpm sandbox:up + agent] |
+| 1 - Unit | [present/absent] | [Jest/Vitest/...] | [pnpm test] |
+| 2 - Integration | [present/absent] | [Supertest/...] | [pnpm test:integration] |
+| 3 - E2E | [present/absent] | [Playwright/...] | [pnpm test:e2e] |
+| 4 - Agent Sandbox | [present/absent] | [BDD features/sandbox Docker] | [pnpm sandbox:up + agent] |
 
 ### 2. Agent-Verifiable (A-items) — Tier 1-3 only
-- A-1: [검증 내용] (tier: [1-3], method: [command])
-- A-2: [검증 내용] (tier: [1-3], method: [command])
+- A-1: [verification item] (tier: [1-3], method: [command])
+- A-2: [verification item] (tier: [1-3], method: [command])
 
 ### 3. Sandbox Agent Testing (S-items) — Tier 4
 (If sandbox infra exists:)
-- S-1: [BDD 시나리오] (method: [agent-browser + DB check], feature: [existing or new .feature path])
-- S-2: [스크린샷 검증] (method: [screenshot capture → design spec comparison], route: [/path/to/page])
+- S-1: [BDD scenario] (method: [agent-browser + DB check], feature: [existing or new .feature path])
+- S-2: [Screenshot verification] (method: [screenshot capture → design spec comparison], route: [/path/to/page])
 (If sandbox infra does NOT exist:)
-- sandbox 인프라 없음 — Tier 4 검증 불가. 해당 항목은 H-items로 이동.
+- No sandbox infrastructure — Tier 4 verification not possible. Affected items moved to H-items.
 
 ### 4. Human-Required (H-items)
-- H-1: [검증 내용] (reason: [왜 사람이 필요한지])
-- H-2: [검증 내용] (reason: [왜 사람이 필요한지])
+- H-1: [verification item] (reason: [why human is required])
+- H-2: [verification item] (reason: [why human is required])
 
 ### 5. Verification Gaps
-- [현재 환경에서 검증 불가능한 항목과 대안]
-- [Tier 4가 없는 경우: 어떤 항목이 agent sandbox로 검증 가능했을지 명시]
-- [Tier 4가 없는 경우: TESTING.md Sandbox Bootstrapping Patterns에서 매칭 패턴 추천]
+- [Items not verifiable in current environment and alternatives]
+- [If Tier 4 absent: specify which items could have been verified via agent sandbox]
+- [If Tier 4 absent: recommend matching pattern from TESTING.md Sandbox Bootstrapping Patterns]
 
 ### 6. External Dependencies
 | Dependency | Type | Dev Strategy | Pre-work (before AI) | Post-work (after AI) |
 |------------|------|-------------|---------------------|---------------------|
-| [e.g. PostgreSQL] | DB | [mock/docker/skip] | [필요한 사전 작업] | [완료 후 사용자 액션] |
+| [e.g. PostgreSQL] | DB | [mock/docker/skip] | [required pre-work] | [user action after completion] |
 ```
 
 ## Guidelines
@@ -217,4 +217,4 @@ Agent Findings: [Discovered patterns, structure, commands]
 - **Sandbox drift**: When planned changes touch DB migrations, docker-compose, env vars, or external API contracts, check sandbox artifacts for drift per the inlined TESTING.md "Sandbox Drift Prevention" section. Flag drift as A-item (sandbox:up test) or H-item (seed data review) in Verification Gaps.
 - **S-items pattern detection**: Always scan `sandbox/features/*.feature` for naming patterns. If existing features follow `{page}-redesign.feature` or similar conventions, recommend a new feature file for the current task as an S-item.
 - **UI work screenshot verification**: When the work breakdown includes frontend/UI changes, always add screenshot-based S-items. If sandbox infra + browser agent exist, recommend capturing screenshots at specific routes and comparing against design specs. If `.pen` files exist, include Pencil MCP `get_screenshot` comparison.
-- **S-items section is REQUIRED**: Always output the S-items section. If sandbox infra exists, list Tier 4 verification scenarios. If not, explicitly state "sandbox 인프라 없음". Never silently omit this section.
+- **S-items section is REQUIRED**: Always output the S-items section. If sandbox infra exists, list Tier 4 verification scenarios. If not, explicitly state "no sandbox infrastructure". Never silently omit this section.

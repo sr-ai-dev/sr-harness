@@ -128,11 +128,11 @@ After the quality pass, scan all `verified_by: "human"` items and suggest conver
 
 | H-item pattern | Required capability | Suggested conversion |
 |---------------|--------------------|--------------------|
-| UI/page/로딩/화면/layout | `browser` | `agent` + `execution_env: "sandbox"` — browser-explorer verifies DOM/screenshots |
-| API/응답/response/endpoint | `docker` | `machine` + `execution_env: "sandbox"` — curl in container |
-| 메시지/텍스트/문구/error message | (none — host is fine) | `agent` + `execution_env: "host"` — agent reads code/output |
-| 성능/performance/latency/로딩 시간 | `docker` | `machine` + `execution_env: "sandbox"` — benchmark in container |
-| 이메일/email/notification | `docker` | `agent` + `execution_env: "sandbox"` — mock SMTP + agent checks |
+| UI/page/loading/screen/layout | `browser` | `agent` + `execution_env: "sandbox"` — browser-explorer verifies DOM/screenshots |
+| API/response/endpoint | `docker` | `machine` + `execution_env: "sandbox"` — curl in container |
+| message/text/wording/error message | (none — host is fine) | `agent` + `execution_env: "host"` — agent reads code/output |
+| performance/latency/load time | `docker` | `machine` + `execution_env: "sandbox"` — benchmark in container |
+| email/notification | `docker` | `agent` + `execution_env: "sandbox"` — mock SMTP + agent checks |
 
 ### Conversion Output
 

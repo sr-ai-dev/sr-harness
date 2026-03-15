@@ -546,11 +546,11 @@ Build tasks from research findings + analysis results. This is the main spec aut
 
 - Task IDs: `T1`, `T2`, ... with final `TF` (type: `verification`)
 - Every task: `must_not_do: ["Do not run git commands"]`
-- Every task: `acceptance_criteria` with at least `functional` + `static` + `runtime`
+- Every task: `acceptance_criteria` with `scenarios` (scenario ID refs) + `checks` (runnable commands)
 - Every task: `inputs` listing dependencies from previous tasks (use task output IDs)
 - HIGH risk tasks: include rollback steps in `steps`
 - Map `research.patterns` → `tasks[].references`
-- Map `research.commands` → `TF.acceptance_criteria.runtime`
+- Map `research.commands` → `TF.acceptance_criteria.checks` (type: build/lint/static)
 - Apply S-items from `requirements[].scenarios` where `execution_env: "sandbox"` to TF acceptance criteria where applicable
 
 #### Type Field
@@ -562,20 +562,61 @@ Build tasks from research findings + analysis results. This is the main spec aut
 
 **Note**: Failure handling logic is unified for both types. Type only determines retry permission and file modification rights.
 
-#### Acceptance Criteria Categories
+#### Acceptance Criteria Structure (v5)
 
-| Category | Required | Description |
-|----------|----------|-------------|
-| Functional | Yes | Feature functionality verification (business logic) |
-| Static | Yes | Type check, lint pass (modified files) |
-| Runtime | Yes | Related tests pass |
-| Cleanup | No | Unused import/file cleanup (only when needed) |
+`acceptance_criteria` uses `scenarios` (scenario ID references) + `checks` (runnable commands):
 
-**Worker completion condition**: `Functional AND Static AND Runtime pass (AND Cleanup if specified)`
+| Field | Required | Description |
+|-------|----------|-------------|
+| `scenarios` | Yes | Scenario IDs from `requirements[].scenarios[].id` this task fulfills |
+| `checks` | Yes | Automated checks: `[{type: "static"|"build"|"lint"|"format", run: "<command>"}]` |
+
+**Worker completion condition**: All referenced scenarios verified AND all checks pass
 
 #### Requirements (Given-When-Then)
 
 Always generate the `requirements` section with Given-When-Then scenarios — do not skip even if success criteria were not explicitly discussed. Derive from the goal, acceptance criteria, and user intent.
+
+#### S-item Sandbox Infra Auto-task
+
+When any scenario has `execution_env: "sandbox"` (an S-item), check if the project already has sandbox infrastructure:
+
+```
+sandbox_infra_exists = Bash("test -f docker-compose.yml || test -f docker-compose.yaml || ls sandbox/features/*.feature 2>/dev/null | head -1").exit_code == 0
+```
+
+- **If `sandbox_infra_exists` is true**: No extra task needed — existing infra is used.
+- **If `sandbox_infra_exists` is false AND S-items exist**: Automatically add a sandbox infra build task to the task list **before** TF:
+
+```bash
+# Auto-insert when S-items found but no sandbox infra
+hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json '{
+  "tasks": [
+    {
+      "id": "T_SANDBOX", "action": "Build sandbox infrastructure for S-item verification",
+      "type": "work", "status": "pending", "risk": "medium",
+      "file_scope": ["docker-compose.yml", "sandbox/"],
+      "inputs": [],
+      "outputs": [{"id": "sandbox_up_cmd", "path": "docker-compose.yml"}],
+      "steps": [
+        "Create docker-compose.yml with required services",
+        "Add sandbox/features/ directory with .feature files for S-item scenarios",
+        "Verify sandbox boots: docker-compose up -d && docker-compose ps"
+      ],
+      "must_not_do": ["Do not run git commands"],
+      "acceptance_criteria": {
+        "scenarios": [],
+        "checks": [
+          {"type": "build", "run": "docker-compose config --quiet"},
+          {"type": "build", "run": "docker-compose up -d && docker-compose ps | grep -c Up"}
+        ]
+      }
+    }
+  ]
+}'
+```
+
+> TF must `depends_on: ["T_SANDBOX"]` when T_SANDBOX is added. Update TF's depends_on accordingly.
 
 ### Merge tasks
 
@@ -592,9 +633,11 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
       "references": [{"path": "src/...", "start_line": 10, "end_line": 25}],
       "must_not_do": ["Do not run git commands"],
       "acceptance_criteria": {
-        "functional": [{"description": "Config file created with required fields"}],
-        "static": [{"description": "Valid JSON", "command": "node -e \"require(...)\""}],
-        "runtime": [{"description": "Existing tests pass", "command": "npm test"}]
+        "scenarios": ["R1-S1", "R1-S2"],
+        "checks": [
+          {"type": "static", "run": "node -e \"require('./src/config/auth.json')\""},
+          {"type": "build", "run": "npm test"}
+        ]
       }
     },
     {
@@ -603,9 +646,11 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
       "inputs": [{"from_task": "T1", "artifact": "all_outputs"}],
       "must_not_do": ["Do not modify any files", "Do not run git commands"],
       "acceptance_criteria": {
-        "functional": [{"description": "All deliverables exist and work"}],
-        "static": [{"description": "Lint passes", "command": "npm run lint"}],
-        "runtime": [{"description": "All tests pass", "command": "npm test"}]
+        "scenarios": ["R1-S1", "R1-S2", "R2-S1"],
+        "checks": [
+          {"type": "lint", "run": "npm run lint"},
+          {"type": "build", "run": "npm test"}
+        ]
       }
     }
   ]
@@ -1029,7 +1074,7 @@ AskUserQuestion(
 - **--patch for updates** — use `--patch` when updating specific items by id (e.g., updating a single task's status or a single requirement's scenario)
 - **Validate before presenting** — Phase 5 must pass before Phase 6
 - **Every task needs must_not_do** — at minimum `["Do not run git commands"]`
-- **Every task needs acceptance_criteria** — functional + static + runtime at minimum
+- **Every task needs acceptance_criteria** — `scenarios` (refs to requirement scenario IDs) + `checks` (runnable commands) at minimum
 - **known_gaps gate** — no `severity: "critical"` gaps may remain at Phase 4 entry
 - **Incremental merge** — merge after every phase and every user response; do not batch
 - **Requirements = single source of truth** — all verification lives in `requirements[].scenarios` with `verified_by` + `execution_env`; `verification_summary` is derived, not stored independently
@@ -1041,8 +1086,9 @@ AskUserQuestion(
 - [ ] `hoyeon-cli spec validate` passes
 - [ ] `hoyeon-cli spec check` passes
 - [ ] All tasks have `status: "pending"`
-- [ ] All tasks have `must_not_do` and `acceptance_criteria`
+- [ ] All tasks have `must_not_do` and `acceptance_criteria` (`scenarios` + `checks`)
 - [ ] All tasks have `inputs` field
+- [ ] S-item sandbox infra auto-task (T_SANDBOX) added if S-items exist and no sandbox infra found
 - [ ] `requirements` section populated with Given-When-Then scenarios + `verified_by` + `execution_env`
 - [ ] `external_dependencies` populated (if applicable)
 - [ ] `history` includes `spec_created` entry

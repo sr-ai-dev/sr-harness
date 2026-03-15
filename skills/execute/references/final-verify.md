@@ -3,7 +3,7 @@
 Reusable verification recipe that checks the full spec holistically:
 goal alignment, constraints, acceptance criteria, requirements, and deliverables.
 
-**Consumers**: `/execute` (Quick mode), `/check`, `/ralph`, or any skill needing spec-level verification.
+**Consumers**: `/execute` (all modes and types), `/check`, `/ralph`, or any skill needing spec-level verification.
 
 ---
 

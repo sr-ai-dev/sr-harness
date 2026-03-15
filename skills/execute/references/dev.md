@@ -46,8 +46,7 @@ Throughout this document, `{depth}` refers to the resolved mode value:
 | On failure | triage: HALT / ADAPT / RETRY (max 2) | HALT immediately |
 | Parallel | Round-based background workers | Round-based background workers |
 | Code Review | code-reviewer agent (SHIP/NEEDS_FIXES) | Skipped |
-| Requirements Check | A-items from requirements[].scenarios | Skipped |
-| Final Verify | Included in Requirements Check | Final verify worker (all acceptance criteria) |
+| Final Verify | Holistic spec verification (after Code Review) | Holistic spec verification |
 
 ---
 
@@ -78,9 +77,9 @@ rc = TaskCreate(subject="Finalize:Residual Commit", ...)
 cr = TaskCreate(subject="Finalize:Code Review",
      description="Review complete diff for integration issues.",
      activeForm="Reviewing all changes")
-rq = TaskCreate(subject="Finalize:Requirements Check",
-     description="Run A-items from requirements[].scenarios.",
-     activeForm="Checking requirements")
+fv = TaskCreate(subject="Finalize:Final Verify",
+     description="Holistic spec verification (goal, constraints, AC, requirements, deliverables).",
+     activeForm="Running final verification")
 rp = TaskCreate(subject="Finalize:Report",
      activeForm="Generating report")
 ```
@@ -99,7 +98,7 @@ FOR EACH task in plan (flattened, excluding done):
 # Finalize tasks
 rc = TaskCreate(subject="Finalize:Residual Commit", ...)
 fv = TaskCreate(subject="Finalize:Final Verify",
-     description="Run all acceptance criteria across all tasks.",
+     description="Holistic spec verification (goal, constraints, AC, requirements, deliverables).",
      activeForm="Running final verification")
 rp = TaskCreate(subject="Finalize:Report",
      activeForm="Generating report")
@@ -212,10 +211,10 @@ all_last = [task_ids[T].commit for each T]
 FOR EACH last in all_last:
   TaskUpdate(taskId=last, addBlocks=[rc])
 
-# Standard finalize chain: Residual Commit → Code Review → Requirements Check → Report
+# Standard finalize chain: Residual Commit → Code Review → Final Verify → Report
 TaskUpdate(taskId=rc, addBlocks=[cr])
-TaskUpdate(taskId=cr, addBlocks=[rq])
-TaskUpdate(taskId=rq, addBlocks=[rp])
+TaskUpdate(taskId=cr, addBlocks=[fv])
+TaskUpdate(taskId=fv, addBlocks=[rp])
 
 # Quick finalize chain: Residual Commit → Final Verify → Report
 TaskUpdate(taskId=rc, addBlocks=[fv])
@@ -567,50 +566,13 @@ Agent(
 **If SHIP:**
 - `TaskUpdate(taskId=cr, status="completed")`
 
-### 2c. :Requirements Check (Standard Only)
-
-> **Mode Gate**: Quick mode uses `:Final Verify` instead.
-
-Run A-items from `requirements[].scenarios` where `verified_by == "machine"` and `execution_env == "host"`:
-
-```
-spec = Read(spec_path) → parse JSON
-
-FOR EACH req in spec.requirements:
-  FOR EACH scenario in req.scenarios:
-    IF scenario.verified_by == "machine" AND (scenario.execution_env == "host" OR !scenario.execution_env):
-      result = Bash(scenario.verify.run)
-      IF result.exit_code != scenario.verify.expect.exit_code:
-        print("FAIL: {scenario.id} — {scenario.then}")
-        failures.push(scenario)
-
-IF failures.length > 0:
-  # Create fix tasks for failed requirements
-  adapt_from_requirements(failures)
-ELSE:
-  TaskUpdate(taskId=rq, status="completed")
-```
-
-For S-items (`execution_env == "sandbox"`), dispatch a verify worker:
-
-```
-Agent(subagent_type="worker", prompt="""
-  Run sandbox verification scenarios.
-  {FOR EACH scenario where execution_env == "sandbox":}
-  - {scenario.id}: {scenario.verify.run} → expect exit {scenario.verify.expect.exit_code}
-  Start sandbox, run tests, tear down, report results.
-""")
-```
-
-### 2c-quick. :Final Verify (Quick Only)
-
-> **Mode Gate**: Quick mode only. Replaces Code Review + Requirements Check.
+### 2c. :Final Verify (Both Modes)
 
 Holistic verification of the full spec — goal alignment, constraints, acceptance criteria,
-requirements, and deliverables.
+requirements, and deliverables. Runs in **both** standard and quick modes.
 
 ```
-Read: skills/execute/references/final-verify.md
+Read: ${baseDir}/references/final-verify.md
 Follow the usage instructions to dispatch the verification worker.
 Provide spec_path and parsed spec JSON.
 ```
@@ -656,7 +618,7 @@ TASKS
 ───────────────────────────────────────────────────
 VERIFICATION
 ───────────────────────────────────────────────────
-{Standard: Code Review verdict + Requirements Check results}
+{Standard: Code Review verdict + Final Verify results}
 {Quick: Final Verify results}
 
 ───────────────────────────────────────────────────
@@ -764,7 +726,7 @@ Details: {verify result summary}
 - [ ] `hoyeon-cli spec check` passes at end
 - [ ] Residual commit handled
 - [ ] Code review completed (SHIP verdict or fixes applied)
-- [ ] Requirements check completed (A-items + S-items)
+- [ ] Final verify worker ran holistic spec verification (goal, constraints, AC, requirements, deliverables)
 - [ ] Adaptations logged in audit.md
 - [ ] H-items listed for human follow-up
 - [ ] Final report output
@@ -780,7 +742,6 @@ Details: {verify result summary}
 - [ ] `hoyeon-cli spec check` passes at end
 - [ ] Residual commit handled
 - [ ] No code review
-- [ ] No requirements check
 - [ ] Final verify worker ran holistic spec verification (goal, constraints, AC, requirements, deliverables)
 - [ ] H-items listed for human follow-up
 - [ ] Final report output

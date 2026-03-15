@@ -106,7 +106,14 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v0.11.1)
+## Recent Changes (v0.11.2)
+
+- refactor(execute): unify Final Verify across all execute paths (dev/standard, dev/quick, plain)
+- refactor(execute): replace Requirements Check with Final Verify in dev/standard finalize
+- refactor(execute): extract plain pipeline to references/plain.md with flexible dispatch
+- feat(execute): plain tasks can dispatch via Skill, Agent, or direct orchestrator handling
+
+## Previous Changes (v0.11.1)
 
 - feat(execute): extract Final Verify into reusable holistic verification recipe (goal, constraints, AC, requirements, deliverables)
 - docs: rewrite README with council-deliberated structure

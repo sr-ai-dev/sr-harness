@@ -87,14 +87,6 @@ You:  /execute
 
 ### Installation
 
-**Option 1: Direct install**
-
-```bash
-claude plugin add team-attention/hoyeon
-```
-
-**Option 2: Via marketplace**
-
 ```bash
 # Add the marketplace first
 claude plugin marketplace add team-attention/hoyeon

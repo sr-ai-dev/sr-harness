@@ -4,6 +4,7 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import specSchema from '../../schemas/dev-spec-v4.schema.json' with { type: 'json' };
 import specSchemaV5 from '../../schemas/dev-spec-v5.schema.json' with { type: 'json' };
+// TODO(v5-validation): Wire specSchemaV5 when spec.meta.schema_version === 'v5'. Currently validates against v4 only.
 
 import { writeState } from '../lib/state-io.js';
 

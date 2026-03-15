@@ -375,6 +375,7 @@
     },
     "taskAcceptanceCriteria": {
       "type": "object",
+      "required": ["scenarios", "checks"],
       "additionalProperties": false,
       "description": "v5: AC is expressed as scenario references + automated checks. scenarios[] references requirements[].scenarios[].id. checks[] are runnable static/build/lint/format commands.",
       "properties": {

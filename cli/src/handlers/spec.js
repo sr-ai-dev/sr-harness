@@ -3,6 +3,7 @@ import { resolve, dirname } from 'path';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import specSchema from '../../schemas/dev-spec-v4.schema.json' with { type: 'json' };
+import specSchemaV5 from '../../schemas/dev-spec-v5.schema.json' with { type: 'json' };
 
 import { writeState } from '../lib/state-io.js';
 
@@ -950,6 +951,21 @@ async function handleCheck(args) {
     }
   }
 
+  // Referential integrity: AC.scenarios[] must reference valid requirements[].scenarios[].id
+  const allScenarioIds = new Set();
+  for (const req of (specData.requirements || [])) {
+    for (const sc of (req.scenarios || [])) {
+      if (sc.id) allScenarioIds.add(sc.id);
+    }
+  }
+  for (const task of specData.tasks) {
+    for (const scenarioRef of (task.acceptance_criteria?.scenarios || [])) {
+      if (!allScenarioIds.has(scenarioRef)) {
+        issues.push(`task '${task.id}' acceptance_criteria.scenarios references unknown scenario '${scenarioRef}'`);
+      }
+    }
+  }
+
   // Check file_scope overlap across tasks (warning only)
   const warnings = [];
   const fileScopeMap = new Map();
@@ -1004,6 +1020,7 @@ function generateGuide(section) {
     scenario: { ref: 'scenario', desc: 'Requirement scenario (given/when/then + verify)' },
     verify: { ref: null, desc: 'Verify types: command, assertion, instruction', custom: 'verify' },
     merge: { ref: null, desc: 'Merge modes: replace (default), --append, --patch', custom: 'merge' },
+    'acceptance-criteria': { ref: null, desc: 'v5 AC structure: scenarios[] + checks[]', custom: 'acceptance-criteria' },
   };
 
   if (!section || section === 'list') {
@@ -1046,6 +1063,10 @@ function generateGuide(section) {
 
   if (info.custom === 'merge') {
     return formatMergeGuide();
+  }
+
+  if (info.custom === 'acceptance-criteria') {
+    return formatAcceptanceCriteriaGuide();
   }
 
   const def = defs[info.ref];
@@ -1236,6 +1257,38 @@ function formatMergeGuide() {
     '    replace   — rewrite a section completely (e.g. set all tasks at once)',
     '    --append  — add new items without touching existing (e.g. add requirements)',
     '    --patch   — update specific items by id (e.g. update one task\'s status)',
+  ];
+  return lines.join('\n');
+}
+
+function formatAcceptanceCriteriaGuide() {
+  const lines = [
+    'acceptance_criteria (v5): scenarios[] + checks[]',
+    '',
+    '  scenarios: string[]',
+    '    List of scenario IDs from requirements[].scenarios[].id that this task fulfills.',
+    '    These are referential — spec check validates that each ID exists in requirements.',
+    '    example: ["R1-S1", "R1-S2", "R2-S1"]',
+    '',
+    '  checks: taskCheck[]',
+    '    Automated checks to run when verifying the task.',
+    '    Each check has:',
+    '      * type: enum(static|build|lint|format)',
+    '      * run: string (shell command)',
+    '    example: [{"type":"build","run":"cd cli && node build.mjs"},{"type":"static","run":"tsc --noEmit"}]',
+    '',
+    '  example acceptance_criteria:',
+    '    {',
+    '      "scenarios": ["R1-S1", "R2-S1"],',
+    '      "checks": [',
+    '        {"type": "build", "run": "cd cli && node build.mjs"},',
+    '        {"type": "lint", "run": "eslint src/"}',
+    '      ]',
+    '    }',
+    '',
+    '  Note: spec check validates referential integrity.',
+    '    AC.scenarios IDs must exist in requirements[].scenarios[].id.',
+    '    Run: hoyeon-cli spec check <path>',
   ];
   return lines.join('\n');
 }

@@ -246,52 +246,64 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json '{
 }'
 ```
 
-### Interactive → Decisions
+### Interactive → Mirror + Decisions
 
-Use `AskUserQuestion` for boundaries, trade-offs, success criteria only.
-Propose based on research; don't ask what you can discover.
+#### Step 0: Mirror Protocol
 
-#### What to ASK (user knows, agent doesn't)
+Before asking any questions, mirror the user's goal back to confirm alignment:
 
-Use `AskUserQuestion` only for:
-- **Non-goals**: "What is this project NOT trying to achieve?" (→ merge into `meta.non_goals`)
-- **Boundaries**: "Any restrictions on what not to do?"
-- **Trade-offs**: Only when multiple valid options exist and exploration doesn't resolve them
-- **Success Criteria**: "When is this considered complete?"
+```
+"I understand you want [goal]. Scope: [what's included / what's excluded].
+ Done when: [success criteria].
+ I'll handle [agent scope]. You'll need to [human scope, if any].
+ Does this match?"
+```
+
+**Mirror rules:**
+- Mirror must include at least one **inference** beyond the literal request (assumed scope, technology choice, or boundary). A parrot echo ("You want auth, correct?") confirms nothing. An interpretive mirror ("You want JWT auth middleware for /api/* routes, with session stored in httpOnly cookies, correct?") reveals assumptions the user can correct.
+- If you cannot fill goal, scope, or done criteria → ask that specific item directly instead of mirroring
+- Max 3 mirror attempts. If still unclear after 3 → transition to questions with the unfilled items
+- When the user corrects, update understanding and re-mirror
+
+After Mirror is confirmed, merge the confirmed goal:
+
+```bash
+hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
+  "context": {
+    "confirmed_goal": "[confirmed goal statement from mirror]"
+  }
+}'
+```
+
+#### Step 1: Structured Questions
+
+Ask only what you cannot discover. Internally evaluate: scope boundaries? dependencies? constraints? success criteria? — then surface only the gaps as questions.
+
+**Question rules:**
+- Max **3-5 questions**, prioritized by importance (not numeric scoring — use judgment)
+- Each question includes a **recommended answer** based on Discovery research
+- User can **skip** any question ("agent 판단에 맡김")
+- **Escape hatch**: user can say "enough, proceed" at any point → transition to Phase 3
+- Propose based on research; don't ask what you can discover
+
+**What to DISCOVER** (agent finds — do NOT ask):
+- File locations, existing patterns, integration points, project commands
+
+**What to PROPOSE** (research first, then suggest):
+- After exploration, propose instead of asking open-ended questions
 
 ```
 AskUserQuestion(
-  question: "Which authentication method should we use?",
+  question: "[specific question about boundary/trade-off]",
   options: [
-    { label: "JWT (Recommended)", description: "jsonwebtoken already installed" },
-    { label: "Session", description: "Requires server state management" },
-    { label: "Need comparison", description: "Research with tech-decision" }
+    { label: "[Option A] (Recommended)", description: "[why, based on research]" },
+    { label: "[Option B]", description: "[trade-off]" },
+    { label: "Agent decides", description: "Use your best judgment" }
   ]
 )
 ```
 
-#### What to DISCOVER (agent finds)
-
-Agent explores — do NOT ask the user about these:
-- File locations
-- Existing patterns to follow
-- Integration points
-- Project commands (lint, test, build)
-
-#### What to PROPOSE (research first, then suggest)
-
-After exploration completes, propose instead of asking:
-
-```
-"Based on my investigation, this approach should work:
-- Middleware at src/middleware/auth.ts
-- Following existing logging.ts pattern
-- Using jwt.ts verify() function
-
-Let me know if you prefer a different approach."
-```
-
-> **Core Principle**: Minimize questions, maximize proposals based on research.
+> **Core Principle**: Mirror first, then minimize questions with recommended answers.
 
 After each decision, immediately merge (continuous update):
 
@@ -448,12 +460,22 @@ When merging verification-planner results into `requirements`, apply these fallb
 
 ### Merge analysis results
 
+#### Silent Gap Merge
+
+Gap-analyzer results are handled by severity — not all gaps need user input:
+
+| Severity | Action | Rationale |
+|----------|--------|-----------|
+| `critical` | Ask user via `AskUserQuestion` | Human judgment required |
+| `medium` | Auto-merge with mitigation, log as assumption | Reduces question fatigue; visible in Phase 6 Plan Approval Summary |
+| `low` | Auto-merge silently | Not worth user attention |
+
 ```bash
-# known_gaps from gap-analyzer
+# known_gaps from gap-analyzer (all severities merged, medium/low without asking user)
 hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json '{
   "context": {
     "known_gaps": [
-      {"gap": "...", "severity": "medium", "mitigation": "..."}
+      {"gap": "...", "severity": "medium", "mitigation": "...", "auto_merged": true}
     ]
   }
 }'
@@ -672,6 +694,7 @@ Inspect **every** AC across `tasks[].acceptance_criteria` and `requirements[].sc
 - Every `requirements[].scenarios[]` has `verified_by` set (`machine` | `agent` | `human`)
 - Every `requirements[].scenarios[]` has a non-empty `verify` object matching its type
 - `verification_summary.gaps` is empty (all ACs classified)
+- Every auto-merged gap (`context.known_gaps[]` where `auto_merged: true`) has its mitigation covered by at least one requirement scenario
 
 **Semantic quality:**
 - **Machine ACs**: `verify.run` is an executable shell command (not pseudocode, not natural language). `verify.expect` has a concrete value (e.g., `exit_code: 0`, not "should work")
@@ -936,6 +959,13 @@ Key Decisions
   - {decision point 2}: {chosen approach}
 ────────────────────────────────────────
 
+{If auto-merged gaps exist (medium severity, auto_merged: true):}
+Auto-merged Gaps (agent-decided — not confirmed by user)
+────────────────────────────────────────
+  - {gap}: {mitigation applied} (severity: medium)
+  Note: These gaps were auto-resolved. Review and flag if incorrect.
+────────────────────────────────────────
+
 {If quick or autopilot mode (assumptions section exists):}
 Assumptions (auto-decided — not confirmed by user)
 ────────────────────────────────────────
@@ -958,6 +988,7 @@ Constraints: {n} items
 | Pre-work | `external_dependencies.pre_work` — list all, mark blocking=true as Blocking | Always |
 | Post-work | `external_dependencies.post_work` — list all | Always |
 | Key Decisions | `context.decisions[]` — decision, rationale | Always |
+| Auto-merged Gaps | `context.known_gaps[]` where `auto_merged: true` — gap, mitigation | When auto-merged gaps exist |
 | Assumptions | `context.assumptions[]` — belief, rationale | quick/autopilot only |
 
 ### Then Ask Next Step (Interactive only)
@@ -1004,7 +1035,7 @@ AskUserQuestion(
 - [ ] `external_dependencies` populated (if applicable)
 - [ ] `history` includes `spec_created` entry
 - [ ] `meta.mode` is set
-- [ ] `context.intent_classification` merged (Phase 0.1)
+- [ ] Intent classification performed internally (Phase 0.1) — NOT merged to spec.json
 - [ ] `meta.non_goals` populated (collect during Phase 2 Interview)
 - [ ] Plan Approval Summary presented
 

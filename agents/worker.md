@@ -56,7 +56,9 @@ You perform the actual implementation under the Orchestrator's direction.
 
 1. `acceptance_criteria.scenarios[]` — scenario IDs referencing `requirements[].scenarios[].id`
    - Look up each scenario in `requirements[].scenarios[]` to find verify details
-   - Run `verified_by: "machine"` scenarios' `verify.run` command (skip `execution_env: "sandbox"`)
+   - Run `verified_by: "machine"` scenarios' `verify.run` command
+     - Skip `execution_env: "sandbox"` scenarios ONLY in regular work tasks
+     - If this task IS a T_SV sandbox verification task, do NOT skip sandbox scenarios — execute them
    - For `verified_by: "agent"` scenarios, assert manually
    - For `verified_by: "human"` scenarios, skip (report only)
 
@@ -164,6 +166,33 @@ issues    = "This problem exists" (unresolved, needs attention)
 **⚠️ Verify Worker will independently re-execute acceptance_criteria commands.**
 - Even if Worker reports PASS, a separate verify worker will re-check
 - If mismatch, Orchestrator will re-run Worker (reconciliation loop)
+
+## Sandbox Verification Tasks (T_SV)
+
+When a worker receives a task whose ID starts with `T_SV`, it is a **sandbox verification task** — not a regular work task.
+
+### What this means
+
+A T_SV task verifies a specific scenario in a sandbox environment. The normal rule "skip `execution_env: \"sandbox\"` scenarios" does NOT apply here. The entire purpose of a T_SV task is to run those sandbox scenarios.
+
+### How to execute a T_SV task
+
+1. **Verify sandbox is available** — check that the sandbox environment exists (e.g., the sandbox directory exists, or docker-compose services are up). If unavailable, report FAILED immediately with the reason.
+2. **Run the scenario's `verify.run` command** in the sandbox context (do not skip it).
+3. **Record the result** using the CLI:
+   ```
+   hoyeon-cli spec requirement <scenario_id> --status pass|fail --task <task_id> <spec_path>
+   ```
+4. **Report outcome** in the standard JSON output format.
+
+### Summary of sandbox skip rule
+
+| Task type | `execution_env: "sandbox"` scenarios |
+|-----------|--------------------------------------|
+| Regular work task | SKIP |
+| T_SV sandbox verification task | EXECUTE — this is the point |
+
+---
 
 ## Important Notes
 

@@ -142,11 +142,15 @@ Task AC has two parts:
 1. `acceptance_criteria.scenarios[]` — list of scenario IDs from `requirements[].scenarios[].id`
    - Fetch full spec: `hoyeon-cli spec task {task_id} --get {spec_path}` to get scenario IDs
    - Then look up each scenario in `requirements[].scenarios[]` to find verify commands
-   - Run each `verified_by: "machine"` scenario's `verify.run` command (skip `execution_env: "sandbox"`)
+   - Run each `verified_by: "machine"` scenario's `verify.run` command (skip `execution_env: "sandbox"` — unless this task's ID starts with T_SV, in which case sandbox scenarios MUST be executed)
    - For `verified_by: "agent"` scenarios, assert the checks manually
    - For `verified_by: "human"` scenarios, skip (report only)
+   - After verifying each scenario, record the result:
+     Run: `hoyeon-cli spec requirement {scenario_id} --status pass|fail --task {task_id} {spec_path}`
 2. `acceptance_criteria.checks[]` — automated checks (static/build/lint/format)
    - Run each check's `run` command and verify exit code 0
+
+Note: If this task's ID starts with T_SV, it is a sandbox verification task — do NOT skip sandbox scenarios. Run them and record each result with `hoyeon-cli spec requirement`.
 
 ## Step 5: Update context files
 Append to {CONTEXT_DIR}/learnings.md:
@@ -180,11 +184,15 @@ Re-execute every check yourself. Do NOT trust the Worker's self-reported status.
 Task AC has two parts:
 1. `acceptance_criteria.scenarios[]` — list of scenario IDs from `requirements[].scenarios[].id`
    - Look up each scenario ID in the full spec's `requirements[].scenarios[]`
-   - Run each `verified_by: "machine"` scenario's `verify.run` command (skip `execution_env: "sandbox"`)
+   - Run each `verified_by: "machine"` scenario's `verify.run` command (skip `execution_env: "sandbox"` — unless this task's ID starts with T_SV, in which case sandbox scenarios MUST be executed)
    - For `verified_by: "agent"` scenarios, assert the checks manually
    - For `verified_by: "human"` scenarios, skip (report only)
+   - After verifying each scenario, record the result:
+     Run: `hoyeon-cli spec requirement {scenario_id} --status pass|fail --task {task_id} {spec_path}`
 2. `acceptance_criteria.checks[]` — automated checks (static/build/lint/format)
    - Run each check's `run` command and verify exit code 0
+
+Note: If this task's ID starts with T_SV, it is a sandbox verification task — do NOT skip sandbox scenarios. Run them and record each result with `hoyeon-cli spec requirement`.
 
 ## Step 3: Check must_not_do violations
 Run `git diff` to check for violations.

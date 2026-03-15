@@ -244,6 +244,9 @@ Do NOT call merge per task (without `--append`, each call overwrites the previou
 
 ```bash
 hoyeon-cli spec merge ${SPEC_PATH} --json '{
+  "context": {
+    "request": "{user original goal/request}"
+  },
   "tasks": [
     {
       "id": "T1",

@@ -229,6 +229,29 @@ Use `hoyeon-cli spec merge` to populate the spec from diagnosis results. Single 
   - `acceptance_criteria.functional`: verification-planner's A-items (description + command)
   - If debugger found **similar issues**: add T2 (`depends_on: [T1]`) to fix those locations
 - **constraints**: minimal diff rule, root cause targeting rule (both `verified_by: agent`)
+- **requirements**: Generate from debugger diagnosis. Each requirement describes a behavior that was broken:
+  ```json
+  {
+    "id": "R1",
+    "behavior": "{what should work — from debugger's expected behavior}",
+    "scenarios": [{
+      "id": "S1",
+      "given": "{precondition from debugger's reproduction steps}",
+      "when": "{trigger action that caused the bug}",
+      "then": "{expected outcome after fix}",
+      "verified_by": "machine",
+      "verify": {
+        "type": "command",
+        "run": "{test command from verification-planner's A-items}",
+        "expect": {"exit_code": 0}
+      }
+    }]
+  }
+  ```
+  - Convert debugger's reproduction steps → Given/When/Then
+  - Use verification-planner's A-items as `verify.run` commands
+  - If debugger identified edge cases, add additional scenarios
+  - This enables Final Verify to check requirements scenarios, preventing regression
 
 ### Step 2.3: Validate & Register
 
@@ -257,7 +280,7 @@ What execute handles:
 - Per-task commit (git-master)
 - Retry/Adaptation (standard only, max 2)
 - Code Review (standard only)
-- Requirements Check (standard only) / Final Verify (quick only)
+- Final Verify (all modes — checks goal, constraints, AC, requirements, deliverables)
 - Final report
 
 **Result judgment:**

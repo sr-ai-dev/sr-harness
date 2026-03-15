@@ -18,6 +18,7 @@ Usage:
   hoyeon-cli spec meta <path>                       Show spec meta (name, goal, non_goals, mode, etc.)
   hoyeon-cli spec check <path>                      Check internal consistency
   hoyeon-cli spec amend --reason <feedback-id> --spec <path>  Amend spec.json based on feedback
+  hoyeon-cli spec guide [section]                             Show schema guide for a section
 
 Options:
   --help, -h    Show this help message
@@ -938,6 +939,260 @@ async function handleCheck(args) {
   process.exit(0);
 }
 
+/**
+ * Generate compact, LLM-friendly guide from the JSON Schema.
+ * Resolves $ref, shows required/optional fields, types, enums, and minimal examples.
+ */
+function generateGuide(section) {
+  const schema = loadSchema();
+  const defs = schema.$defs || {};
+
+  const SECTIONS = {
+    meta: { ref: 'meta', desc: 'Spec metadata (name, goal, mode, etc.)' },
+    context: { ref: 'context', desc: 'Request context, interview decisions, research, assumptions' },
+    tasks: { ref: 'task', desc: 'Task DAG (work items + verification)', isArray: true },
+    requirements: { ref: 'requirement', desc: 'Requirements with scenarios and verification', isArray: true },
+    constraints: { ref: 'constraint', desc: 'Must-not-do / preserve constraints', isArray: true },
+    history: { ref: 'historyEntry', desc: 'Spec change history entries', isArray: true },
+    verification: { ref: 'verificationSummary', desc: 'A/H/S verification classification summary' },
+    external: { ref: 'externalDependencies', desc: 'Human-only pre/post-work dependencies' },
+    scenario: { ref: 'scenario', desc: 'Requirement scenario (given/when/then + verify)' },
+    verify: { ref: null, desc: 'Verify types: command, assertion, instruction', custom: 'verify' },
+  };
+
+  if (!section || section === 'list') {
+    const lines = ['Available guide sections:'];
+    for (const [name, info] of Object.entries(SECTIONS)) {
+      lines.push(`  ${name.padEnd(16)} ${info.desc}`);
+    }
+    lines.push('');
+    lines.push('Usage: hoyeon-cli spec guide <section>');
+    lines.push('       hoyeon-cli spec guide full      (all sections)');
+    lines.push('       hoyeon-cli spec guide root      (top-level structure)');
+    return lines.join('\n');
+  }
+
+  if (section === 'root') {
+    return formatRoot(schema);
+  }
+
+  if (section === 'full') {
+    const lines = [formatRoot(schema), ''];
+    for (const [name, info] of Object.entries(SECTIONS)) {
+      const def = defs[info.ref];
+      if (def) {
+        lines.push(`--- ${name} ---`);
+        lines.push(formatDef(name, def, defs, info.isArray));
+        lines.push('');
+      }
+    }
+    return lines.join('\n');
+  }
+
+  const info = SECTIONS[section];
+  if (!info) {
+    return `Error: unknown section '${section}'. Run 'hoyeon-cli spec guide' to see available sections.`;
+  }
+
+  if (info.custom === 'verify') {
+    return formatVerifyGuide(defs);
+  }
+
+  const def = defs[info.ref];
+  if (!def) {
+    return `Error: schema definition '${info.ref}' not found.`;
+  }
+
+  return formatDef(section, def, defs, info.isArray);
+}
+
+function formatRoot(schema) {
+  const lines = ['spec.json top-level structure:'];
+  lines.push(`  required: ${(schema.required || []).join(', ')}`);
+  lines.push('  fields:');
+  for (const [key, val] of Object.entries(schema.properties || {})) {
+    if (key === '$schema') continue;
+    const req = (schema.required || []).includes(key) ? '*' : ' ';
+    const desc = val.description || '';
+    lines.push(`    ${req} ${key}${desc ? ` — ${desc}` : ''}`);
+  }
+  lines.push('');
+  lines.push('  * = required');
+  return lines.join('\n');
+}
+
+function formatDef(name, def, defs, isArray) {
+  const lines = [];
+  if (isArray) {
+    lines.push(`${name}: array of objects`);
+  } else {
+    lines.push(`${name}: object`);
+  }
+
+  const required = new Set(def.required || []);
+  if (required.size > 0) {
+    lines.push(`  required: ${[...required].join(', ')}`);
+  }
+
+  const props = def.properties || {};
+  for (const [key, prop] of Object.entries(props)) {
+    const req = required.has(key) ? '*' : ' ';
+    const typeStr = resolveType(prop, defs, '    ');
+    lines.push(`  ${req} ${key}: ${typeStr}`);
+  }
+
+  // Add example
+  const example = generateExample(name, def, defs, required);
+  if (example) {
+    lines.push('');
+    if (isArray) {
+      lines.push(`  example merge: --json '{"${name}":[${example}]}'`);
+    } else {
+      lines.push(`  example merge: --json '{"${name}":${example}}'`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+function resolveType(prop, defs, indent) {
+  if (prop.$ref) {
+    const refName = prop.$ref.replace('#/$defs/', '');
+    const refDef = defs[refName];
+    if (refDef) {
+      if (refDef.enum) return `enum(${refDef.enum.join('|')})`;
+      if (refDef.type === 'object') return `{${refName}}`;
+      return refDef.type || refName;
+    }
+    return refName;
+  }
+  if (prop.oneOf) {
+    const types = prop.oneOf.map(o => {
+      if (o.$ref) return `{${o.$ref.replace('#/$defs/', '')}}`;
+      if (o.type) return o.type;
+      return '?';
+    });
+    return types.join(' | ');
+  }
+  if (prop.enum) return `enum(${prop.enum.join('|')})`;
+  if (prop.type === 'array') {
+    if (prop.items) {
+      if (prop.items.$ref) {
+        const refName = prop.items.$ref.replace('#/$defs/', '');
+        return `[{${refName}}]`;
+      }
+      if (prop.items.oneOf) return `[mixed]`;
+      // Inline anonymous object arrays
+      if (prop.items.type === 'object' && prop.items.properties) {
+        return formatInlineObject(prop.items, indent);
+      }
+      return `[${prop.items.type || 'any'}]`;
+    }
+    return '[]';
+  }
+  if (prop.const) return `"${prop.const}"`;
+  // Inline anonymous objects
+  if (prop.type === 'object' && prop.properties) {
+    return formatInlineObject(prop, indent);
+  }
+  let t = prop.type || 'any';
+  if (prop.minimum !== undefined || prop.maximum !== undefined) {
+    const parts = [];
+    if (prop.minimum !== undefined) parts.push(`min:${prop.minimum}`);
+    if (prop.maximum !== undefined) parts.push(`max:${prop.maximum}`);
+    t += `(${parts.join(',')})`;
+  }
+  return t;
+}
+
+function formatInlineObject(schema, indent = '    ') {
+  const req = new Set(schema.required || []);
+  const props = schema.properties || {};
+  const fields = [];
+  for (const [k, v] of Object.entries(props)) {
+    const r = req.has(k) ? '*' : ' ';
+    const t = v.enum ? `enum(${v.enum.join('|')})` : (v.const ? `"${v.const}"` : (v.type || 'any'));
+    fields.push(`${indent}  ${r} ${k}: ${t}`);
+  }
+  const isArray = schema === schema ? '' : ''; // just object
+  return `[object]\n${fields.join('\n')}`;
+}
+
+function generateExample(name, def, defs, required) {
+  const props = def.properties || {};
+  const obj = {};
+  for (const key of required) {
+    const prop = props[key];
+    if (!prop) continue;
+    obj[key] = exampleValue(key, prop, defs);
+  }
+
+  // Add 1-2 common optional fields for context
+  const optionals = Object.keys(props).filter(k => !required.has(k));
+  let added = 0;
+  for (const key of optionals) {
+    if (added >= 2) break;
+    const prop = props[key];
+    if (prop.type === 'string' || prop.enum) {
+      obj[key] = exampleValue(key, prop, defs);
+      added++;
+    }
+  }
+
+  try {
+    return JSON.stringify(obj);
+  } catch {
+    return null;
+  }
+}
+
+function exampleValue(key, prop, defs) {
+  if (prop.enum) return prop.enum[0];
+  if (prop.const) return prop.const;
+  if (prop.$ref) {
+    const refName = prop.$ref.replace('#/$defs/', '');
+    const refDef = defs[refName];
+    if (refDef?.enum) return refDef.enum[0];
+    return `<${refName}>`;
+  }
+  if (prop.type === 'string') return `<${key}>`;
+  if (prop.type === 'integer') return prop.minimum || 1;
+  if (prop.type === 'boolean') return false;
+  if (prop.type === 'array') return [];
+  if (prop.type === 'object') return {};
+  return `<${key}>`;
+}
+
+function formatVerifyGuide(defs) {
+  const lines = [
+    'verify: oneOf — choose based on verified_by value:',
+    '',
+    '  verified_by: "machine" → verifyCommand',
+    '    * type: "command"',
+    '    * run: string (shell command)',
+    '    * expect: { *exit_code: int, stdout_contains?: string, stderr_empty?: bool }',
+    '    example: {"type":"command","run":"npm test","expect":{"exit_code":0}}',
+    '',
+    '  verified_by: "agent" → verifyAssertion',
+    '    * type: "assertion"',
+    '    * checks: [string] (min 1 item)',
+    '    example: {"type":"assertion","checks":["file exists at src/foo.ts"]}',
+    '',
+    '  verified_by: "human" → verifyInstruction',
+    '    * type: "instruction"',
+    '    * ask: string (question for human)',
+    '    example: {"type":"instruction","ask":"Does the UI look correct?"}',
+  ];
+  return lines.join('\n');
+}
+
+async function handleGuide(args) {
+  const section = args[0];
+  const output = generateGuide(section);
+  process.stdout.write(output + '\n');
+  process.exit(0);
+}
+
 export default async function spec(args) {
   const subcommand = args[0];
 
@@ -964,6 +1219,8 @@ export default async function spec(args) {
     await handleCheck(args.slice(1));
   } else if (subcommand === 'amend') {
     await handleAmend(args.slice(1));
+  } else if (subcommand === 'guide') {
+    await handleGuide(args.slice(1));
   } else {
     process.stderr.write(`Error: unknown spec subcommand '${subcommand}'\n`);
     process.stderr.write(`Run 'hoyeon-cli spec --help' for usage.\n`);

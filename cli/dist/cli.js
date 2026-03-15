@@ -9215,7 +9215,9 @@ function generateGuide(section) {
     constraints: { ref: "constraint", desc: "Must-not-do / preserve constraints", isArray: true },
     history: { ref: "historyEntry", desc: "Spec change history entries", isArray: true },
     verification: { ref: "verificationSummary", desc: "A/H/S verification classification summary" },
-    external: { ref: "externalDependencies", desc: "Human-only pre/post-work dependencies" }
+    external: { ref: "externalDependencies", desc: "Human-only pre/post-work dependencies" },
+    scenario: { ref: "scenario", desc: "Requirement scenario (given/when/then + verify)" },
+    verify: { ref: null, desc: "Verify types: command, assertion, instruction", custom: "verify" }
   };
   if (!section || section === "list") {
     const lines = ["Available guide sections:"];
@@ -9246,6 +9248,9 @@ function generateGuide(section) {
   const info = SECTIONS[section];
   if (!info) {
     return `Error: unknown section '${section}'. Run 'hoyeon-cli spec guide' to see available sections.`;
+  }
+  if (info.custom === "verify") {
+    return formatVerifyGuide(defs);
   }
   const def = defs[info.ref];
   if (!def) {
@@ -9394,6 +9399,28 @@ function exampleValue(key, prop, defs) {
   if (prop.type === "array") return [];
   if (prop.type === "object") return {};
   return `<${key}>`;
+}
+function formatVerifyGuide(defs) {
+  const lines = [
+    "verify: oneOf \u2014 choose based on verified_by value:",
+    "",
+    '  verified_by: "machine" \u2192 verifyCommand',
+    '    * type: "command"',
+    "    * run: string (shell command)",
+    "    * expect: { *exit_code: int, stdout_contains?: string, stderr_empty?: bool }",
+    '    example: {"type":"command","run":"npm test","expect":{"exit_code":0}}',
+    "",
+    '  verified_by: "agent" \u2192 verifyAssertion',
+    '    * type: "assertion"',
+    "    * checks: [string] (min 1 item)",
+    '    example: {"type":"assertion","checks":["file exists at src/foo.ts"]}',
+    "",
+    '  verified_by: "human" \u2192 verifyInstruction',
+    '    * type: "instruction"',
+    "    * ask: string (question for human)",
+    '    example: {"type":"instruction","ask":"Does the UI look correct?"}'
+  ];
+  return lines.join("\n");
 }
 async function handleGuide(args) {
   const section = args[0];

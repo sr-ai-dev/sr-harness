@@ -575,7 +575,7 @@ function formatSlim(spec, rounds, criticalPath) {
         const t = (spec.tasks || []).find(task => task.id === id) || {};
         const isDerived = t.origin === 'derived';
         return {
-          id: isDerived ? `[D] ${t.id}` : t.id,
+          id: t.id,
           action: t.action,
           type: t.type,
           status: t.status || 'pending',
@@ -1408,7 +1408,7 @@ async function handleDrift(args) {
   const specData = loadSpec(resolve(filePath));
   const tasks = specData.tasks || [];
 
-  const plannedTasks = tasks.filter(t => !t.origin || t.origin === 'planned');
+  const plannedTasks = tasks.filter(t => !t.origin || t.origin === 'planned' || t.origin === 'adapted');
   const derivedTasks = tasks.filter(t => t.origin === 'derived');
 
   const plannedCount = plannedTasks.length;

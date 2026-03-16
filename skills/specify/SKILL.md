@@ -360,7 +360,44 @@ AskUserQuestion(
 ```
 
 - **"Continue interviewing"** → refresh the mini-mirror with updated understanding, add any new requirements extracted from latest answers (with source tags), then generate 2-5 new questions targeting open items + uncovered requirements, then loop back to Step 2
-- **"Enough, proceed to planning"** → merge confirmed requirements into spec.json with source fields before transitioning to Phase 3:
+- **"Enough, proceed to planning"** → run Step-back Review, then merge requirements:
+
+#### Step 3: Step-back Review (before merge)
+
+> **Mode Gate**: Quick → skip. Autopilot → skip. Interactive/Standard only.
+
+Before finalizing requirements, run the phase2-stepback agent to catch scope drift and blind spots:
+
+```
+result = Task(subagent_type="phase2-stepback",
+     prompt="Review goal alignment before planning.
+
+Goal: {confirmed_goal}
+
+Decisions:
+{FOR EACH d in context.decisions: D{d.id}: {d.decision} — {d.rationale}}
+
+Requirements (so far):
+{FOR EACH r in accumulated_requirements: R{r.id}: {r.behavior} ← {r.source}}")
+```
+
+**If PASS** → proceed directly to requirements merge.
+
+**If REVIEW_NEEDED** → present the agent's items to the user:
+
+```
+AskUserQuestion(
+  question: "Step-back review found items to confirm before planning:",
+  header: "Goal Alignment Check",
+  options: [
+    { label: "Accept all suggestions", description: "Apply drift removals + add missing requirements" },
+    { label: "Let me pick", description: "I'll decide each item" },
+    { label: "Ignore, proceed as-is", description: "Keep current scope" }
+  ]
+)
+```
+
+After user confirms, update decisions/requirements accordingly, then merge:
 
 ```bash
 hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
@@ -375,7 +412,7 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
 
 Then merge remaining gaps as assumptions, transition to Phase 3.
 
-- **Max 3 interview rounds** (circuit breaker). After round 3, auto-transition to Phase 3 with remaining gaps as assumptions. **Before transitioning, still run the Phase 2 requirements merge** — set `source.type: "implicit"` for all requirements inferred so far (since user did not explicitly confirm them).
+- **Max 5 interview rounds** (circuit breaker). After round 5, auto-transition to Phase 3 with remaining gaps as assumptions. **Before transitioning, still run the Phase 2 requirements merge** — set `source.type: "implicit"` for all requirements inferred so far (since user did not explicitly confirm them).
 
 > **Core Principle**: Mirror first, then iteratively clarify with visibility into what's known vs unknown.
 

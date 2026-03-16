@@ -62,11 +62,15 @@ Read `requirements[]` with their `scenarios[]`.
 - [ ] `verify` field matches `verified_by` type (command/assertion/instruction)
 - [ ] No scenario has a vague `verify` (e.g., `"run": "check it works"`)
 - [ ] Scenario IDs follow `{R-id}-S{n}` convention (e.g., R1-S1, R1-S2)
+- [ ] Every `context.decisions[]` entry is traceable to at least one `requirements[]` entry via `requirement.source.ref` — flag any decision with no matching requirement as "uncovered decision — missing verification"
+- [ ] Every `requirements[]` entry has a `source` field; flag requirements with no `source` as "untraceable" (warning, not blocking)
+- [ ] No `requirements[]` entry claims to originate from a decision that does not exist in `context.decisions[]`
 
 **REJECT if:**
 - Any requirement has 0 scenarios
 - Scenarios have vague/empty verify fields
 - `verified_by` and `verify.type` mismatch
+- Any `context.decisions[]` entry has no traceable requirement (uncovered decision)
 
 ---
 

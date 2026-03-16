@@ -326,15 +326,23 @@ After each question round, present a progress summary and let the user decide wh
 ```markdown
 ## Interview Progress
 
-### Confirmed (what we know)
-- Goal: [confirmed goal from Mirror]
-- D1: [decision 1]
-- D2: [decision 2]
-- ...
+### Understanding (mini-mirror)
+Goal: [confirmed goal from Mirror]
+Scope: [what's included] / Excluded: [what's excluded]
+Done when: [success criteria]
 
-### Open Items (what we could still clarify)
+### Decisions
+- D1: [decision] (confirmed)
+- D2: [decision] (confirmed)
+
+### Requirements (so far)
+- R1: [behavior statement] ← goal
+- R2: [behavior statement] ← D1
+- R3: [behavior statement] ← D2
+- ??? (anything missing?)
+
+### Open Items
 - [remaining gap 1 — e.g., "error handling strategy not discussed"]
-- [remaining gap 2 — e.g., "performance requirements unclear"]
 - [or "None — all major areas covered"]
 ```
 
@@ -351,8 +359,22 @@ AskUserQuestion(
 )
 ```
 
-- **"Continue interviewing"** → generate 2-5 new questions targeting the listed open items, then loop back to Step 2
-- **"Enough, proceed to planning"** → merge remaining gaps as assumptions, transition to Phase 3
+- **"Continue interviewing"** → refresh the mini-mirror with updated understanding, add any new requirements extracted from latest answers (with source tags), then generate 2-5 new questions targeting open items + uncovered requirements, then loop back to Step 2
+- **"Enough, proceed to planning"** → merge confirmed requirements into spec.json with source fields before transitioning to Phase 3:
+
+```bash
+hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
+  "requirements": [
+    {"id": "R1", "behavior": "...", "priority": 1, "source": {"type": "goal"}, "scenarios": []},
+    {"id": "R2", "behavior": "...", "priority": 1, "source": {"type": "decision", "ref": "D1"}, "scenarios": []}
+  ]
+}'
+```
+
+> Note: `scenarios` are empty at this point — verification-planner will fill them in Phase 3.
+
+Then merge remaining gaps as assumptions, transition to Phase 3.
+
 - **Max 3 interview rounds** (circuit breaker). After round 3, auto-transition to Phase 3 with remaining gaps as assumptions.
 
 > **Core Principle**: Mirror first, then iteratively clarify with visibility into what's known vs unknown.
@@ -456,13 +478,18 @@ Task(subagent_type="tradeoff-analyzer",
      prompt="Assess risk per change area, propose simpler alternatives, generate decision_points.")
 
 Task(subagent_type="verification-planner",
-     prompt="Generate requirements[] scenarios for ALL verification points.
-
-For EACH verification point, output a requirement with Given-When-Then scenarios.
+     prompt="Read the existing requirements from spec.json (already confirmed by user in Phase 2).
+For EACH existing requirement, generate Given-When-Then scenarios that verify the behavior.
 Each scenario MUST include:
 - verified_by: 'machine' (automated command), 'agent' (AI assertion), or 'human' (manual inspection)
 - execution_env: 'host' (local), 'sandbox' (docker/container), or 'ci' (CI pipeline) — optional, default 'host'
 - verify: command (for machine), assertion (for agent), or instruction (for human)
+
+Do NOT generate new requirements. Only fill in scenarios for the requirements that already exist.
+
+If you identify behaviors that are NOT covered by any existing requirement, output them separately
+as 'suggested_additions' — do NOT add them to the requirements array directly.
+The orchestrator will ask the user before adding any suggested additions.
 
 ## Testing Strategy (from VERIFICATION.md)
 [Paste TESTING_MD_CONTENT here — the full content read in the pre-read step above.
@@ -535,13 +562,17 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
   ]
 }'
 
-# requirements from verification-planner (apply Sandbox Scenario Fallback Rules above)
+# Update existing requirements with scenarios from verification-planner
+# (apply Sandbox Scenario Fallback Rules above)
 # Requirements are the SINGLE SOURCE OF TRUTH for all verification.
 # verification_summary is DERIVED from requirements (not stored independently).
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
+#
+# Use --patch to match requirements by id and fill in scenarios in place.
+# This preserves the source field and other metadata set in Phase 2.
+hoyeon-cli spec merge .dev/specs/{name}/spec.json --patch --json '{
   "requirements": [
     {
-      "id": "R1", "behavior": "...", "priority": 1,
+      "id": "R1",
       "scenarios": [
         {"id": "R1-S1", "given": "...", "when": "...", "then": "...",
          "verified_by": "machine", "execution_env": "host",
@@ -554,6 +585,19 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
 #   Auto = scenarios where verified_by is "machine" or "agent" AND execution_env is "host"
 #   Manual = scenarios where verified_by is "human"
 #   Agent [sandbox] = scenarios where execution_env is "sandbox"
+
+# If verification-planner output contains suggested_additions (behaviors not covered by
+# confirmed requirements), present them to the user before adding:
+IF verification_planner.suggested_additions is non-empty:
+  AskUserQuestion(
+    "The analysis found behaviors not covered by confirmed requirements. Add these?",
+    options: verification_planner.suggested_additions
+  )
+  # Only merge user-approved suggestions as new requirements
+  IF user approves any:
+    hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json '{
+      "requirements": [<approved suggested_additions as full requirement objects>]
+    }'
 
 # external_dependencies — HUMAN-ONLY tasks from exploration + verification-planner output
 # If no external dependencies exist, omit this merge entirely.
@@ -614,10 +658,6 @@ Build tasks from research findings + analysis results. This is the main spec aut
 
 **Worker completion condition**: All referenced scenarios verified AND all checks pass
 
-#### Requirements (Given-When-Then)
-
-Always generate the `requirements` section with Given-When-Then scenarios — do not skip even if success criteria were not explicitly discussed. Derive from the goal, acceptance criteria, and user intent.
-
 #### Sandbox Scenario Infra Auto-task
 
 When any scenario has `execution_env: "sandbox"`, run the following CLI command to automatically generate sandbox tasks:
@@ -675,30 +715,13 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
 }'
 ```
 
-### Add requirements (always generate — derive from goal, acceptance criteria, and user intent)
+### Requirements note
 
-Requirements are the **single source of truth** for all verification. Each scenario specifies WHO verifies (`verified_by`) and WHERE it runs (`execution_env`).
-
-```bash
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
-  "requirements": [
-    {
-      "id": "R1", "behavior": "...", "priority": 1,
-      "scenarios": [
-        {"id": "R1-S1", "given": "...", "when": "...", "then": "...",
-         "verified_by": "machine", "execution_env": "host",
-         "verify": {"type": "command", "run": "...", "expect": {"exit_code": 0}}},
-        {"id": "R1-S2", "given": "...", "when": "...", "then": "...",
-         "verified_by": "human",
-         "verify": {"type": "instruction", "ask": "Visually confirm layout matches design"}},
-        {"id": "R1-S3", "given": "...", "when": "...", "then": "...",
-         "verified_by": "machine", "execution_env": "sandbox",
-         "verify": {"type": "command", "run": "docker exec ...", "expect": {"exit_code": 0}}}
-      ]
-    }
-  ]
-}'
-```
+> Requirements were confirmed in Phase 2 (with source fields) and scenarios were attached in Phase 3
+> by the verification-planner. Do NOT merge requirements again here.
+>
+> The `requirements` array in spec.json is already the single source of truth. Reference scenario IDs
+> (e.g. `R1-S1`) when building task `acceptance_criteria.scenarios` in the Merge tasks step above.
 
 ---
 

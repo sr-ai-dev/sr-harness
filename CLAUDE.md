@@ -88,6 +88,10 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **`develop`** — integration branch. Feature branches merge here.
 - **Feature branches** — `feat/xxx` from `develop`, merge back to `develop` via `--no-ff`.
 
+### Pre-Release Checklist
+
+- [ ] All content must be written in English (SKILL.md, agent .md, CLAUDE.md, README.md, commit messages, comments)
+
 ### Release Flow
 
 ```
@@ -106,17 +110,27 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v1.0.0)
+## Recent Changes (v1.0.1)
+
+- feat(specify): add Phase 2 requirements extraction with source tracing and mini-mirror
+- feat(specify): add phase2-stepback agent for goal alignment review before planning
+- feat(specify): add scenario coverage completeness system (HP/EP/BC/NI/IT categories)
+- feat(specify): verification-planner now attaches scenarios to confirmed requirements (not generate)
+- feat(cli): add guide hints on spec merge validation errors
+- feat(cli): add requirement.source field to v5 schema (traceability)
+- feat(quick-plan): add lightweight requirements before task merge
+- feat(agents): add phase2-stepback agent, update plan-reviewer with coverage check
+- fix(skills): resolve 12 schema/logic issues across specify, bugfix, quick-plan, execute
+- fix(execute): remove :Commit from parallel dispatch, add null guard, plain FV partial report
+
+## Previous Changes (v1.0.0)
 
 - feat(cli): wire v5 schema as default validation with v4 backward compatibility
 - feat(cli): add `schema_version` field to meta for version routing
-- feat(cli): add guide hints on spec merge validation errors
 - feat(cli): add scenario, requirement, sandbox-tasks, derive, drift, guide commands
 - feat(specify): add iterative interview loop with progress visibility
-- feat(quick-plan): add lightweight requirements before task merge
 - refactor(plan-reviewer): rewrite for spec.json v5 with 4-layer review
 - refactor(execute): simplify final-verify Step 4 to read recorded scenario statuses
-- fix(skills): resolve 12 schema/logic issues across specify, bugfix, quick-plan
 
 ## Previous Changes (v0.11.3)
 

@@ -8721,6 +8721,23 @@ var dev_spec_v5_schema_default = {
         scenarios: {
           type: "array",
           items: { $ref: "#/$defs/scenario" }
+        },
+        source: {
+          type: "object",
+          required: ["type"],
+          additionalProperties: false,
+          description: "Traceability: where this requirement originated from",
+          properties: {
+            type: {
+              type: "string",
+              enum: ["goal", "decision", "gap", "implicit", "negative"],
+              description: "Category of origin: goal=from project goal, decision=from a context decision, gap=from a known gap, implicit=inferred, negative=from non-goals"
+            },
+            ref: {
+              type: "string",
+              description: "Optional reference ID (e.g. 'D3', 'G1') pointing to a specific context entry"
+            }
+          }
         }
       }
     },
@@ -11631,7 +11648,7 @@ async function main() {
     process.exit(0);
   }
   if (args[0] === "--version") {
-    const version = true ? "1.0.0" : "dev";
+    const version = true ? "1.0.1" : "dev";
     process.stdout.write(`hoyeon-cli v${version}
 `);
     process.exit(0);

@@ -326,15 +326,23 @@ After each question round, present a progress summary and let the user decide wh
 ```markdown
 ## Interview Progress
 
-### Confirmed (what we know)
-- Goal: [confirmed goal from Mirror]
-- D1: [decision 1]
-- D2: [decision 2]
-- ...
+### Understanding (mini-mirror)
+Goal: [confirmed goal from Mirror]
+Scope: [what's included] / Excluded: [what's excluded]
+Done when: [success criteria]
 
-### Open Items (what we could still clarify)
+### Decisions
+- D1: [decision] (confirmed)
+- D2: [decision] (confirmed)
+
+### Requirements (so far)
+- R1: [behavior statement] ← goal
+- R2: [behavior statement] ← D1
+- R3: [behavior statement] ← D2
+- ??? (anything missing?)
+
+### Open Items
 - [remaining gap 1 — e.g., "error handling strategy not discussed"]
-- [remaining gap 2 — e.g., "performance requirements unclear"]
 - [or "None — all major areas covered"]
 ```
 
@@ -351,9 +359,62 @@ AskUserQuestion(
 )
 ```
 
-- **"Continue interviewing"** → generate 2-5 new questions targeting the listed open items, then loop back to Step 2
-- **"Enough, proceed to planning"** → merge remaining gaps as assumptions, transition to Phase 3
-- **Max 3 interview rounds** (circuit breaker). After round 3, auto-transition to Phase 3 with remaining gaps as assumptions.
+- **"Continue interviewing"** → refresh the mini-mirror with updated understanding, add any new requirements extracted from latest answers (with source tags), then generate 2-5 new questions targeting open items + uncovered requirements, then loop back to Step 2
+- **"Enough, proceed to planning"** → run Step-back Review, then merge requirements:
+
+#### Step 3: Step-back Review (before merge)
+
+> **Mode Gate**: Quick → skip. All other modes (Standard, Interactive, Autopilot) → always run.
+
+Before finalizing requirements, run the phase2-stepback agent to catch scope drift and blind spots:
+
+```
+result = Task(subagent_type="phase2-stepback",
+     prompt="Review goal alignment before planning.
+
+Goal: {confirmed_goal}
+
+Decisions:
+{FOR EACH d in context.decisions: D{d.id}: {d.decision} — {d.rationale}}
+
+Requirements (so far):
+{FOR EACH r in accumulated_requirements: R{r.id}: {r.behavior} ← {r.source}}")
+```
+
+**If PASS** → proceed directly to requirements merge.
+
+**If REVIEW_NEEDED** → present the agent's items to the user:
+
+```
+AskUserQuestion(
+  question: "Step-back review found items to confirm before planning:",
+  header: "Goal Alignment Check",
+  options: [
+    { label: "Accept all suggestions", description: "Apply drift removals + add missing requirements" },
+    { label: "Let me pick", description: "I'll decide each item" },
+    { label: "Ignore, proceed as-is", description: "Keep current scope" }
+  ]
+)
+```
+
+> **Autopilot**: If REVIEW_NEEDED, auto-apply conservative choices: remove DRIFT items, add blind spot requirements with `source.type: "implicit"`, keep ENHANCEMENT items. Log all changes as assumptions.
+
+After user confirms (or autopilot auto-applies), update decisions/requirements accordingly, then merge:
+
+```bash
+hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
+  "requirements": [
+    {"id": "R1", "behavior": "...", "priority": 1, "source": {"type": "goal"}, "scenarios": []},
+    {"id": "R2", "behavior": "...", "priority": 1, "source": {"type": "decision", "ref": "D1"}, "scenarios": []}
+  ]
+}'
+```
+
+> Note: `scenarios` are empty at this point — verification-planner will fill them in Phase 3.
+
+Then merge remaining gaps as assumptions, transition to Phase 3.
+
+- **Max 5 interview rounds** (circuit breaker). After round 5, auto-transition to Phase 3 with remaining gaps as assumptions. **Before transitioning, still run the Phase 2 requirements merge** — set `source.type: "implicit"` for all requirements inferred so far (since user did not explicitly confirm them).
 
 > **Core Principle**: Mirror first, then iteratively clarify with visibility into what's known vs unknown.
 
@@ -456,13 +517,40 @@ Task(subagent_type="tradeoff-analyzer",
      prompt="Assess risk per change area, propose simpler alternatives, generate decision_points.")
 
 Task(subagent_type="verification-planner",
-     prompt="Generate requirements[] scenarios for ALL verification points.
+     prompt="Read the existing requirements from spec.json (already confirmed by user in Phase 2).
+For EACH existing requirement, generate Given-When-Then scenarios that verify the behavior.
 
-For EACH verification point, output a requirement with Given-When-Then scenarios.
+## Scenario Coverage Categories (MANDATORY)
+
+For EACH requirement, generate scenarios across these categories:
+
+| Category | Code | When Required | Example |
+|----------|------|---------------|---------|
+| Happy Path | HP | Always | Valid input → expected output |
+| Error/Failure | EP | Always | System fails gracefully on error |
+| Boundary/Edge | BC | Always | Empty input, max values, zero |
+| Negative/Invalid | NI | User input or auth | Rejected input, unauthorized |
+| Integration | IT | External system | Dependency unavailable |
+
+**Minimum: HP + EP + BC per requirement (3 scenarios minimum).**
+NI: required if requirement involves user input, authentication, or authorization.
+IT: required if requirement touches external systems, APIs, or databases.
+If a category does not apply, skip with a 1-line justification (e.g., 'NI: N/A — no user input').
+
+**Self-check before output**: count scenarios per requirement. If any has < 3, add missing categories.
+
+## Scenario Fields
+
 Each scenario MUST include:
 - verified_by: 'machine' (automated command), 'agent' (AI assertion), or 'human' (manual inspection)
 - execution_env: 'host' (local), 'sandbox' (docker/container), or 'ci' (CI pipeline) — optional, default 'host'
 - verify: command (for machine), assertion (for agent), or instruction (for human)
+
+Do NOT generate new requirements. Only fill in scenarios for the requirements that already exist.
+
+If you identify behaviors that are NOT covered by any existing requirement, output them separately
+as 'suggested_additions' — do NOT add them to the requirements array directly.
+The orchestrator will ask the user before adding any suggested additions.
 
 ## Testing Strategy (from VERIFICATION.md)
 [Paste TESTING_MD_CONTENT here — the full content read in the pre-read step above.
@@ -535,13 +623,17 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
   ]
 }'
 
-# requirements from verification-planner (apply Sandbox Scenario Fallback Rules above)
+# Update existing requirements with scenarios from verification-planner
+# (apply Sandbox Scenario Fallback Rules above)
 # Requirements are the SINGLE SOURCE OF TRUTH for all verification.
 # verification_summary is DERIVED from requirements (not stored independently).
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
+#
+# Use --patch to match requirements by id and fill in scenarios in place.
+# This preserves the source field and other metadata set in Phase 2.
+hoyeon-cli spec merge .dev/specs/{name}/spec.json --patch --json '{
   "requirements": [
     {
-      "id": "R1", "behavior": "...", "priority": 1,
+      "id": "R1",
       "scenarios": [
         {"id": "R1-S1", "given": "...", "when": "...", "then": "...",
          "verified_by": "machine", "execution_env": "host",
@@ -554,6 +646,19 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
 #   Auto = scenarios where verified_by is "machine" or "agent" AND execution_env is "host"
 #   Manual = scenarios where verified_by is "human"
 #   Agent [sandbox] = scenarios where execution_env is "sandbox"
+
+# If verification-planner output contains suggested_additions (behaviors not covered by
+# confirmed requirements), present them to the user before adding:
+IF verification_planner.suggested_additions is non-empty:
+  AskUserQuestion(
+    "The analysis found behaviors not covered by confirmed requirements. Add these?",
+    options: verification_planner.suggested_additions
+  )
+  # Only merge user-approved suggestions as new requirements
+  IF user approves any:
+    hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json '{
+      "requirements": [<approved suggested_additions as full requirement objects>]
+    }'
 
 # external_dependencies — HUMAN-ONLY tasks from exploration + verification-planner output
 # If no external dependencies exist, omit this merge entirely.
@@ -614,10 +719,6 @@ Build tasks from research findings + analysis results. This is the main spec aut
 
 **Worker completion condition**: All referenced scenarios verified AND all checks pass
 
-#### Requirements (Given-When-Then)
-
-Always generate the `requirements` section with Given-When-Then scenarios — do not skip even if success criteria were not explicitly discussed. Derive from the goal, acceptance criteria, and user intent.
-
 #### Sandbox Scenario Infra Auto-task
 
 When any scenario has `execution_env: "sandbox"`, run the following CLI command to automatically generate sandbox tasks:
@@ -675,30 +776,13 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
 }'
 ```
 
-### Add requirements (always generate — derive from goal, acceptance criteria, and user intent)
+### Requirements note
 
-Requirements are the **single source of truth** for all verification. Each scenario specifies WHO verifies (`verified_by`) and WHERE it runs (`execution_env`).
-
-```bash
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
-  "requirements": [
-    {
-      "id": "R1", "behavior": "...", "priority": 1,
-      "scenarios": [
-        {"id": "R1-S1", "given": "...", "when": "...", "then": "...",
-         "verified_by": "machine", "execution_env": "host",
-         "verify": {"type": "command", "run": "...", "expect": {"exit_code": 0}}},
-        {"id": "R1-S2", "given": "...", "when": "...", "then": "...",
-         "verified_by": "human",
-         "verify": {"type": "instruction", "ask": "Visually confirm layout matches design"}},
-        {"id": "R1-S3", "given": "...", "when": "...", "then": "...",
-         "verified_by": "machine", "execution_env": "sandbox",
-         "verify": {"type": "command", "run": "docker exec ...", "expect": {"exit_code": 0}}}
-      ]
-    }
-  ]
-}'
-```
+> Requirements were confirmed in Phase 2 (with source fields) and scenarios were attached in Phase 3
+> by the verification-planner. Do NOT merge requirements again here.
+>
+> The `requirements` array in spec.json is already the single source of truth. Reference scenario IDs
+> (e.g. `R1-S1`) when building task `acceptance_criteria.scenarios` in the Merge tasks step above.
 
 ---
 
@@ -763,6 +847,13 @@ Inspect **every** AC across `tasks[].acceptance_criteria` and `requirements[].sc
 - Every `requirements[].scenarios[]` has a non-empty `verify` object matching its type
 - `verification_summary.gaps` is empty (all ACs classified)
 - Every auto-merged gap (`context.known_gaps[]` where `auto_merged: true`) has its mitigation covered by at least one requirement scenario
+
+**Scenario coverage completeness:**
+- Every requirement has at least **3 scenarios** covering: Happy Path (HP) + Error/Failure (EP) + Boundary/Edge (BC)
+- Requirements involving user input or auth have at least one **Negative/Invalid (NI)** scenario
+- Requirements touching external systems have at least one **Integration (IT)** scenario
+- Any requirement with < 3 scenarios → FAIL with specific missing categories
+- Categories marked "N/A" in verification-planner output must have a 1-line justification
 
 **Semantic quality:**
 - **Machine ACs**: `verify.run` is an executable shell command (not pseudocode, not natural language). `verify.expect` has a concrete value (e.g., `exit_code: 0`, not "should work")

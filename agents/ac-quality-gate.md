@@ -33,6 +33,17 @@ For each `requirements[].scenarios[]`:
 - `verify` object is non-empty and matches the type
 - No items in `verification_summary.gaps`
 
+### Scenario Coverage Completeness
+
+For each `requirements[]`:
+- Has at least **3 scenarios** covering: Happy Path (HP) + Error/Failure (EP) + Boundary/Edge (BC)
+- If requirement involves user input or auth → at least one Negative/Invalid (NI) scenario exists
+- If requirement touches external systems → at least one Integration (IT) scenario exists
+- Requirements with < 3 scenarios → FAIL with specific missing categories
+- If a category was marked N/A by verification-planner, a 1-line justification must exist
+
+**Auto-fix for missing categories**: Generate the missing scenario type using the requirement's `behavior` field as context. Use `verified_by: "machine"` with a placeholder `verify.run` command that the next iteration can refine.
+
 ### Semantic Quality — Machine ACs (`verified_by: "machine"`)
 
 | Check | PASS | FAIL |

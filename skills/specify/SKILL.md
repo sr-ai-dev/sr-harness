@@ -519,6 +519,28 @@ Task(subagent_type="tradeoff-analyzer",
 Task(subagent_type="verification-planner",
      prompt="Read the existing requirements from spec.json (already confirmed by user in Phase 2).
 For EACH existing requirement, generate Given-When-Then scenarios that verify the behavior.
+
+## Scenario Coverage Categories (MANDATORY)
+
+For EACH requirement, generate scenarios across these categories:
+
+| Category | Code | When Required | Example |
+|----------|------|---------------|---------|
+| Happy Path | HP | Always | Valid input → expected output |
+| Error/Failure | EP | Always | System fails gracefully on error |
+| Boundary/Edge | BC | Always | Empty input, max values, zero |
+| Negative/Invalid | NI | User input or auth | Rejected input, unauthorized |
+| Integration | IT | External system | Dependency unavailable |
+
+**Minimum: HP + EP + BC per requirement (3 scenarios minimum).**
+NI: required if requirement involves user input, authentication, or authorization.
+IT: required if requirement touches external systems, APIs, or databases.
+If a category does not apply, skip with a 1-line justification (e.g., 'NI: N/A — no user input').
+
+**Self-check before output**: count scenarios per requirement. If any has < 3, add missing categories.
+
+## Scenario Fields
+
 Each scenario MUST include:
 - verified_by: 'machine' (automated command), 'agent' (AI assertion), or 'human' (manual inspection)
 - execution_env: 'host' (local), 'sandbox' (docker/container), or 'ci' (CI pipeline) — optional, default 'host'
@@ -825,6 +847,13 @@ Inspect **every** AC across `tasks[].acceptance_criteria` and `requirements[].sc
 - Every `requirements[].scenarios[]` has a non-empty `verify` object matching its type
 - `verification_summary.gaps` is empty (all ACs classified)
 - Every auto-merged gap (`context.known_gaps[]` where `auto_merged: true`) has its mitigation covered by at least one requirement scenario
+
+**Scenario coverage completeness:**
+- Every requirement has at least **3 scenarios** covering: Happy Path (HP) + Error/Failure (EP) + Boundary/Edge (BC)
+- Requirements involving user input or auth have at least one **Negative/Invalid (NI)** scenario
+- Requirements touching external systems have at least one **Integration (IT)** scenario
+- Any requirement with < 3 scenarios → FAIL with specific missing categories
+- Categories marked "N/A" in verification-planner output must have a 1-line justification
 
 **Semantic quality:**
 - **Machine ACs**: `verify.run` is an executable shell command (not pseudocode, not natural language). `verify.expect` has a concrete value (e.g., `exit_code: 0`, not "should work")

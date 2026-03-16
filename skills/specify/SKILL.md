@@ -364,7 +364,7 @@ AskUserQuestion(
 
 #### Step 3: Step-back Review (before merge)
 
-> **Mode Gate**: Quick → skip. Autopilot → skip. Interactive/Standard only.
+> **Mode Gate**: Quick → skip. All other modes (Standard, Interactive, Autopilot) → always run.
 
 Before finalizing requirements, run the phase2-stepback agent to catch scope drift and blind spots:
 
@@ -397,7 +397,9 @@ AskUserQuestion(
 )
 ```
 
-After user confirms, update decisions/requirements accordingly, then merge:
+> **Autopilot**: If REVIEW_NEEDED, auto-apply conservative choices: remove DRIFT items, add blind spot requirements with `source.type: "implicit"`, keep ENHANCEMENT items. Log all changes as assumptions.
+
+After user confirms (or autopilot auto-applies), update decisions/requirements accordingly, then merge:
 
 ```bash
 hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{

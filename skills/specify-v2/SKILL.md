@@ -124,25 +124,26 @@ hoyeon-cli session set --sid $SESSION_ID --spec ".dev/specs/{name}/spec.json"
 
 > **Mode Gate**: Quick mode — SKIP team mode entirely. No TeamCreate, no SendMessage gates.
 
-After spec init, spawn the step-back gate-keeper as a persistent team member:
+After spec init, spawn the full team with 3 teammates:
 
 ```
 TeamCreate("specify-session")
 ```
 
-Then add the gate-keeper as a teammate by invoking the phase2-stepback agent as a team member. The gate-keeper persists throughout the session and is called via SendMessage at each layer gate.
+**Teammates (3):**
 
-**Gate-keeper configuration:**
-- Agent: reuse existing `phase2-stepback` agent (do NOT create a new agent file)
-- Role: layer-transition reviewer — checks for DRIFT, GAP, CONFLICT, BACKTRACK
-- Tools allowed: Read, Grep, Glob — read-only analysis only
-- disallowed-tools: Write, Edit, Task, Skill, Bash (enforced per C3 + read-only contract)
+| Name | Role | Active During | Spawn Prompt Focus |
+|------|------|---------------|-------------------|
+| **gate-keeper** | Layer-transition reviewer | L0~L4 gate | Check for DRIFT, GAP, CONFLICT, BACKTRACK. Return PASS or REVIEW_NEEDED with numbered items. Read-only: use Read, Grep, Glob only. Do NOT write files, run Bash, or create Tasks. |
+| **L3-drafter** | Requirements + scenarios author | L3 pingpong | Derive requirements from goal+decisions. Generate Given-When-Then scenarios per requirement. Output structured JSON with requirements[] and scenarios[]. |
+| **L3-reviewer** | Gap and quality reviewer | L3 pingpong | Review drafter output for: missing requirements, scenario coverage gaps (HP/EP/BC minimum), verify field quality, requirement-decision traceability. Return gap list or PASS. |
 
-The gate-keeper is called once per layer transition with the current layer artifacts as context. It returns:
+> All teammates are general-purpose agents. Specialization is defined entirely through spawn prompts.
+> L3-drafter and L3-reviewer are idle during L0~L2 and L4~L5. They are pre-spawned because TeamCreate can only be called once per session.
+
+**gate-keeper return contract:**
 - `PASS` — layer transition proceeds
-- `REVIEW_NEEDED` + items for user confirmation (drift findings, blind spots, simplification suggestions)
-
-> **Return contract**: phase2-stepback returns `PASS` or `REVIEW_NEEDED` with numbered items. The orchestrator classifies each item as DRIFT/GAP/CONFLICT/BACKTRACK and routes accordingly. The agent does NOT return these types directly.
+- `REVIEW_NEEDED` + numbered items — orchestrator classifies each as DRIFT/GAP/CONFLICT/BACKTRACK and routes accordingly. The gate-keeper does NOT return these types directly.
 
 ### Intent Classification (internal, not merged)
 
@@ -184,7 +185,7 @@ AskUserQuestion(
   question: "Step-back review found items to confirm before advancing:",
   header: "Gate Review at L{n}",
   options: [
-    { label: "Apply suggested fix", description: "{suggested_fix}" },
+    { label: "Apply suggested fix", description: "Apply the gate-keeper's recommendation" },
     { label: "Provide correction", description: "I'll describe the correction needed" },
     { label: "Force proceed (skip gate)", description: "Accept current state and advance" },
     { label: "Abort", description: "Stop specification process" }
@@ -346,7 +347,7 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.
 **Output**: `context.decisions[]`, `context.assumptions[]`
 **Also**: Provisional requirements in session state only (NOT spec.json) — D7/D13
 **Merge**: `spec merge decisions`, `spec merge assumptions`
-**Gate**: `spec coverage --layer decisions` + step-back via SendMessage
+**Gate**: `spec coverage --layer decisions` + gate-keeper via SendMessage
 **User trigger**: "proceed to planning" required (interactive mode)
 
 ### Execution
@@ -456,43 +457,10 @@ AskUserQuestion(
 ```
 
 - **"Continue interviewing"** → refresh mini-mirror, add new provisional requirements, generate 2-5 new questions targeting open items, loop back to Step 2
-- **"Enough, proceed to planning"** → run step-back check, then advance to L3
-- **Max 5 interview rounds** (circuit breaker). After round 5, auto-transition to L3. Set `source.type: "implicit"` for requirements inferred without explicit user confirmation.
+- **"Enough, proceed to planning"** → advance to L2 gate
+- **Max 5 interview rounds** (circuit breaker). After round 5, auto-transition to L2 gate. Set `source.type: "implicit"` for requirements inferred without explicit user confirmation.
 
-##### Step 3: Step-back Check (before L2 gate)
-
-> **Mode Gate**: Quick → skip. Autopilot → run but auto-apply conservative choices.
-
-```
-result = Task(subagent_type="phase2-stepback",
-     prompt="Review goal alignment before planning.
-
-Goal: {confirmed_goal}
-
-Decisions:
-{FOR EACH d in context.decisions: D{d.id}: {d.decision} — {d.rationale}}
-
-Provisional Requirements (so far):
-{FOR EACH r in provisional_requirements: {r.id}: {r.behavior} ← {r.source}}")
-```
-
-**If PASS** → proceed to L2 gate.
-
-**If REVIEW_NEEDED** → present to user:
-
-```
-AskUserQuestion(
-  question: "Step-back review found items to confirm before planning:",
-  header: "Goal Alignment Check",
-  options: [
-    { label: "Accept all suggestions", description: "Apply drift removals + add missing requirements" },
-    { label: "Let me pick", description: "I'll decide each item" },
-    { label: "Ignore, proceed as-is", description: "Keep current scope" }
-  ]
-)
-```
-
-> **Autopilot**: Auto-apply conservative choices: remove DRIFT items, add blind spot requirements with `source.type: "implicit"`, keep ENHANCEMENT items. Log changes as assumptions.
+> No separate step-back check here — the gate-keeper handles goal alignment review as part of the L2 gate.
 
 ### L2 Gate
 
@@ -509,16 +477,16 @@ If exit code non-zero → gate failure. Handle per Gate Protocol.
 
 ## L3: Requirements + Scenarios
 
-**Who**: phase2-stepback agent (requirement completeness) → verification-planner agent (scenarios) — D11/D12
+**Who**: L3-drafter (teammate) + L3-reviewer (teammate) — Draft-Review pingpong
 **Input**: goal + decisions + provisional requirements (as seed)
 **Output**: `requirements[]` with source fields + `scenarios[]` with category/verified_by/verify
 **Merge**: `spec merge requirements` (atomic, with scenarios)
-**Gate**: `spec coverage --layer scenarios` + AC quality agent (max 2 rounds) + step-back via SendMessage
-**Backtracking**: If decision gap found → AskUserQuestion → spec merge decisions (L2) → re-run L3 — D8
+**Gate**: `spec coverage --layer scenarios` + gate-keeper via SendMessage
+**Backtracking**: If decision gap found → AskUserQuestion → spec merge decisions (L2) → re-run L3
 
 ### Pre-read: VERIFICATION.md
 
-Before launching agents, read VERIFICATION.md to inline into verification-planner's prompt:
+Before starting the pingpong, read VERIFICATION.md to inline into L3-drafter's prompt:
 
 ```bash
 # ${baseDir} is provided as header context to the main agent.
@@ -526,15 +494,23 @@ Before launching agents, read VERIFICATION.md to inline into verification-planne
 TESTING_MD_CONTENT = Read("${baseDir}/references/VERIFICATION_GUIDE.md")
 ```
 
-> Why inline? Subagents cannot resolve `${baseDir}`. The main agent reads the file and passes content directly into the subagent prompt.
+> Why inline? Teammates cannot resolve `${baseDir}`. The orchestrator reads the file and passes content directly into the SendMessage prompt.
 
-### Step A: Requirements derivation (phase2-stepback agent)
+### Quick Mode Shortcut
 
-> **Mode Gate**: Quick → skip this step. Orchestrator derives requirements directly from goal + decisions.
+> **Mode Gate**: Quick → orchestrator derives requirements + scenarios directly (no pingpong, no teammates). Merge and auto-advance.
+
+### Draft-Review Pingpong (standard mode)
+
+The orchestrator mediates a structured conversation between L3-drafter and L3-reviewer.
+**Convergence condition**: L3-reviewer returns `PASS` (gap count = 0).
+**Circuit breaker**: Max 3 rounds. If not converged after 3 rounds, orchestrator escalates remaining gaps to user.
+
+#### Round 1: Initial Draft
 
 ```
-req_result = Task(subagent_type="phase2-stepback",
-     prompt="Derive requirements from goal and decisions.
+SendMessage(to="L3-drafter", message="
+Derive requirements and scenarios from goal and decisions.
 
 Goal: {confirmed_goal}
 
@@ -544,51 +520,22 @@ Decisions:
 Provisional requirements (from interview — use as seed, validate and complete):
 {FOR EACH r in provisional_requirements: {r.behavior} ← {r.source}}
 
+## Output: Requirements
+
 For EACH requirement, output:
 - id: R1, R2, ... (sequential)
 - behavior: observable behavior statement (not implementation detail)
 - priority: 1 (critical) | 2 (important) | 3 (nice-to-have)
 - source: {type: 'goal'|'decision'|'implicit', ref: 'D{id}' (when type=decision)}
 
-If you find missing decisions that are required to define a requirement clearly,
-output them as 'decision_gaps' — the orchestrator will ask the user before backtracking to L2.
+If you find missing decisions required to define a requirement clearly,
+output them as 'decision_gaps' — the orchestrator will handle backtracking.
 
-Do NOT generate scenarios here. scenarios field should be empty array for each requirement.")
-```
+## Output: Scenarios (per requirement)
 
-**If req_result.decision_gaps is non-empty** → L3 backtracking:
+For EACH requirement, generate Given-When-Then scenarios:
 
-```
-AskUserQuestion(
-  question: "L3 found missing decisions needed to finalize requirements. Shall we return to L2 to fill these?",
-  header: "Decision Gap Found",
-  options: [
-    { label: "Yes, go back to L2", description: "I'll answer the missing decision questions" },
-    { label: "Agent decides", description: "Use best judgment and log as assumptions" }
-  ]
-)
-```
-
-If user selects "Yes, go back to L2" → merge additional decisions, then re-run L3 from Step A.
-
-**L3→L2 backtracking — state cleanup (mandatory):**
-1. Clear `provisional_requirements` from session state before returning to L2:
-   `hoyeon-cli session set --sid $SESSION_ID --json '{"provisional_requirements": []}'`
-2. When L3 re-runs after backtracking: start fresh — do NOT reuse scenarios or requirements from the previous L3 run.
-3. Requirements merged in the previous L3 run must be **replaced** (not appended) on re-run — the new merge overwrites the existing `requirements[]` array entirely (no `--append`, no `--patch`).
-
-### Step B: Scenario generation (verification-planner agent)
-
-```
-Task(subagent_type="verification-planner",
-     prompt="Generate Given-When-Then scenarios for EACH existing requirement.
-
-Requirements:
-{FOR EACH r in req_result.requirements: R{r.id}: {r.behavior} (priority: {r.priority}, source: {r.source})}
-
-## Scenario Coverage Categories (MANDATORY)
-
-For EACH requirement, generate scenarios across these categories:
+### Scenario Coverage Categories (MANDATORY)
 
 | Category | Code | When Required | Example |
 |----------|------|---------------|---------|
@@ -605,7 +552,7 @@ If a category does not apply, skip with a 1-line justification.
 
 **Self-check before output**: count scenarios per requirement. If any has < 3, add missing categories.
 
-## Scenario Fields (ALL required)
+### Scenario Fields (ALL required)
 
 Each scenario MUST include:
 - id: {req_id}-S{n} (e.g., R1-S1, R1-S2)
@@ -613,36 +560,122 @@ Each scenario MUST include:
 - given / when / then: concrete, testable statements
 - verified_by: 'machine' (automated command), 'agent' (AI assertion), or 'human' (manual inspection)
 - execution_env: 'host' (local), 'sandbox' (docker/container), or 'ci' (CI pipeline) — default 'host'
-- verify: command (for machine), assertion (for agent), or instruction (for human)
+- verify: object matching verified_by type (command for machine, assertion for agent, instruction for human)
 
 ## Testing Strategy (from VERIFICATION.md)
-[Paste TESTING_MD_CONTENT here — the full content read in the pre-read step above.]
+{TESTING_MD_CONTENT}
 
-Use the 4-Tier testing model above. Output format:
+Use the 4-Tier testing model above:
 - Tier 1-3 items → verified_by: 'machine', execution_env: 'host'
 - Tier 4 items → verified_by: 'machine', execution_env: 'sandbox'
 - Subjective/UX items → verified_by: 'human'
 - AI-checkable items → verified_by: 'agent'
-
-Do NOT generate new requirements. Only fill in scenarios for provided requirements.
-If you find behaviors not covered by any requirement, output them as 'suggested_additions' only.")
+")
 ```
 
-### Sandbox Scenario Fallback Rules
-
-When merging verification-planner results, apply these rules:
-
-- **Misclassified Tier 4**: Tier 4 items without `execution_env: "sandbox"` → fix them (Tier 4 MUST have sandbox)
-- **Missing sandbox items**: Project has sandbox infra but no sandbox scenarios → flag warning, check Tier 4 misclassification
-- **UI screenshot scenarios**: UI/frontend changes without screenshot-based sandbox scenarios → add them
-
-### Handle suggested_additions
+**If drafter reports decision_gaps** → L3 backtracking:
 
 ```
-IF verification_planner.suggested_additions is non-empty:
+AskUserQuestion(
+  question: "L3-drafter found missing decisions needed to finalize requirements. Shall we return to L2?",
+  header: "Decision Gap Found",
+  options: [
+    { label: "Yes, go back to L2", description: "I'll answer the missing decision questions" },
+    { label: "Agent decides", description: "Use best judgment and log as assumptions" }
+  ]
+)
+```
+
+If user selects "Yes, go back to L2" → merge additional decisions, then re-run L3 from Round 1.
+
+**L3→L2 backtracking — state cleanup (mandatory):**
+1. Clear `provisional_requirements` from session state:
+   `hoyeon-cli session set --sid $SESSION_ID --json '{"provisional_requirements": []}'`
+2. On re-run: start fresh — do NOT reuse previous L3 output.
+3. Requirements merge overwrites entirely (no `--append`, no `--patch`).
+
+#### Review Loop
+
+```
+FOR round IN 1..3:
+  IF round == 1:
+    draft = [drafter output from Round 1 above]
+  ELSE:
+    # Send reviewer's gaps back to drafter for revision
+    SendMessage(to="L3-drafter", message="
+    L3-reviewer found these gaps in your draft. Please revise:
+
+    {FOR EACH gap in review.gaps: - {gap.id}: {gap.description} ({gap.category})}
+
+    Revise the affected requirements and scenarios. Output the FULL updated
+    requirements[] array (not just the changed items).")
+
+    draft = [drafter revised output]
+
+  # Send draft to reviewer
+  SendMessage(to="L3-reviewer", message="
+  Review the following requirements and scenarios for completeness and quality.
+
+  {draft}
+
+  ## Review Checklist
+
+  **Requirement completeness:**
+  - Every decision has at least one requirement tracing back to it
+  - No requirement is an implementation detail (must be observable behavior)
+  - Source tracing is correct (goal/decision/implicit with correct ref)
+
+  **Scenario coverage:**
+  - Every requirement has HP + EP + BC minimum (3 scenarios)
+  - NI scenarios present for user-input/auth requirements
+  - IT scenarios present for external-system requirements
+
+  **Scenario quality:**
+  - Machine: verify.run is executable shell command, verify.expect has concrete value
+  - Agent: verify.checks is falsifiable (can be proven wrong)
+  - Human: verify.ask is actionable (step-by-step instructions)
+
+  **Sandbox rules:**
+  - Tier 4 items have execution_env: 'sandbox'
+  - UI changes have screenshot-based sandbox scenarios
+
+  ## Output
+
+  Return one of:
+  - PASS — all checks satisfied, gap count = 0
+  - GAPS — list of gaps with {id, description, category, affected_requirement}
+  - SUGGESTED_ADDITIONS — behaviors not covered by any requirement (new requirements needed)
+  ")
+
+  review = [reviewer output]
+
+  IF review.status == "PASS":
+    print("L3 Draft-Review converged in {round} round(s)")
+    BREAK
+
+  IF round == 3 AND review.status != "PASS":
+    # Circuit breaker: escalate remaining gaps to user
+    print("L3 Draft-Review did not converge after 3 rounds. Remaining gaps:")
+    FOR EACH gap in review.gaps:
+      print("  - {gap.id}: {gap.description}")
+    AskUserQuestion(
+      question: "L3 pingpong did not fully converge. How should we proceed?",
+      header: "L3 Convergence",
+      options: [
+        { label: "Accept current draft", description: "Proceed with remaining gaps noted" },
+        { label: "I'll fix manually", description: "I'll provide corrections for the gaps" },
+        { label: "Abort", description: "Stop specification process" }
+      ]
+    )
+```
+
+#### Handle suggested_additions
+
+```
+IF review.suggested_additions is non-empty:
   AskUserQuestion(
-    "The analysis found behaviors not covered by confirmed requirements. Add these?",
-    options: verification_planner.suggested_additions
+    "The review found behaviors not covered by any requirement. Add these?",
+    options: review.suggested_additions
   )
   # Only merge user-approved suggestions as new requirements
 ```
@@ -650,8 +683,8 @@ IF verification_planner.suggested_additions is non-empty:
 ### Merge requirements (atomic, with scenarios)
 
 > **Merge flag**: Use NO flag (default deep-merge) on the first-time write — this replaces the placeholder `requirements[]`.
-> On backtrack re-run (L3 re-runs after L3→L2 backtracking), still use NO flag — the new merge replaces the entire `requirements[]` array.
-> Do NOT use `--append` (would duplicate) or `--patch` (ID-based update — not appropriate for full requirement replacement).
+> On backtrack re-run, still use NO flag — overwrites the entire `requirements[]` array.
+> Do NOT use `--append` (would duplicate) or `--patch` (not appropriate for full replacement).
 
 ```bash
 cat > /tmp/spec-merge.json << 'EOF'
@@ -706,35 +739,10 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.
 hoyeon-cli spec coverage .dev/specs/{name}/spec.json --layer scenarios
 ```
 
-**AC quality check** (max 2 rounds):
-
-Inspect every AC across `requirements[].scenarios` for classification completeness and semantic quality:
-
-**Classification completeness:**
-- Every scenario has `verified_by` set (`machine` | `agent` | `human`)
-- Every scenario has a non-empty `verify` object matching its type
-- Every requirement has at least 3 scenarios covering HP + EP + BC
-
-**Semantic quality:**
-- **Machine**: `verify.run` is an executable shell command (not pseudocode). `verify.expect` has a concrete value.
-- **Agent**: `verify.checks` is falsifiable — can be proven wrong by inspecting code/output.
-- **Human**: `verify.ask` is actionable — a person can follow it step-by-step.
-
-Run the `ac-quality-gate` agent for each round:
-
-```
-FOR iteration IN 1..2:
-  result = Task(subagent_type="ac-quality-gate",
-    prompt="Check AC quality for spec: .dev/specs/{name}/spec.json")
-  IF result.status == "PASS": BREAK
-  # Agent applies fixes via spec merge; loop continues to re-check
-  hoyeon-cli spec validate .dev/specs/{name}/spec.json
-```
-
 Then call gate-keeper via SendMessage with requirements + scenario summary.
 
-**Quick**: No coverage check, no AC gate, no step-back. Auto-advance after requirements merge.
-**Standard**: Run coverage check + AC quality (max 2 rounds) + gate-keeper SendMessage. PASS → advance to L4.
+**Quick**: No coverage check, no gate. Auto-advance after requirements merge.
+**Standard**: Run coverage check + gate-keeper SendMessage. PASS → advance to L4.
 
 ---
 
@@ -743,7 +751,7 @@ Then call gate-keeper via SendMessage with requirements + scenario summary.
 **Who**: Orchestrator
 **Output**: `tasks[]` with acceptance_criteria.scenarios referencing scenario IDs
 **Merge**: `spec merge tasks`
-**Gate**: `spec coverage --layer tasks` + step-back via SendMessage
+**Gate**: `spec coverage --layer tasks` + gate-keeper via SendMessage
 
 ### Task Structure Guidelines
 
@@ -826,7 +834,7 @@ EOF
 hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
 ```
 
-> Requirements were confirmed in L2 (with source fields) and scenarios were attached in L3 by the verification-planner. Do NOT merge requirements again here.
+> Requirements were confirmed in L2 (with source fields) and scenarios were generated in L3 by the L3-drafter/L3-reviewer pingpong. Do NOT merge requirements again here.
 
 ### L4 Gate
 
@@ -1090,7 +1098,7 @@ Quick mode compresses the layer sequence: L0 → L2 → L3 → L5.
 | L0 | spec init only, no mirror (autopilot assumption of goal) |
 | L1 | **SKIPPED** — minimal orchestrator scan only, merged directly |
 | L2 | **SKIPPED** — assumptions only, no interview |
-| L3 | 1 agent (tradeoff-lite assessment), orchestrator derives requirements, verification-planner for scenarios |
+| L3 | Orchestrator derives requirements + scenarios directly (no teammates, no Task agents) |
 | L4 | Tasks created directly, no gate |
 | L5 | spec validate + spec check only, no plan-reviewer, no AC gate |
 
@@ -1116,7 +1124,9 @@ No TeamCreate, no SendMessage gates in quick mode. Max 1 plan-reviewer round if 
 - **Requirements = single source of truth** — all verification lives in `requirements[].scenarios` with `verified_by` + `execution_env`; `verification_summary` is derived, not stored independently
 - **Incremental merge** — merge after every layer and every user response; do not batch
 - **confirmed_goal in context** — NEVER move `confirmed_goal` to `meta` (C4)
-- **phase2-stepback agent** — reuse existing agent file, do NOT rename or create a new one (C5)
+- **gate-keeper** — teammate spawned via TeamCreate, role defined by spawn prompt (not a custom agent file)
+- **L3-drafter** — teammate for requirements + scenarios drafting (spawned at session start, active during L3)
+- **L3-reviewer** — teammate for gap/quality review of drafter output (spawned at session start, active during L3)
 - **Team mode members** — disallowed-tools MUST include Task and Skill (C3)
 
 ## Checklist Before Stopping
@@ -1138,14 +1148,15 @@ No TeamCreate, no SendMessage gates in quick mode. Max 1 plan-reviewer round if 
 
 ### Standard mode (additional)
 - [ ] TeamCreate called at session start
-- [ ] Gate-keeper (phase2-stepback) added as team member with disallowed-tools: Task, Skill
+- [ ] TeamCreate called with 3 teammates: gate-keeper, L3-drafter, L3-reviewer
+- [ ] Gate-keeper defined via spawn prompt (DRIFT/GAP/CONFLICT/BACKTRACK review, read-only)
 - [ ] SendMessage called at each layer gate (L0, L1, L2, L3, L4)
 - [ ] `context.research` is structured object (not string)
 - [ ] AC Quality Gate passed (L3 + L5)
 - [ ] `context.decisions[]` populated from interview
 - [ ] `constraints` populated (if applicable)
-- [ ] analysis agents ran (verification-planner minimum)
-- [ ] VERIFICATION.md pre-read and inlined into verification-planner prompt
+- [ ] L3 pingpong ran (L3-drafter + L3-reviewer, max 3 rounds)
+- [ ] VERIFICATION.md pre-read and inlined into L3-drafter SendMessage prompt
 - [ ] Sandbox Scenario Fallback Rules applied
 - [ ] plan-reviewer returned OKAY
 - [ ] `spec coverage` passes (full chain + per-layer at each transition)

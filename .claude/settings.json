@@ -44,10 +44,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/scripts/skill-hint-hook.sh"
-          },
-          {
-            "type": "command",
             "command": ".claude/scripts/ultrawork-init-hook.sh"
           },
           {

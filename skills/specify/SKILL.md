@@ -731,12 +731,17 @@ Then call gate-keeper via SendMessage with requirements + scenario summary.
 ### Task Structure Guidelines
 
 - Task IDs: `T1`, `T2`, ... with final `TF` (type: `verification`)
+- **T1 must include dependency install + build verification** when scaffolding a new project.
+  Include explicit steps: install dependencies, verify build passes, verify dev server starts.
+  T1 acceptance_criteria.checks should include: `{type: "build", run: "npm run build"}` (or pnpm/yarn equivalent).
+  This ensures subsequent workers have a working baseline — do NOT assume "scaffold" implicitly means "install + build verified".
 - Every task: `must_not_do: ["Do not run git commands"]`
 - Every task: `acceptance_criteria` with `scenarios` (scenario ID refs) + `checks` (runnable commands)
 - Every task: `inputs` listing dependencies from previous tasks (use task output IDs)
 - HIGH risk tasks: include rollback steps in `steps`
 - Map `research.patterns` → `tasks[].references`
 - Map `research.commands` → `TF.acceptance_criteria.checks` (type: build/lint/static)
+- TF checks MUST always include at minimum: `{type: "build", run: "<build command>"}`. Typecheck and lint are also expected when available.
 
 #### file_scope = hint, not constraint
 

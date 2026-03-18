@@ -985,7 +985,7 @@ async function handleCoverage(args) {
   const specData = loadSpec(resolve(filePath));
   const gaps = [];
 
-  const decisions = specData.decisions || [];
+  const decisions = specData.context?.decisions || specData.decisions || [];
   const requirements = specData.requirements || [];
   const decisionIds = new Set(decisions.map(d => d.id).filter(Boolean));
 
@@ -1173,7 +1173,7 @@ async function handleCheck(args) {
 
   // source.ref referential integrity: requirement.source.ref must match an existing decision ID
   // (skip gracefully when decisions array or source.ref are absent — v4 compat)
-  const decisionIds = new Set((specData.decisions || []).map(d => d.id).filter(Boolean));
+  const decisionIds = new Set((specData.context?.decisions || specData.decisions || []).map(d => d.id).filter(Boolean));
   for (const req of (specData.requirements || [])) {
     const ref = req.source?.ref;
     if (ref !== undefined && ref !== null) {
@@ -1194,9 +1194,12 @@ async function handleCheck(args) {
     }
   }
 
+  // Check file_scope overlap across tasks (warning only)
+  const warnings = [];
+
   // Decision coverage: every decision ID must appear in at least one requirement source.ref
   // (skip gracefully when decisions or requirements are absent — v4 compat)
-  if ((specData.decisions || []).length > 0 && (specData.requirements || []).length > 0) {
+  if ((specData.context?.decisions || specData.decisions || []).length > 0 && (specData.requirements || []).length > 0) {
     const coveredDecisionIds = new Set();
     for (const req of (specData.requirements || [])) {
       const ref = req.source?.ref;
@@ -1204,13 +1207,10 @@ async function handleCheck(args) {
     }
     for (const decId of decisionIds) {
       if (!coveredDecisionIds.has(decId)) {
-        issues.push(`decision '${decId}' is not referenced by any requirement source.ref`);
+        warnings.push(`decision '${decId}' is not referenced by any requirement source.ref`);
       }
     }
   }
-
-  // Check file_scope overlap across tasks (warning only)
-  const warnings = [];
   const fileScopeMap = new Map();
   for (const task of specData.tasks) {
     for (const file of (task.file_scope || [])) {

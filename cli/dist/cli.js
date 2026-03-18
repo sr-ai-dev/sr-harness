@@ -10040,7 +10040,7 @@ async function handleCoverage(args) {
   const useJson = parsed.json === true;
   const specData = loadSpec(resolve(filePath));
   const gaps = [];
-  const decisions = specData.decisions || [];
+  const decisions = specData.context?.decisions || specData.decisions || [];
   const requirements = specData.requirements || [];
   const decisionIds = new Set(decisions.map((d) => d.id).filter(Boolean));
   const runDecisions = !layer || layer === "decisions";
@@ -10187,7 +10187,7 @@ async function handleCheck(args) {
       }
     }
   }
-  const decisionIds = new Set((specData.decisions || []).map((d) => d.id).filter(Boolean));
+  const decisionIds = new Set((specData.context?.decisions || specData.decisions || []).map((d) => d.id).filter(Boolean));
   for (const req of specData.requirements || []) {
     const ref = req.source?.ref;
     if (ref !== void 0 && ref !== null) {
@@ -10204,7 +10204,8 @@ async function handleCheck(args) {
       }
     }
   }
-  if ((specData.decisions || []).length > 0 && (specData.requirements || []).length > 0) {
+  const warnings = [];
+  if ((specData.context?.decisions || specData.decisions || []).length > 0 && (specData.requirements || []).length > 0) {
     const coveredDecisionIds = /* @__PURE__ */ new Set();
     for (const req of specData.requirements || []) {
       const ref = req.source?.ref;
@@ -10212,11 +10213,10 @@ async function handleCheck(args) {
     }
     for (const decId of decisionIds) {
       if (!coveredDecisionIds.has(decId)) {
-        issues.push(`decision '${decId}' is not referenced by any requirement source.ref`);
+        warnings.push(`decision '${decId}' is not referenced by any requirement source.ref`);
       }
     }
   }
-  const warnings = [];
   const fileScopeMap = /* @__PURE__ */ new Map();
   for (const task of specData.tasks) {
     for (const file of task.file_scope || []) {

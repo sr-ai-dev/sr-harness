@@ -272,7 +272,7 @@ const HANDLE_CURSORS: Record<ResizeHandle, string> = {
 
 type TransformMode =
   | { kind: 'none' }
-  | { kind: 'move'; elementId: string; startCX: number; startCY: number; origX: number; origY: number }
+  | { kind: 'move'; elementId: string; startCX: number; startCY: number; origX: number; origY: number; multiIds?: string[]; multiOrigPositions?: { id: string; x: number; y: number }[] }
   | { kind: 'resize'; elementId: string; handle: ResizeHandle; startCX: number; startCY: number; origX: number; origY: number; origW: number; origH: number }
   | { kind: 'rotate'; elementId: string; ctrSX: number; ctrSY: number }
   | { kind: 'marquee'; sx0: number; sy0: number }
@@ -347,6 +347,7 @@ export function Canvas() {
   const selection = useEditorStore((s) => s.selection)
   const selectElement = useEditorStore((s) => s.selectElement)
   const selectElements = useEditorStore((s) => s.selectElements)
+  const toggleSelectElement = useEditorStore((s) => s.toggleSelectElement)
   const clearSelection = useEditorStore((s) => s.clearSelection)
   const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint)
   const breakpointWidths = useEditorStore((s) => s.breakpointWidths)
@@ -374,23 +375,6 @@ export function Canvas() {
 
   // Marquee visual rect in screen space
   const [marquee, setMarquee] = React.useState<{ x: number; y: number; w: number; h: number } | null>(null)
-
-  // Undo / Redo keyboard shortcuts
-  useEffect(() => {
-    const { undo, redo } = useEditorStore.temporal.getState()
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey
-      if (mod && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault()
-        undo()
-      } else if (mod && e.key === 'z' && e.shiftKey) {
-        e.preventDefault()
-        redo()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
 
   // Track spacebar for pan mode
   useEffect(() => {
@@ -429,9 +413,23 @@ export function Canvas() {
       e.preventDefault()
       const s = clientToScreen(e.clientX, e.clientY)
       const c = screenToCanvas(s.x, s.y, camera)
-      const el = useEditorStore.getState().elements[elementId]
+      const state = useEditorStore.getState()
+      const el = state.elements[elementId]
       if (!el) return
-      transformMode.current = { kind: 'move', elementId, startCX: c.x, startCY: c.y, origX: el.x, origY: el.y }
+      // If multiple elements are selected and the dragged element is among them,
+      // record original positions of all selected elements for multi-drag
+      const selectedIds = state.selection.selectedIds
+      if (selectedIds.length > 1 && selectedIds.includes(elementId)) {
+        const multiOrigPositions = selectedIds
+          .map((id) => {
+            const sel = state.elements[id]
+            return sel ? { id, x: sel.x, y: sel.y } : null
+          })
+          .filter((p): p is { id: string; x: number; y: number } => p !== null)
+        transformMode.current = { kind: 'move', elementId, startCX: c.x, startCY: c.y, origX: el.x, origY: el.y, multiIds: selectedIds, multiOrigPositions }
+      } else {
+        transformMode.current = { kind: 'move', elementId, startCX: c.x, startCY: c.y, origX: el.x, origY: el.y }
+      }
       ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
     },
     [activeTool, camera, clientToScreen],
@@ -474,7 +472,16 @@ export function Canvas() {
       if (mode.kind === 'move') {
         const s = clientToScreen(e.clientX, e.clientY)
         const c = screenToCanvas(s.x, s.y, camera)
-        updateElement(mode.elementId, { x: mode.origX + (c.x - mode.startCX), y: mode.origY + (c.y - mode.startCY) })
+        const dx = c.x - mode.startCX
+        const dy = c.y - mode.startCY
+        if (mode.multiOrigPositions && mode.multiIds) {
+          // Multi-drag: move all selected elements maintaining relative positions
+          for (const orig of mode.multiOrigPositions) {
+            updateElement(orig.id, { x: orig.x + dx, y: orig.y + dy })
+          }
+        } else {
+          updateElement(mode.elementId, { x: mode.origX + dx, y: mode.origY + dy })
+        }
         return
       }
 
@@ -856,7 +863,11 @@ export function Canvas() {
                 onClick={(ev) => {
                   if (activeTool === 'select') {
                     ev.stopPropagation()
-                    selectElement(el.id)
+                    if (ev.shiftKey) {
+                      toggleSelectElement(el.id)
+                    } else {
+                      selectElement(el.id)
+                    }
                   }
                 }}
               >

@@ -47,6 +47,9 @@ export interface EditorState {
   // Modal state (blocks canvas interactions when a dialog is active)
   isModalOpen: boolean
 
+  // Clipboard (internal, not system clipboard)
+  clipboard: EditorElement[]
+
   // Breakpoints
   activeBreakpoint: BreakpointId
   breakpointWidths: Record<BreakpointId, number>
@@ -64,6 +67,9 @@ export interface EditorActions {
   updateElement: (id: string, patch: Partial<EditorElement>) => void
   deleteElement: (id: string) => void
   deleteElements: (ids: string[]) => void
+
+  // Multi-element move (preserves relative positions)
+  moveElements: (ids: string[], dx: number, dy: number) => void
 
   // Camera
   setCamera: (camera: Partial<Camera>) => void
@@ -94,6 +100,20 @@ export interface EditorActions {
   // Animations
   setElementAnimations: (id: string, animations: ElementAnimation[]) => void
 
+  // Clipboard operations
+  copyElements: (ids: string[]) => void
+  pasteElements: () => void
+  duplicateElements: (ids: string[]) => void
+  cutElements: (ids: string[]) => void
+
+  // Layer ordering
+  bringForward: (id: string) => void
+  sendBackward: (id: string) => void
+
+  // Group / ungroup
+  groupElements: (ids: string[]) => void
+  ungroupElement: (id: string) => void
+
   // Breakpoints
   setActiveBreakpoint: (id: BreakpointId) => void
   setBreakpointWidth: (id: BreakpointId, width: string | number) => void
@@ -115,6 +135,7 @@ const initialState: EditorState = {
   activeTool: 'select',
   isPreviewMode: false,
   isModalOpen: false,
+  clipboard: [],
   activeBreakpoint: 'desktop',
   breakpointWidths: {
     desktop: DEFAULT_BREAKPOINTS.desktop.width,
@@ -189,6 +210,18 @@ export const useEditorStore = create<EditorStore>()(
             ids.includes(state.selection.hoveredId)
           ) {
             state.selection.hoveredId = null
+          }
+        })
+      },
+
+      moveElements: (ids, dx, dy) => {
+        set((state: WritableDraft<EditorStore>) => {
+          for (const id of ids) {
+            const el = state.elements[id]
+            if (el) {
+              el.x += dx
+              el.y += dy
+            }
           }
         })
       },
@@ -324,6 +357,197 @@ export const useEditorStore = create<EditorStore>()(
           if (state.elements[id]) {
             state.elements[id].animations = animations as WritableDraft<ElementAnimation[]>
           }
+        })
+      },
+
+      // ── Clipboard ─────────────────────────────────────────────────────────
+
+      copyElements: (ids) => {
+        set((state: WritableDraft<EditorStore>) => {
+          state.clipboard = ids
+            .map((id) => state.elements[id])
+            .filter((el): el is WritableDraft<EditorElement> => el != null)
+            .map((el) => ({ ...el })) as WritableDraft<EditorElement[]>
+        })
+      },
+
+      cutElements: (ids) => {
+        set((state: WritableDraft<EditorStore>) => {
+          state.clipboard = ids
+            .map((id) => state.elements[id])
+            .filter((el): el is WritableDraft<EditorElement> => el != null)
+            .map((el) => ({ ...el })) as WritableDraft<EditorElement[]>
+          for (const id of ids) {
+            delete state.elements[id]
+          }
+          state.rootIds = state.rootIds.filter((rid) => !ids.includes(rid))
+          state.selection.selectedIds = []
+        })
+      },
+
+      pasteElements: () => {
+        set((state: WritableDraft<EditorStore>) => {
+          if (state.clipboard.length === 0) return
+          const newIds: string[] = []
+          for (const el of state.clipboard) {
+            const newId = `${el.id}-paste-${Date.now()}-${Math.random().toString(36).slice(2)}`
+            const newEl = {
+              ...el,
+              id: newId,
+              x: (el.x as number) + 20,
+              y: (el.y as number) + 20,
+              name: `${el.name} Copy`,
+              parentId: null,
+            } as WritableDraft<EditorElement>
+            state.elements[newId] = newEl
+            state.rootIds.push(newId)
+            newIds.push(newId)
+          }
+          state.selection.selectedIds = newIds
+        })
+      },
+
+      duplicateElements: (ids) => {
+        set((state: WritableDraft<EditorStore>) => {
+          const newIds: string[] = []
+          for (const id of ids) {
+            const el = state.elements[id]
+            if (!el) continue
+            const newId = `${id}-dup-${Date.now()}-${Math.random().toString(36).slice(2)}`
+            const newEl = {
+              ...el,
+              id: newId,
+              x: (el.x as number) + 20,
+              y: (el.y as number) + 20,
+              name: `${el.name} Copy`,
+              parentId: null,
+            } as WritableDraft<EditorElement>
+            state.elements[newId] = newEl
+            state.rootIds.push(newId)
+            newIds.push(newId)
+          }
+          state.selection.selectedIds = newIds
+        })
+      },
+
+      // ── Layer ordering ────────────────────────────────────────────────────
+
+      bringForward: (id) => {
+        set((state: WritableDraft<EditorStore>) => {
+          const idx = state.rootIds.indexOf(id)
+          if (idx === -1 || idx === state.rootIds.length - 1) return
+          state.rootIds.splice(idx, 1)
+          state.rootIds.splice(idx + 1, 0, id)
+        })
+      },
+
+      sendBackward: (id) => {
+        set((state: WritableDraft<EditorStore>) => {
+          const idx = state.rootIds.indexOf(id)
+          if (idx <= 0) return
+          state.rootIds.splice(idx, 1)
+          state.rootIds.splice(idx - 1, 0, id)
+        })
+      },
+
+      // ── Group / Ungroup ───────────────────────────────────────────────────
+
+      groupElements: (ids) => {
+        set((state: WritableDraft<EditorStore>) => {
+          if (ids.length === 0) return
+          const elements = ids.map((id) => state.elements[id]).filter(Boolean)
+          if (elements.length === 0) return
+
+          const xs = elements.map((el) => el.x as number)
+          const ys = elements.map((el) => el.y as number)
+          const rights = elements.map((el) => (el.x as number) + (el.width as number))
+          const bottoms = elements.map((el) => (el.y as number) + (el.height as number))
+          const gx = Math.min(...xs)
+          const gy = Math.min(...ys)
+          const gw = Math.max(...rights) - gx
+          const gh = Math.max(...bottoms) - gy
+
+          const groupId = `group-${Date.now()}-${Math.random().toString(36).slice(2)}`
+          const groupEl = {
+            id: groupId,
+            kind: 'frame' as const,
+            x: gx,
+            y: gy,
+            width: gw,
+            height: gh,
+            rotation: 0,
+            opacity: 1,
+            visible: true,
+            locked: false,
+            name: 'Group',
+            parentId: null,
+            childIds: [...ids],
+            fill: 'transparent',
+            borderRadius: 0,
+            clipContent: false,
+            layoutMode: 'absolute' as const,
+            stackDirection: 'column' as const,
+            stackGap: 0,
+            stackWrap: false,
+            stackAlign: 'flex-start' as const,
+            stackJustify: 'flex-start' as const,
+            gridColumns: 2,
+            gridGap: 0,
+          }
+          state.elements[groupId] = groupEl as WritableDraft<EditorElement>
+          // Re-parent children
+          for (const id of ids) {
+            if (state.elements[id]) {
+              state.elements[id].parentId = groupId
+              state.elements[id].x = (state.elements[id].x as number) - gx
+              state.elements[id].y = (state.elements[id].y as number) - gy
+            }
+          }
+          state.rootIds = state.rootIds.filter((rid) => !ids.includes(rid))
+          state.rootIds.push(groupId)
+          state.selection.selectedIds = [groupId]
+        })
+      },
+
+      ungroupElement: (id) => {
+        set((state: WritableDraft<EditorStore>) => {
+          const el = state.elements[id]
+          if (!el || el.kind !== 'frame' || !el.childIds?.length) return
+          const { x: gx, y: gy, parentId: frameParentId } = el
+          const childIds = [...el.childIds]
+
+          // Re-parent children: convert from frame-local coords to parent's coord space
+          for (const cid of childIds) {
+            const child = state.elements[cid]
+            if (child) {
+              child.x = (child.x as number) + (gx as number)
+              child.y = (child.y as number) + (gy as number)
+              child.parentId = frameParentId
+            }
+          }
+
+          if (frameParentId === null) {
+            // Frame is a root element — promote children to root
+            const groupIdx = state.rootIds.indexOf(id)
+            state.rootIds = state.rootIds.filter((rid) => rid !== id)
+            state.rootIds.splice(groupIdx, 0, ...childIds)
+          } else {
+            // Frame is nested — promote children into the parent frame's childIds
+            const parent = state.elements[frameParentId]
+            if (parent && parent.kind === 'frame') {
+              const parentChildIds = parent.childIds as string[]
+              const groupIdx = parentChildIds.indexOf(id)
+              // Replace the group frame with its children in parent's childIds
+              if (groupIdx !== -1) {
+                parentChildIds.splice(groupIdx, 1, ...childIds)
+              } else {
+                parentChildIds.push(...childIds)
+              }
+            }
+          }
+
+          delete state.elements[id]
+          state.selection.selectedIds = childIds
         })
       },
 

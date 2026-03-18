@@ -1,28 +1,55 @@
 # hoyeon
 
+Without structure, your agent:
+- Guesses what to build — builds the wrong thing
+- Skips verification — ships broken code
+- Forgets what it decided 3 turns ago — starts over
+
 **All you need is requirements. Agents handle everything else.**
 
-You describe what you want. Hoyeon derives requirements, generates acceptance criteria, plans tasks, implements them with parallel agents, and verifies every step — all from a single `spec.json`.
+Hoyeon is a Claude Code plugin that derives requirements from your intent, generates verification scenarios, plans tasks, and executes them with parallel agents — all through a single `spec.json` contract.
 
 [![npm](https://img.shields.io/npm/v/@team-attention/hoyeon-cli)](https://www.npmjs.com/package/@team-attention/hoyeon-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
 
-## The Idea
+## Principles
 
-Most AI coding tools either ask you to write a detailed plan upfront, or just wing it and hope for the best. Both break down on real work.
+> Four ideas that shape every decision in the system.
 
-Hoyeon takes a different approach: **derive everything from requirements**.
+**Spec-driven** — Every action traces back to a spec. No spec, no work. No matter how long or complex the workflow gets, `spec.json` keeps it consistent and traceable.
+
+**Self-improving** — No spec is perfect on day one. Gaps emerge mid-execution — that's expected. The spec gets better *because* it ran, not *before* it ran. Blockers are detected, fix tasks are derived at runtime, append-only, fully tracked.
+
+**Verification-first** — Every step is verified before moving on. AC Quality Gate, independent verifiers, multi-model code review — all pushing toward minimizing human review by letting agents catch what agents can catch.
+
+**Dynamic composition** — No fixed pipeline. Skills and agents assemble on-the-fly based on what you asked. A bug fix routes differently than a feature request. The same worker agent serves different specs in different combinations.
+
+---
+
+## See It In Action
 
 ```
-You say:    "add dark mode toggle to settings page"
+You:  /specify "add dark mode toggle to settings page"
 
-Hoyeon:     Goal → Context → Decisions → Requirements → Tasks → Verified Code
-            ─────────────── /specify ───────────────   ─── /execute ───
+  Hoyeon interviews you:
+  ├─ "Should it follow system preference or be manual?"
+  ├─ "Which components need dark variants?"
+  └─ "Any accessibility requirements?"
+
+  → spec.json generated (requirements, scenarios, verify commands, tasks)
+
+You:  /execute
+
+  Hoyeon orchestrates:
+  ├─ Worker agents implement each task in parallel
+  ├─ Quality gates auto-validate before each commit
+  ├─ Multi-model code review (Codex + Gemini + Claude)
+  └─ Final Verify checks goal + constraints + AC holistically
+
+  → Done. Every file change traced back to a requirement.
 ```
-
-You provide the goal. The system interviews you to fill gaps, derives requirements with acceptance criteria and verification scenarios, generates a task plan, then executes it — with agents running in parallel, quality gates at every step, and full traceability from requirement to committed code.
 
 ## How It Works
 
@@ -87,14 +114,13 @@ Workers self-read their task spec, run verification commands, and report results
 }
 ```
 
-Requirements have scenarios. Scenarios have verification commands. Tasks have acceptance criteria that reference scenarios. Final Verify checks everything holistically. The chain is: **requirement → scenario → verify command → pass/fail**.
+The chain: **requirement → scenario → verify command → pass/fail**. Full traceability from intent to committed code.
 
 ## Quick Start
 
 ```bash
 # Install the plugin
-claude plugin marketplace add team-attention/hoyeon
-claude plugin install hoyeon
+claude plugin add team-attention/hoyeon
 npm install -g @team-attention/hoyeon-cli
 
 # Start
@@ -106,11 +132,11 @@ npm install -g @team-attention/hoyeon-cli
 
 | Category | What you're doing | Skills |
 |----------|------------------|--------|
-| **Plan** | Derive requirements, generate specs | `/specify` `/quick-plan` `/discuss` `/deep-interview` `/mirror` |
-| **Research** | Analyze codebase, find references | `/deep-research` `/dev-scan` `/reference-seek` `/google-search` `/browser-work` |
+| **Understand** | Gather requirements, generate specs | `/specify` `/quick-plan` `/discuss` `/deep-interview` `/mirror` |
+| **Research** | Analyze codebase, find references, scan communities | `/deep-research` `/dev-scan` `/reference-seek` `/google-search` `/browser-work` |
 | **Decide** | Evaluate tradeoffs, multi-perspective review | `/council` `/tribunal` `/tech-decision` `/stepback` |
 | **Build** | Execute specs, fix bugs, iterate | `/execute` `/ralph` `/rulph` `/bugfix` |
-| **Verify** | Check changes, extract learnings | `/check` `/compound` `/scope` `/issue` |
+| **Reflect** | Verify changes, extract learnings | `/check` `/compound` `/scope` `/issue` |
 
 24 skills. 20 specialized agents. You interact with skills — agents work behind the scenes.
 

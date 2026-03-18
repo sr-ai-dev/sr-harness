@@ -132,6 +132,8 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
   - Remove reconciliation (triage/retry/adapt) — ~285 lines removed
 - feat(README): rewrite around "All you need is requirements" messaging
 - chore: remove dead phase2-stepback agent, old specify templates
+- chore(hooks): remove skill-awareness-hook from hooks.json, skill-hint-hook from settings.json
+- fix(specify): add sandbox_underuse gap check to L3-reviewer checklist
 
 ## Previous Changes (v1.0.1)
 

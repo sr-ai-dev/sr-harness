@@ -15,7 +15,7 @@
       "CMS/데이터베이스 연동",
       "사용자 인증/계정 관리"
     ],
-    "updated_at": "2026-03-18T15:07:31.220Z"
+    "updated_at": "2026-03-18T15:13:49.003Z"
   },
   "tasks": [
     {
@@ -996,6 +996,23 @@
         "T11"
       ],
       "summary": "Fixed import sanitization: type whitelist + prototype key stripping"
+    },
+    {
+      "id": "TF.final_verify-1",
+      "action": "FV fix: resolve 2 TypeScript build errors in editorStore.ts and persistence.test.tsx",
+      "type": "work",
+      "status": "done",
+      "origin": "derived",
+      "derived_from": {
+        "parent": "TF",
+        "trigger": "final_verify",
+        "source": "final-verify",
+        "reason": "npm run build fails with TS2352 and TS2322 type errors"
+      },
+      "depends_on": [
+        "TF"
+      ],
+      "summary": "Fixed 2 TypeScript build errors"
     }
   ],
   "history": [
@@ -1228,6 +1245,18 @@
       "type": "task_done",
       "task": "T11.code_review-1",
       "summary": "Import sanitization applied"
+    },
+    {
+      "ts": "2026-03-18T15:13:49.003Z",
+      "type": "tasks_changed",
+      "task": "TF.final_verify-1",
+      "detail": "derived from TF via final_verify"
+    },
+    {
+      "ts": "2026-03-18T16:30:00.000Z",
+      "type": "task_done",
+      "task": "TF.final_verify-1",
+      "summary": "TS build errors fixed"
     }
   ],
   "context": {

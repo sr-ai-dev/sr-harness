@@ -14,6 +14,18 @@ export const BREAKPOINT_WIDTHS: Record<Breakpoint, number> = {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// Custom component (saved group)
+// ───────────────────────────────────────────────────────────────────────────
+export interface CustomComponent {
+  id: string
+  name: string
+  /** Serialized element tree (group frame + descendants) */
+  elements: ElementMap
+  /** The root element id of the group */
+  rootId: string
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // History entry: a snapshot of the element tree
 // ───────────────────────────────────────────────────────────────────────────
 interface HistoryEntry {
@@ -38,6 +50,9 @@ export interface EditorState {
 
   // Responsive breakpoint
   breakpoint: Breakpoint
+
+  // Custom components (saved groups)
+  customComponents: CustomComponent[]
 
   // ── Computed helpers ──────────────────────────────────────────────────
   canUndo: () => boolean
@@ -65,6 +80,16 @@ export interface EditorState {
 
   // ── Breakpoint ────────────────────────────────────────────────────────
   setBreakpoint: (breakpoint: Breakpoint) => void
+
+  // ── Grouping ──────────────────────────────────────────────────────────
+  /** Whether grouping is allowed (2+ elements selected). */
+  canGroup: () => boolean
+  /** Group selected elements (requires 2+). Returns new group id or null. */
+  groupElements: () => string | null
+  /** Ungroup the selected group element (must be a single frame selected). */
+  ungroupElements: () => void
+  /** Save selected group element as a reusable custom component. */
+  saveAsCustomComponent: (name: string) => void
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -93,6 +118,7 @@ export const useEditorStore = create<EditorState>()(
     past: [],
     future: [],
     breakpoint: 'desktop' as Breakpoint,
+    customComponents: [],
 
     // ── Computed ────────────────────────────────────────────────────────
     canUndo: () => get().past.length > 0,
@@ -240,6 +266,184 @@ export const useEditorStore = create<EditorState>()(
     setBreakpoint: (breakpoint) => {
       set((state) => {
         state.breakpoint = breakpoint
+      })
+    },
+
+    // ── Grouping ─────────────────────────────────────────────────────────
+    canGroup: () => {
+      return get().selectedIds.length >= 2
+    },
+
+    groupElements: () => {
+      const { selectedIds, elements } = get()
+      if (selectedIds.length < 2) return null
+
+      // All selected elements must be present and share the same parent
+      const firstEl = elements[selectedIds[0]]
+      if (!firstEl) return null
+      const sharedParentId = firstEl.parentId
+
+      for (const id of selectedIds) {
+        const el = elements[id]
+        if (!el || el.parentId !== sharedParentId) return null
+      }
+
+      const groupId = `frame-${Date.now()}-group`
+
+      // Compute bounding box of selected elements
+      let minX = Infinity
+      let minY = Infinity
+      let maxX = -Infinity
+      let maxY = -Infinity
+      for (const id of selectedIds) {
+        const el = elements[id]
+        if (!el) continue
+        const w = (el as { width?: number }).width ?? 0
+        const h = (el as { height?: number }).height ?? 0
+        minX = Math.min(minX, el.x)
+        minY = Math.min(minY, el.y)
+        maxX = Math.max(maxX, el.x + w)
+        maxY = Math.max(maxY, el.y + h)
+      }
+
+      const maxZIndex = Math.max(...selectedIds.map((id) => elements[id]?.zIndex ?? 0))
+
+      // Build the group element as a plain object matching the frame shape
+      const groupEl = {
+        id: groupId,
+        type: 'frame' as const,
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY,
+        rotation: 0,
+        opacity: 1,
+        visible: true,
+        locked: false,
+        name: 'Group',
+        parentId: sharedParentId,
+        children: [...selectedIds],
+        zIndex: maxZIndex,
+        backgroundColor: 'transparent',
+        borderRadius: 0,
+        borderWidth: 0,
+        borderColor: '#333',
+        overflow: 'visible' as const,
+        layoutMode: 'none' as const,
+        gap: 0,
+        padding: { top: 0, right: 0, bottom: 0, left: 0 },
+      }
+
+      set((state) => {
+        // Save history
+        state.past.push(snapshot(state.elements, state.rootIds))
+        if (state.past.length > MAX_HISTORY) state.past.shift()
+        state.future = []
+
+        // Re-parent selected elements to the new group, adjust positions
+        for (const id of selectedIds) {
+          const el = state.elements[id]
+          if (!el) continue
+          el.x = el.x - minX
+          el.y = el.y - minY
+          el.parentId = groupId
+        }
+
+        // Remove selected ids from old parent's children / rootIds
+        if (sharedParentId === null) {
+          state.rootIds = state.rootIds.filter((rid) => !selectedIds.includes(rid))
+          state.rootIds.push(groupId)
+        } else {
+          const parent = state.elements[sharedParentId]
+          if (parent) {
+            parent.children = parent.children.filter((cid) => !selectedIds.includes(cid))
+            parent.children.push(groupId)
+          }
+        }
+
+        state.elements[groupId] = groupEl
+        state.selectedIds = [groupId]
+      })
+
+      return groupId
+    },
+
+    ungroupElements: () => {
+      const { selectedIds, elements } = get()
+      if (selectedIds.length !== 1) return
+
+      const groupId = selectedIds[0]
+      const groupEl = elements[groupId]
+      if (!groupEl || groupEl.type !== 'frame') return
+
+      const childIds = [...groupEl.children]
+      const parentId = groupEl.parentId
+
+      set((state) => {
+        // Save history
+        state.past.push(snapshot(state.elements, state.rootIds))
+        if (state.past.length > MAX_HISTORY) state.past.shift()
+        state.future = []
+
+        const grp = state.elements[groupId]
+        if (!grp) return
+
+        // Re-parent children back to group's parent, adjusting position
+        for (const childId of childIds) {
+          const child = state.elements[childId]
+          if (!child) continue
+          child.x = child.x + grp.x
+          child.y = child.y + grp.y
+          child.parentId = parentId
+        }
+
+        // Add children to parent's children list (or rootIds)
+        if (parentId === null) {
+          state.rootIds = state.rootIds.filter((rid) => rid !== groupId)
+          state.rootIds.push(...childIds)
+        } else {
+          const parent = state.elements[parentId]
+          if (parent) {
+            parent.children = parent.children.filter((cid) => cid !== groupId)
+            parent.children.push(...childIds)
+          }
+        }
+
+        delete state.elements[groupId]
+        state.selectedIds = childIds
+      })
+    },
+
+    saveAsCustomComponent: (name: string) => {
+      const { selectedIds, elements } = get()
+      if (selectedIds.length !== 1) return
+
+      const groupId = selectedIds[0]
+      const groupEl = elements[groupId]
+      if (!groupEl) return
+
+      // Collect the group and all its descendants
+      const collectSubtree = (id: string): string[] => {
+        const el = elements[id]
+        if (!el) return []
+        return [id, ...el.children.flatMap(collectSubtree)]
+      }
+
+      const subtreeIds = collectSubtree(groupId)
+      const subtreeElements: ElementMap = {}
+      for (const id of subtreeIds) {
+        subtreeElements[id] = JSON.parse(JSON.stringify(elements[id])) as Element
+      }
+
+      const customComponent: CustomComponent = {
+        id: `custom-${Date.now()}`,
+        name,
+        elements: subtreeElements,
+        rootId: groupId,
+      }
+
+      set((state) => {
+        state.customComponents.push(customComponent)
       })
     },
 

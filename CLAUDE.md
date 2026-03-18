@@ -200,6 +200,31 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - refactor: replace `node cli/dist/cli.js` with `hoyeon-cli` globally
 - chore: sync cli version to 0.8.0 and update release flow
 
+## CLI spec guide Reference
+
+When constructing `spec merge` JSON, **always run `hoyeon-cli spec guide <section>` first** to verify field names, types, and structure. This prevents merge validation failures.
+
+Available guide sections:
+
+| Command | Shows |
+|---------|-------|
+| `hoyeon-cli spec guide meta` | meta fields (goal, non_goals, mode) |
+| `hoyeon-cli spec guide context` | context fields (request, research, assumptions, decisions, confirmed_goal, known_gaps) |
+| `hoyeon-cli spec guide constraints` | constraints field structure (id, type, rule, verified_by, verify) |
+| `hoyeon-cli spec guide requirements` | requirements fields (id, behavior, priority, source, scenarios) |
+| `hoyeon-cli spec guide scenario` | scenario fields (id, given, when, then, verified_by, execution_env, verify) |
+| `hoyeon-cli spec guide verify` | verify object structure (`{type, run}` — NOT a string) |
+| `hoyeon-cli spec guide tasks` | task fields (id, action, type, status, risk, file_scope, etc.) |
+| `hoyeon-cli spec guide acceptance-criteria` | AC fields (scenarios refs + checks) |
+| `hoyeon-cli spec guide external` | external_dependencies (pre_work, post_work) |
+| `hoyeon-cli spec guide merge` | merge modes (replace vs `--append` vs `--patch`) |
+
+**Key conventions:**
+- **File-based JSON passing** — write JSON to `/tmp/spec-merge.json` via heredoc (`<< 'EOF'`), pass via `--json "$(cat /tmp/spec-merge.json)"`. Never pass JSON directly as CLI argument (zsh glob expansion corrupts `[`, `{`, `$`)
+- **One merge per section** — call `spec merge` once per top-level key. Never merge multiple sections in parallel
+- **`--append` for arrays** — use when adding to existing arrays (decisions, assumptions, known_gaps)
+- **`--patch` for nested updates** — use when updating specific items within arrays (e.g., adding scenarios to existing requirements)
+
 ## Testing Strategy
 
 See [VERIFICATION.md](VERIFICATION.md) for the 4-Tier Testing Model (Unit → Integration → E2E → Agent Sandbox). Verification agents use this as their framework.

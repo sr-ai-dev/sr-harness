@@ -15,7 +15,7 @@
       "CMS/데이터베이스 연동",
       "사용자 인증/계정 관리"
     ],
-    "updated_at": "2026-03-18T14:25:48.808Z"
+    "updated_at": "2026-03-18T15:07:31.220Z"
   },
   "tasks": [
     {
@@ -962,6 +962,40 @@
         ]
       },
       "summary": "Implemented style presets (color palette, font presets, spacing presets)"
+    },
+    {
+      "id": "T5.code_review-1",
+      "action": "Fix undo history pollution: add updateElementPreview for drag/resize",
+      "type": "work",
+      "status": "done",
+      "origin": "derived",
+      "derived_from": {
+        "parent": "T5",
+        "trigger": "code_review",
+        "source": "code-reviewer",
+        "reason": "Every pointermove creates full undo snapshot, making undo unusable"
+      },
+      "depends_on": [
+        "T5"
+      ],
+      "summary": "Fixed undo history pollution: updateElementPreview for drag/resize"
+    },
+    {
+      "id": "T11.code_review-1",
+      "action": "Fix importFromJSON: validate element types and strip prototype-polluting keys",
+      "type": "work",
+      "status": "done",
+      "origin": "derived",
+      "derived_from": {
+        "parent": "T11",
+        "trigger": "code_review",
+        "source": "code-reviewer",
+        "reason": "Unsanitized JSON import allows prototype pollution and potential XSS"
+      },
+      "depends_on": [
+        "T11"
+      ],
+      "summary": "Fixed import sanitization: type whitelist + prototype key stripping"
     }
   ],
   "history": [
@@ -1170,6 +1204,30 @@
       "type": "task_done",
       "task": "TF",
       "summary": "Full verification passed"
+    },
+    {
+      "ts": "2026-03-18T15:07:26.297Z",
+      "type": "tasks_changed",
+      "task": "T5.code_review-1",
+      "detail": "derived from T5 via code_review"
+    },
+    {
+      "ts": "2026-03-18T15:07:31.220Z",
+      "type": "tasks_changed",
+      "task": "T11.code_review-1",
+      "detail": "derived from T11 via code_review"
+    },
+    {
+      "ts": "2026-03-18T16:20:00.000Z",
+      "type": "task_done",
+      "task": "T5.code_review-1",
+      "summary": "Undo fix applied"
+    },
+    {
+      "ts": "2026-03-18T16:20:01.000Z",
+      "type": "task_done",
+      "task": "T11.code_review-1",
+      "summary": "Import sanitization applied"
     }
   ],
   "context": {

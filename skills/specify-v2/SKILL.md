@@ -235,32 +235,15 @@ Before asking any questions, mirror the user's goal back to confirm alignment:
 
 #### Merge after Mirror confirmation
 
+1. Run `hoyeon-cli spec guide context` to check field names
+2. Merge `context.confirmed_goal` (the user-confirmed goal statement)
+3. Merge `meta.non_goals` (use empty array `[]` if none)
+
 ```bash
-cat > /tmp/spec-merge.json << 'EOF'
-{
-  "context": {
-    "confirmed_goal": "[confirmed goal statement from mirror — what user agreed to]"
-  }
-}
-EOF
 hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
 ```
 
 > C4: confirmed_goal stays in `context.confirmed_goal`, NOT in `meta`.
-
-If non-goals are apparent from the user's request, merge them:
-
-```bash
-cat > /tmp/spec-merge.json << 'EOF'
-{
-  "meta": {
-    "non_goals": ["...", "..."]
-  }
-}
-EOF
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
-```
-
 > `meta.non_goals` must be present (use empty array `[]` if no non-goals).
 > Non-goals are strategic scope exclusions — "What this project is NOT trying to achieve." They are NOT verifiable rules (those go in `constraints`).
 
@@ -304,33 +287,9 @@ Task(subagent_type="ux-reviewer",
 
 ### Merge research
 
-```bash
-cat > /tmp/spec-merge.json << 'EOF'
-{
-  "context": {
-    "request": "[user original request]",
-    "research": {
-      "summary": "[high-level summary]",
-      "patterns": [
-        {"path": "src/...", "start_line": 10, "end_line": 25, "description": "..."}
-      ],
-      "structure": ["src/middleware/", "src/config/"],
-      "commands": {"test": "npm test", "lint": "npm run lint"},
-      "documentation": [
-        {"path": "docs/arch.md", "line": 15, "description": "..."}
-      ],
-      "ux_review": {
-        "current_flow": "...",
-        "impact": "...",
-        "recommendations": ["..."],
-        "must_not_do": ["..."]
-      }
-    }
-  }
-}
-EOF
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
-```
+1. Run `hoyeon-cli spec guide context` to check `research` field structure
+2. Construct JSON with: `context.request`, `context.research` (summary, patterns, structure, commands, documentation, ux_review)
+3. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)"`
 
 > Quick mode: omit `documentation` and `ux_review` from research.
 
@@ -361,18 +320,9 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.
 
 Apply Autopilot Decision Rules, then:
 
-```bash
-cat > /tmp/spec-merge.json << 'EOF'
-{
-  "context": {
-    "assumptions": [
-      {"id": "A1", "belief": "...", "if_wrong": "...", "impact": "minor"}
-    ]
-  }
-}
-EOF
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
-```
+1. Run `hoyeon-cli spec guide context` to check `assumptions` field structure
+2. Construct JSON with `context.assumptions[]` (id, belief, if_wrong, impact)
+3. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json "$(cat /tmp/spec-merge.json)"`
 
 #### Interactive → Interview + Decisions
 
@@ -400,19 +350,9 @@ AskUserQuestion(
 
 After each round, immediately merge decisions:
 
-```bash
-cat > /tmp/spec-merge.json << 'EOF'
-{
-  "context": {
-    "decisions": [
-      {"id": "D1", "decision": "...", "rationale": "...",
-       "alternatives_rejected": [{"option": "...", "reason": "..."}]}
-    ]
-  }
-}
-EOF
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
-```
+1. Run `hoyeon-cli spec guide context` to check `decisions` field structure
+2. Construct JSON with `context.decisions[]` (id, decision, rationale, alternatives_rejected)
+3. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json "$(cat /tmp/spec-merge.json)"`
 
 ##### Step 2: Mini-Mirror Progress Check (iterative loop)
 
@@ -568,8 +508,24 @@ Each scenario MUST include:
 Use the 4-Tier testing model above:
 - Tier 1-3 items → verified_by: 'machine', execution_env: 'host'
 - Tier 4 items → verified_by: 'machine', execution_env: 'sandbox'
-- Subjective/UX items → verified_by: 'human'
 - AI-checkable items → verified_by: 'agent'
+- Subjective/UX items → verified_by: 'human' (LAST RESORT — see conversion rules below)
+
+## Human Minimization (MANDATORY)
+
+Before marking ANY scenario as verified_by: 'human', you MUST attempt conversion in this order:
+1. Can an agent verify via screenshot comparison? → verified_by: 'agent', execution_env: 'sandbox' (browser)
+2. Can an agent verify via DOM/accessibility assertion? → verified_by: 'agent', execution_env: 'host'
+3. Can a machine verify via output pattern matching? → verified_by: 'machine', execution_env: 'host'
+4. Can a machine verify via docker-based integration test? → verified_by: 'machine', execution_env: 'sandbox'
+5. ONLY if none of the above → verified_by: 'human' with a 'conversion_rejected' field explaining WHY agent/machine cannot replace it
+
+Example sandbox conversions:
+- 'UI looks correct' → agent + sandbox (browser-explorer screenshot diff)
+- 'API returns expected response' → machine + sandbox (docker-compose mock server + curl)
+- 'User flow feels intuitive' → human (subjective judgment, no mechanical proxy)
+
+Target: human scenarios should be < 30% of total scenarios.
 ")
 ```
 
@@ -639,6 +595,12 @@ FOR round IN 1..3:
   - Tier 4 items have execution_env: 'sandbox'
   - UI changes have screenshot-based sandbox scenarios
 
+  **Human minimization:**
+  - Every verified_by: 'human' scenario MUST have a 'conversion_rejected' justification
+  - If human_ratio > 30% of total scenarios → flag as gap (category: 'human_overuse')
+  - Challenge each human scenario: could browser-explorer (screenshot diff), DOM assertion, or docker-based test replace it?
+  - Suggest specific H→A/M conversions with concrete verify objects
+
   ## Output
 
   Return one of:
@@ -680,58 +642,68 @@ IF review.suggested_additions is non-empty:
   # Only merge user-approved suggestions as new requirements
 ```
 
+#### Sandbox Capability Check (conditional, before merge)
+
+```
+# Collect all sandbox scenarios from the final draft
+sandbox_scenarios = [s for r in draft.requirements for s in r.scenarios if s.execution_env == "sandbox"]
+
+IF sandbox_scenarios is non-empty:
+  # Check if capability already recorded in spec.json context
+  existing_capability = spec.context.sandbox_capability  # from previous specify session or L2
+
+  IF existing_capability is NOT set:
+    # First time — ask user (once per project, stored in spec.json context)
+    AskUserQuestion(
+      question: "The following scenarios require sandbox environments:\n" +
+        {FOR EACH s in sandbox_scenarios: "- {s.id}: {s.given} → {s.execution_env}\n"} +
+        "\nWhich sandbox environments are available?",
+      header: "Sandbox Capability Check",
+      options: [
+        { label: "Docker (local)", description: "Container-based testing (docker-compose, etc.)" },
+        { label: "Browser sandbox (chromux)", description: "Browser automation for UI verification" },
+        { label: "Both Docker + Browser", description: "Full sandbox capability" },
+        { label: "No sandbox available", description: "Convert all sandbox scenarios to agent+host alternatives" }
+      ]
+    )
+
+    # Map user response to capability object
+    capability = {
+      "docker": user_selected "Docker" or "Both",
+      "browser": user_selected "Browser" or "Both",
+      "confirmed_at": "{today}"
+    }
+
+    # Store in spec.json context (persists for future specify runs)
+    hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{"context": {"sandbox_capability": {capability}}}'
+
+  ELSE:
+    capability = existing_capability
+
+  # Apply capability filter: convert unsupported sandbox scenarios to agent+host
+  FOR EACH s in sandbox_scenarios:
+    IF s uses docker AND NOT capability.docker:
+      s.execution_env = "host"
+      s.verified_by = "agent"  # fallback: agent assertion on host
+      s.verify = {type: "assertion", checks: [adapted from original verify]}
+      s.conversion_note = "sandbox→host: docker unavailable, converted to agent assertion"
+    IF s uses browser AND NOT capability.browser:
+      s.execution_env = "host"
+      s.verified_by = "agent"
+      s.verify = {type: "assertion", checks: [adapted from original verify]}
+      s.conversion_note = "sandbox→host: browser sandbox unavailable, converted to agent assertion"
+```
+
 ### Merge requirements (atomic, with scenarios)
 
 > **Merge flag**: Use NO flag (default deep-merge) on the first-time write — this replaces the placeholder `requirements[]`.
 > On backtrack re-run, still use NO flag — overwrites the entire `requirements[]` array.
 > Do NOT use `--append` (would duplicate) or `--patch` (not appropriate for full replacement).
 
-```bash
-cat > /tmp/spec-merge.json << 'EOF'
-{
-  "requirements": [
-    {
-      "id": "R1",
-      "behavior": "...",
-      "priority": 1,
-      "source": {"type": "goal"},
-      "scenarios": [
-        {
-          "id": "R1-S1",
-          "category": "HP",
-          "given": "...",
-          "when": "...",
-          "then": "...",
-          "verified_by": "machine",
-          "execution_env": "host",
-          "verify": {"type": "command", "run": "...", "expect": {"exit_code": 0}}
-        },
-        {
-          "id": "R1-S2",
-          "category": "EP",
-          "given": "...",
-          "when": "...",
-          "then": "...",
-          "verified_by": "machine",
-          "execution_env": "host",
-          "verify": {"type": "command", "run": "...", "expect": {"exit_code": 1}}
-        },
-        {
-          "id": "R1-S3",
-          "category": "BC",
-          "given": "...",
-          "when": "...",
-          "then": "...",
-          "verified_by": "agent",
-          "verify": {"type": "assertion", "checks": ["..."]}
-        }
-      ]
-    }
-  ]
-}
-EOF
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
-```
+1. Run `hoyeon-cli spec guide requirements`, `spec guide scenario`, and `spec guide verify` to check field structures
+2. Construct JSON with `requirements[]` — each requirement has: id, behavior, priority, source, scenarios[]
+3. Each scenario has: id, category, given, when, then, verified_by, execution_env, verify (type-specific object)
+4. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)"`
 
 ### L3 Gate
 
@@ -794,45 +766,10 @@ hoyeon-cli spec sandbox-tasks .dev/specs/{name}/spec.json
 > On backtrack re-run (L4 re-runs after rejection), use `--patch` to update existing tasks by ID without duplicating.
 > First-time merge replaces the placeholder task array. On backtrack re-run, use --patch to update by ID.
 
-```bash
-cat > /tmp/spec-merge.json << 'EOF'
-{
-  "tasks": [
-    {
-      "id": "T1", "action": "...", "type": "work", "status": "pending",
-      "risk": "low",
-      "file_scope": ["src/..."],
-      "inputs": [],
-      "outputs": [{"id": "config_path", "path": "src/config/auth.json"}],
-      "steps": ["Step 1", "Step 2"],
-      "references": [{"path": "src/...", "start_line": 10, "end_line": 25}],
-      "must_not_do": ["Do not run git commands"],
-      "acceptance_criteria": {
-        "scenarios": ["R1-S1", "R1-S2"],
-        "checks": [
-          {"type": "static", "run": "node -e \"require('./src/config/auth.json')\""},
-          {"type": "build", "run": "npm test"}
-        ]
-      }
-    },
-    {
-      "id": "TF", "action": "Full verification", "type": "verification", "status": "pending",
-      "depends_on": ["T1"],
-      "inputs": [{"from_task": "T1", "artifact": "all_outputs"}],
-      "must_not_do": ["Do not modify any files", "Do not run git commands"],
-      "acceptance_criteria": {
-        "scenarios": ["R1-S1", "R1-S2", "R2-S1"],
-        "checks": [
-          {"type": "lint", "run": "npm run lint"},
-          {"type": "build", "run": "npm test"}
-        ]
-      }
-    }
-  ]
-}
-EOF
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
-```
+1. Run `hoyeon-cli spec guide tasks` and `spec guide acceptance-criteria` to check field structures
+2. Construct JSON with `tasks[]` — each task has: id, action, type (work/verification), status, risk, file_scope, steps, acceptance_criteria (scenarios[], checks[])
+3. Include TF (full verification) task with `depends_on` referencing all work tasks
+4. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)"`
 
 > Requirements were confirmed in L2 (with source fields) and scenarios were generated in L3 by the L3-drafter/L3-reviewer pingpong. Do NOT merge requirements again here.
 
@@ -1063,16 +1000,8 @@ AskUserQuestion(
 
 **On approval or `/execute`:**
 
-```bash
-cat > /tmp/spec-merge.json << 'EOF'
-{
-  "meta": {
-    "approved_by": "user",
-    "approved_at": "[ISO timestamp]"
-  }
-}
-EOF
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
+1. Run `hoyeon-cli spec guide meta` to check field names
+2. Merge `meta.approved_by` ("user") and `meta.approved_at` (ISO timestamp) via `spec merge` && rm /tmp/spec-merge.json
 ```
 
 Then shut down the Team (gate-keeper and any spawned team members) before proceeding:
@@ -1158,6 +1087,9 @@ No TeamCreate, no SendMessage gates in quick mode. Max 1 plan-reviewer round if 
 - [ ] L3 pingpong ran (L3-drafter + L3-reviewer, max 3 rounds)
 - [ ] VERIFICATION.md pre-read and inlined into L3-drafter SendMessage prompt
 - [ ] Sandbox Scenario Fallback Rules applied
+- [ ] Human minimization applied (every `verified_by: human` has `conversion_rejected` justification)
+- [ ] Human scenario ratio < 30% (or justified exception)
+- [ ] Sandbox Capability Check completed (if sandbox scenarios exist and `context.sandbox_capability` was not set)
 - [ ] plan-reviewer returned OKAY
 - [ ] `spec coverage` passes (full chain + per-layer at each transition)
 

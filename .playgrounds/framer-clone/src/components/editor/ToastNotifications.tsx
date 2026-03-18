@@ -32,9 +32,10 @@ export function ToastNotifications() {
       window.__pushToast(msg)
     }
 
+    const currentTimers = timers.current
     return () => {
       window.__pushToast = () => {}
-      timers.current.forEach((t) => clearTimeout(t))
+      currentTimers.forEach((t) => clearTimeout(t))
     }
   }, [])
 

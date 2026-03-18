@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test'
-import type { EditorStore } from '../src/store/editorStore'
 
 declare global {
   interface Window {

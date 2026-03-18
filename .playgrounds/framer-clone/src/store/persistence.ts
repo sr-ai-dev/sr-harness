@@ -199,7 +199,7 @@ export function createPersistence() {
   restoreFromLocalStorage()
 
   // Subscribe to store changes and schedule debounced saves
-  const unsubscribe = useEditorStore.subscribe((_state, _prevState) => {
+  const unsubscribe = useEditorStore.subscribe(() => {
     scheduleSave()
   })
 

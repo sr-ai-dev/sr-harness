@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import type { EditorElement, TextElement } from '../src/types/editor'
+import type { TextElement } from '../src/types/editor'
 
 // Helper: get store state via window.__editorStore
 async function getStore(page: import('@playwright/test').Page) {

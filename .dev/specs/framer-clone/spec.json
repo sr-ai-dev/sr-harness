@@ -253,7 +253,7 @@
       "type": "work",
       "origin": "planned",
       "risk": "medium",
-      "status": "pending",
+      "status": "done",
       "file_scope": [
         ".playground/framer-clone/src/components/Canvas/SelectionOverlay.tsx",
         ".playground/framer-clone/src/components/Canvas/ResizeHandles.tsx"
@@ -300,7 +300,8 @@
             "run": "cd .playground/framer-clone && npm run build"
           }
         ]
-      }
+      },
+      "summary": "Implemented element selection, resize handles, and drag-to-move on canvas"
     },
     {
       "id": "T6",
@@ -308,7 +309,7 @@
       "type": "work",
       "origin": "planned",
       "risk": "low",
-      "status": "pending",
+      "status": "done",
       "file_scope": [
         ".playground/framer-clone/src/components/LeftPanel/ComponentLibrary.tsx"
       ],
@@ -358,7 +359,8 @@
             "run": "cd .playground/framer-clone && npm run build"
           }
         ]
-      }
+      },
+      "summary": "Implemented component library drag-to-canvas with createDefaultElement factory"
     },
     {
       "id": "T7",
@@ -487,7 +489,7 @@
       "type": "work",
       "origin": "planned",
       "risk": "low",
-      "status": "pending",
+      "status": "done",
       "file_scope": [
         ".playground/framer-clone/src/components/Toolbar/BreakpointSwitcher.tsx",
         ".playground/framer-clone/src/components/Canvas/"
@@ -531,7 +533,8 @@
             "run": "cd .playground/framer-clone && npm run build"
           }
         ]
-      }
+      },
+      "summary": "Implemented responsive preview with breakpoint switching (desktop/tablet/mobile)"
     },
     {
       "id": "T10",
@@ -1093,6 +1096,24 @@
       "type": "task_done",
       "task": "T4",
       "summary": "Canvas pan/zoom complete"
+    },
+    {
+      "ts": "2026-03-18T15:05:00.000Z",
+      "type": "task_done",
+      "task": "T9",
+      "summary": "Responsive preview complete"
+    },
+    {
+      "ts": "2026-03-18T15:10:00.000Z",
+      "type": "task_done",
+      "task": "T5",
+      "summary": "Selection & resize complete"
+    },
+    {
+      "ts": "2026-03-18T15:15:00.000Z",
+      "type": "task_done",
+      "task": "T6",
+      "summary": "Component library drag-to-canvas complete"
     }
   ],
   "context": {

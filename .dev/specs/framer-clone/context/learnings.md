@@ -47,3 +47,28 @@
 - `vi.useFakeTimers()` / `vi.advanceTimersByTimeAsync()` is required to test debounced auto-save without real delays
 - Export uses `document.createElement('a')` + `URL.createObjectURL` pattern; both must be mocked in tests (jsdom lacks Blob URL support)
 - Schema validation checks: `schemaVersion === SCHEMA_VERSION` (exact match), `elements` is a non-null non-array object, `rootIds` is an array
+
+## T5
+- Use `useRef` for drag state in resize/move handlers to avoid stale closure issues (same pattern as T4's pan tracking)
+- `setPointerCapture` on the drag target ensures pointerMove/pointerUp events fire even when cursor leaves the element
+- Resize logic for directional handles: `w`/`n` handles adjust both position (x/y) and dimensions; `e`/`s` handles only adjust dimensions
+- Minimum size clamp uses `Math.min(dx, origSize - MIN_SIZE)` for the delta to prevent x/y from moving past the minimum boundary
+- For multi-select drag, iterate all `selectedIds` and apply `orig[id] + delta` — store each element's original position at pointerDown to avoid cumulative drift
+- Dynamic `require()` inside Vitest tests causes module resolution failure; always use static top-level imports for component rendering tests
+- `useEditorStore.setState({...})` for store reset in beforeEach should NOT include functions (canUndo, canRedo, etc.) — only reset plain data fields
+
+## T6
+- `ComponentLibrary` and `componentTypes.ts` already existed in `src/components/library/` (not `LeftPanel/` as task file_scope stated); tests import from `../components/library/ComponentLibrary`
+- Wrap `e.dataTransfer` calls in null-check (`if (e.dataTransfer)`) — jsdom's `fireEvent.dragStart` without explicit `dataTransfer` option yields a DataTransfer with no `setData` method
+- Canvas drag-drop: `DRAG_DATA_KEY = 'application/x-component-id'` used for library→canvas drops; fall back to `text/plain` for broader compatibility
+- `createDefaultElement.ts` factory returns fully-typed `Element` union with all required fields — do not use partials since store's `addElement` requires complete `Element`
+- Store's `useEditorStore.setState()` in `beforeEach` must include `breakpoint: 'desktop'` when resetting (already noted in T9 learnings — confirmed again here)
+- Drag-drop coordinate calculation: `canvasX = (clientX - rect.left - transform.x) / transform.zoom` handles pan and zoom offset; jsdom has no layout so rect is (0,0) in tests
+
+## T9
+- `Breakpoint` type and `BREAKPOINT_WIDTHS` constant added to `editorStore.ts`; exported from `store/index.ts`
+- `BreakpointSwitcher` is a standalone component using `useEditorStore` directly — no props needed; lives at `src/components/Toolbar/BreakpointSwitcher.tsx`
+- Toolbar renders BreakpointSwitcher between two `flex: 1` spacers to center it in the toolbar
+- Canvas viewport frame uses `overflow: hidden` to clip overflowing elements at the breakpoint boundary (satisfies R5-S3 graceful handling)
+- `data-breakpoint` and `data-viewport-width` attributes on the viewport div enable test assertions without computed style access (jsdom doesn't compute inline styles reliably)
+- Store `setState` in `beforeEach` must include `breakpoint: 'desktop'` to reset the new field between tests

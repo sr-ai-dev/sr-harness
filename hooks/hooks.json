@@ -2,15 +2,6 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/skill-awareness-hook.sh"
-          }
-        ]
-      },
-      {
         "matcher": "compact",
         "hooks": [
           {

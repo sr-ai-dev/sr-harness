@@ -8495,6 +8495,11 @@ var dev_spec_v5_schema_default = {
       additionalProperties: false,
       properties: {
         id: { type: "string" },
+        category: {
+          type: "string",
+          enum: ["HP", "EP", "BC", "NI", "IT"],
+          description: "Scenario coverage category: HP=Happy Path, EP=Edge/Error Path, BC=Boundary Condition, NI=Non-functional/Infrastructure, IT=Integration"
+        },
         given: { type: "string" },
         when: { type: "string" },
         then: { type: "string" },
@@ -9217,6 +9222,7 @@ Usage:
   hoyeon-cli spec status <path>                     Show task completion status (exit 0=done, 1=incomplete)
   hoyeon-cli spec meta <path>                       Show spec meta (name, goal, non_goals, mode, etc.)
   hoyeon-cli spec check <path>                      Check internal consistency
+  hoyeon-cli spec coverage <path> [--layer decisions|requirements|scenarios|tasks] [--json]  Check spec coverage (source.ref, decision coverage, scenario min count, orphan scenarios)
   hoyeon-cli spec amend --reason <feedback-id> --spec <path>  Amend spec.json based on feedback
   hoyeon-cli spec guide [section]                             Show schema guide for a section
   hoyeon-cli spec scenario <scenario-id> --get <path>              Get scenario details as JSON
@@ -10001,6 +10007,142 @@ async function handleMeta(args) {
   process.stdout.write(JSON.stringify(meta, null, 2) + "\n");
   process.exit(0);
 }
+function collectScenarioSets(specData) {
+  const allScenarioIds = /* @__PURE__ */ new Set();
+  for (const req of specData.requirements || []) {
+    for (const sc of req.scenarios || []) {
+      if (sc.id) allScenarioIds.add(sc.id);
+    }
+  }
+  const referencedScenarioIds = /* @__PURE__ */ new Set();
+  for (const task of specData.tasks || []) {
+    for (const scenarioRef of task.acceptance_criteria?.scenarios || []) {
+      if (scenarioRef) referencedScenarioIds.add(scenarioRef);
+    }
+  }
+  return { allScenarioIds, referencedScenarioIds };
+}
+var VALID_COVERAGE_LAYERS = ["decisions", "requirements", "scenarios", "tasks"];
+async function handleCoverage(args) {
+  const parsed = parseArgs(args);
+  const filePath = parsed._[0];
+  if (!filePath) {
+    process.stderr.write("Error: missing <path> argument\n");
+    process.stderr.write("Usage: hoyeon-cli spec coverage <path> [--layer decisions|requirements|scenarios|tasks] [--json]\n");
+    process.exit(1);
+  }
+  const layer = parsed.layer;
+  if (layer !== void 0 && !VALID_COVERAGE_LAYERS.includes(layer)) {
+    process.stderr.write(`Error: invalid --layer '${layer}'. Valid values: ${VALID_COVERAGE_LAYERS.join(", ")}
+`);
+    process.exit(1);
+  }
+  const useJson = parsed.json === true;
+  const specData = loadSpec(resolve(filePath));
+  const gaps = [];
+  const decisions = specData.context?.decisions || specData.decisions || [];
+  const requirements = specData.requirements || [];
+  const decisionIds = new Set(decisions.map((d) => d.id).filter(Boolean));
+  const runDecisions = !layer || layer === "decisions";
+  const runRequirements = !layer || layer === "requirements";
+  const runScenarios = !layer || layer === "scenarios";
+  const runTasks = !layer || layer === "tasks";
+  if (runDecisions && decisionIds.size > 0) {
+    for (const req of requirements) {
+      const ref = req.source?.ref;
+      if (ref === void 0 || ref === null) {
+        gaps.push({
+          layer: "decisions",
+          check: "source.ref-integrity",
+          message: `requirement '${req.id}' has no source.ref (decisions exist \u2014 link required)`
+        });
+      } else if (!decisionIds.has(ref)) {
+        gaps.push({
+          layer: "decisions",
+          check: "source.ref-integrity",
+          message: `requirement '${req.id}' source.ref '${ref}' does not match any decision ID`
+        });
+      }
+    }
+  }
+  if (runDecisions && decisionIds.size > 0 && requirements.length > 0) {
+    const coveredDecisionIds = /* @__PURE__ */ new Set();
+    for (const req of requirements) {
+      const ref = req.source?.ref;
+      if (ref) coveredDecisionIds.add(ref);
+    }
+    for (const decId of decisionIds) {
+      if (!coveredDecisionIds.has(decId)) {
+        gaps.push({
+          layer: "decisions",
+          check: "decision-coverage",
+          message: `decision '${decId}' is not referenced by any requirement source.ref`
+        });
+      }
+    }
+  }
+  if (runRequirements) {
+    for (const req of requirements) {
+      const scenarios = req.scenarios || [];
+      const anyHasCategory = scenarios.some((sc) => sc.category !== void 0);
+      if (anyHasCategory) {
+        const categories = new Set(scenarios.map((sc) => sc.category).filter(Boolean));
+        const missing = [];
+        if (!categories.has("HP")) missing.push("HP");
+        if (!categories.has("EP")) missing.push("EP");
+        if (!categories.has("BC")) missing.push("BC");
+        if (missing.length > 0) {
+          gaps.push({
+            layer: "requirements",
+            check: "scenario-min-count",
+            message: `requirement '${req.id}' is missing scenario categories: ${missing.join(", ")}`
+          });
+        }
+      } else {
+        if (scenarios.length < 3) {
+          gaps.push({
+            layer: "requirements",
+            check: "scenario-min-count",
+            message: `requirement '${req.id}' has ${scenarios.length} scenario(s) but needs at least 3 (count-only mode \u2014 no category field present)`
+          });
+        }
+      }
+    }
+  }
+  if (runScenarios && runTasks) {
+    const { allScenarioIds, referencedScenarioIds } = collectScenarioSets(specData);
+    const tasksWithAC = (specData.tasks || []).filter((t) => t.acceptance_criteria?.scenarios);
+    if (allScenarioIds.size > 0 && tasksWithAC.length > 0) {
+      for (const scenarioId of allScenarioIds) {
+        if (!referencedScenarioIds.has(scenarioId)) {
+          gaps.push({
+            layer: "scenarios",
+            check: "orphan-scenario",
+            message: `scenario '${scenarioId}' is defined but not referenced by any task acceptance_criteria`
+          });
+        }
+      }
+    }
+  }
+  if (useJson) {
+    const result = {
+      coverage: gaps.length === 0 ? "pass" : "fail",
+      gaps
+    };
+    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+    process.exit(gaps.length === 0 ? 0 : 1);
+  }
+  if (gaps.length > 0) {
+    process.stderr.write("Coverage gaps found:\n");
+    for (const gap of gaps) {
+      process.stderr.write(`  [${gap.layer}/${gap.check}] ${gap.message}
+`);
+    }
+    process.exit(1);
+  }
+  process.stdout.write("Coverage passed: all coverage checks OK\n");
+  process.exit(0);
+}
 async function handleCheck(args) {
   const filePath = args[0];
   if (!filePath) {
@@ -10045,12 +10187,7 @@ async function handleCheck(args) {
       }
     }
   }
-  const allScenarioIds = /* @__PURE__ */ new Set();
-  for (const req of specData.requirements || []) {
-    for (const sc of req.scenarios || []) {
-      if (sc.id) allScenarioIds.add(sc.id);
-    }
-  }
+  const { allScenarioIds, referencedScenarioIds } = collectScenarioSets(specData);
   for (const task of specData.tasks) {
     for (const scenarioRef of task.acceptance_criteria?.scenarios || []) {
       if (!allScenarioIds.has(scenarioRef)) {
@@ -10058,7 +10195,36 @@ async function handleCheck(args) {
       }
     }
   }
+  const decisionIds = new Set((specData.context?.decisions || specData.decisions || []).map((d) => d.id).filter(Boolean));
+  for (const req of specData.requirements || []) {
+    const ref = req.source?.ref;
+    if (ref !== void 0 && ref !== null) {
+      if (!decisionIds.has(ref)) {
+        issues.push(`requirement '${req.id}' source.ref '${ref}' does not match any decision ID`);
+      }
+    }
+  }
+  const tasksWithAC = (specData.tasks || []).filter((t) => t.acceptance_criteria?.scenarios);
+  if (allScenarioIds.size > 0 && tasksWithAC.length > 0) {
+    for (const scenarioId of allScenarioIds) {
+      if (!referencedScenarioIds.has(scenarioId)) {
+        issues.push(`scenario '${scenarioId}' is defined but not referenced by any task acceptance_criteria`);
+      }
+    }
+  }
   const warnings = [];
+  if ((specData.context?.decisions || specData.decisions || []).length > 0 && (specData.requirements || []).length > 0) {
+    const coveredDecisionIds = /* @__PURE__ */ new Set();
+    for (const req of specData.requirements || []) {
+      const ref = req.source?.ref;
+      if (ref) coveredDecisionIds.add(ref);
+    }
+    for (const decId of decisionIds) {
+      if (!coveredDecisionIds.has(decId)) {
+        warnings.push(`decision '${decId}' is not referenced by any requirement source.ref`);
+      }
+    }
+  }
   const fileScopeMap = /* @__PURE__ */ new Map();
   for (const task of specData.tasks) {
     for (const file of task.file_scope || []) {
@@ -10818,6 +10984,8 @@ async function spec(args) {
     await handleStatus(args.slice(1));
   } else if (subcommand === "meta") {
     await handleMeta(args.slice(1));
+  } else if (subcommand === "coverage") {
+    await handleCoverage(args.slice(1));
   } else if (subcommand === "check") {
     await handleCheck(args.slice(1));
   } else if (subcommand === "amend") {

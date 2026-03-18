@@ -3,6 +3,17 @@ import { immer } from 'zustand/middleware/immer'
 import type { Element, ElementMap } from '../types'
 
 // ───────────────────────────────────────────────────────────────────────────
+// Breakpoint types
+// ───────────────────────────────────────────────────────────────────────────
+export type Breakpoint = 'desktop' | 'tablet' | 'mobile'
+
+export const BREAKPOINT_WIDTHS: Record<Breakpoint, number> = {
+  desktop: 1440,
+  tablet: 768,
+  mobile: 375,
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // History entry: a snapshot of the element tree
 // ───────────────────────────────────────────────────────────────────────────
 interface HistoryEntry {
@@ -24,6 +35,9 @@ export interface EditorState {
   // Undo/redo history
   past: HistoryEntry[]
   future: HistoryEntry[]
+
+  // Responsive breakpoint
+  breakpoint: Breakpoint
 
   // ── Computed helpers ──────────────────────────────────────────────────
   canUndo: () => boolean
@@ -48,6 +62,9 @@ export interface EditorState {
   // Move element at `fromIndex` to `toIndex` within its parent's children array
   // (or rootIds if element has no parent). Updates zIndex to reflect new order.
   reorderElement: (id: string, fromIndex: number, toIndex: number) => void
+
+  // ── Breakpoint ────────────────────────────────────────────────────────
+  setBreakpoint: (breakpoint: Breakpoint) => void
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -75,6 +92,7 @@ export const useEditorStore = create<EditorState>()(
     selectedIds: [],
     past: [],
     future: [],
+    breakpoint: 'desktop' as Breakpoint,
 
     // ── Computed ────────────────────────────────────────────────────────
     canUndo: () => get().past.length > 0,
@@ -215,6 +233,13 @@ export const useEditorStore = create<EditorState>()(
 
         state.elements = next.elements
         state.rootIds = next.rootIds
+      })
+    },
+
+    // ── Breakpoint ───────────────────────────────────────────────────────
+    setBreakpoint: (breakpoint) => {
+      set((state) => {
+        state.breakpoint = breakpoint
       })
     },
 

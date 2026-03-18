@@ -1,4 +1,5 @@
 import type { ElementMap } from '../types'
+import type { ElementType } from '../types/elements'
 import { useEditorStore } from './editorStore'
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -49,6 +50,75 @@ export function buildSnapshot(): ProjectSnapshot {
     elements: JSON.parse(JSON.stringify(elements)) as ElementMap,
     rootIds: [...rootIds],
   }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Element security helpers
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Exhaustive list of valid element type strings derived from ElementType union. */
+const VALID_ELEMENT_TYPES: ReadonlySet<ElementType> = new Set<ElementType>([
+  'frame',
+  'text',
+  'image',
+  'button',
+  'input',
+  'video',
+  'icon',
+  'divider',
+])
+
+/** Keys that must never appear on any element object (prototype pollution vectors). */
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
+
+/**
+ * Recursively strips dangerous keys from a plain-object tree.
+ * Returns a new object — does not mutate the input.
+ */
+function stripDangerousKeys(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(stripDangerousKeys)
+  }
+  if (value !== null && typeof value === 'object') {
+    const result: Record<string, unknown> = {}
+    for (const key of Object.keys(value as Record<string, unknown>)) {
+      if (!DANGEROUS_KEYS.has(key)) {
+        result[key] = stripDangerousKeys((value as Record<string, unknown>)[key])
+      }
+    }
+    return result
+  }
+  return value
+}
+
+/**
+ * Validates and sanitises an ElementMap from untrusted input.
+ * - Rejects elements whose `type` is not in the ElementType whitelist.
+ * - Strips __proto__, constructor, prototype keys recursively from every element.
+ * Returns a sanitised ElementMap and a list of skipped element ids.
+ */
+function sanitiseElements(
+  raw: Record<string, unknown>
+): { sanitised: ElementMap; skipped: string[] } {
+  const sanitised: ElementMap = {}
+  const skipped: string[] = []
+
+  for (const [id, rawEl] of Object.entries(raw)) {
+    if (rawEl === null || typeof rawEl !== 'object' || Array.isArray(rawEl)) {
+      skipped.push(id)
+      continue
+    }
+    const el = rawEl as Record<string, unknown>
+    const elType = el['type']
+    if (typeof elType !== 'string' || !VALID_ELEMENT_TYPES.has(elType as ElementType)) {
+      skipped.push(id)
+      continue
+    }
+    // Strip dangerous keys before accepting element into the store
+    sanitised[id] = stripDangerousKeys(el) as ElementMap[string]
+  }
+
+  return { sanitised, skipped }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -175,8 +245,21 @@ export function importFromJSON(jsonString: string): ValidationResult {
   }
 
   const snapshot = data as ProjectSnapshot
+
+  // Sanitise element-level data: reject unknown types, strip dangerous keys
+  const { sanitised, skipped } = sanitiseElements(
+    snapshot.elements as unknown as Record<string, unknown>
+  )
+
+  if (skipped.length > 0) {
+    notify(
+      'warn',
+      `Skipped ${skipped.length} element(s) with unknown or invalid type: ${skipped.join(', ')}`
+    )
+  }
+
   useEditorStore.setState({
-    elements: snapshot.elements,
+    elements: sanitised,
     rootIds: snapshot.rootIds,
     selectedIds: [],
     past: [],

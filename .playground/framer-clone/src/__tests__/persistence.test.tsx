@@ -337,6 +337,84 @@ describe('persistence', () => {
       expect(result.error).toMatch(/schema version/i)
     })
 
+    it('rejects when rootIds is not an array', () => {
+      const result = importFromJSON(
+        JSON.stringify({ schemaVersion: SCHEMA_VERSION, elements: {}, rootIds: 'not-array' })
+      )
+      expect(result.valid).toBe(false)
+      expect(result.error).toMatch(/rootIds/i)
+    })
+  })
+
+  // ── Security: prototype pollution ────────────────────────────────────────
+  describe('security — prototype pollution prevention', () => {
+    it('does not pollute Object.prototype when __proto__ key is present in element data', () => {
+      // Craft a JSON string that contains __proto__ at element level.
+      // JSON.parse with __proto__ as a key does NOT set the prototype, but
+      // it will appear as an own enumerable key; our sanitiser must strip it.
+      const malicious = `{
+        "schemaVersion": ${SCHEMA_VERSION},
+        "elements": {
+          "el-attack": {
+            "id": "el-attack",
+            "type": "frame",
+            "x": 0, "y": 0, "width": 100, "height": 100,
+            "rotation": 0, "opacity": 1, "visible": true, "locked": false,
+            "name": "attack", "parentId": null, "children": [], "zIndex": 0,
+            "backgroundColor": "#fff", "borderRadius": 0, "borderWidth": 0,
+            "borderColor": "#000", "overflow": "visible", "layoutMode": "none",
+            "gap": 0, "padding": {"top":0,"right":0,"bottom":0,"left":0},
+            "__proto__": {"polluted": true}
+          }
+        },
+        "rootIds": ["el-attack"]
+      }`
+
+      const before = (Object.prototype as Record<string, unknown>)['polluted']
+
+      const result = importFromJSON(malicious)
+
+      expect(result.valid).toBe(true)
+      // Object.prototype must not have been mutated
+      expect((Object.prototype as Record<string, unknown>)['polluted']).toBe(before)
+
+      // The stored element must not carry the __proto__ own key
+      const stored = useEditorStore.getState().elements['el-attack'] as Record<string, unknown>
+      expect(Object.prototype.hasOwnProperty.call(stored, '__proto__')).toBe(false)
+    })
+
+    it('filters out elements with unknown types and keeps valid ones', () => {
+      const snapshot = {
+        schemaVersion: SCHEMA_VERSION,
+        elements: {
+          'valid-el': makeFrame('valid-el'),
+          'evil-el': {
+            id: 'evil-el',
+            type: 'evil-script', // unknown type — should be rejected
+            x: 0, y: 0, width: 10, height: 10,
+          },
+        },
+        rootIds: ['valid-el', 'evil-el'],
+      }
+
+      const warnings: string[] = []
+      setNotificationHandler((level, msg) => {
+        if (level === 'warn') warnings.push(msg)
+      })
+
+      const result = importFromJSON(JSON.stringify(snapshot))
+
+      expect(result.valid).toBe(true)
+      // Valid element is kept
+      expect(useEditorStore.getState().elements['valid-el']).toBeDefined()
+      // Unknown-type element is filtered out
+      expect(useEditorStore.getState().elements['evil-el']).toBeUndefined()
+      // A warning must have been emitted
+      expect(warnings.some((w) => w.includes('evil-el'))).toBe(true)
+    })
+  })
+
+  describe('R6-S6 continued — valid JSON with invalid schema', () => {
     it('validateSnapshot helper returns valid for correct shape', () => {
       const good = {
         schemaVersion: SCHEMA_VERSION,

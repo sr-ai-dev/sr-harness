@@ -1,5 +1,7 @@
 # hoyeon
 
+English | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
+
 **All you need is requirements.**
 A Claude Code plugin that derives requirements from your intent, verifies every derivation, and delivers traced code — without you writing a plan.
 

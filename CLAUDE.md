@@ -100,6 +100,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 ### Pre-Release Checklist
 
 - [ ] All content must be written in English (SKILL.md, agent .md, CLAUDE.md, README.md, commit messages, comments)
+- [ ] When `README.md` is updated, sync all translations: `README.ko.md`, `README.zh.md`, `README.ja.md`
 
 ### Release Flow
 

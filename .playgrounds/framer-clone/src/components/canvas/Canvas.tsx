@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { useEditorStore } from '../../store/editorStore'
 import type {
   EditorElement,
@@ -8,6 +8,7 @@ import type {
   RectangleElement,
   EllipseElement,
 } from '../../types'
+import { screenToCanvas } from '../../store/editorStore'
 
 // ─── Element sub-components ──────────────────────────────────────────────────
 
@@ -143,6 +144,12 @@ function ElementNode({ el }: { el: EditorElement }) {
   }
 }
 
+// ─── ID generator ─────────────────────────────────────────────────────────────
+
+function generateId(): string {
+  return `el-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+}
+
 // ─── Canvas component ─────────────────────────────────────────────────────────
 
 export function Canvas() {
@@ -153,9 +160,20 @@ export function Canvas() {
   const isModalOpen = useEditorStore((s) => s.isModalOpen)
   const zoomAt = useEditorStore((s) => s.zoomAt)
   const pan = useEditorStore((s) => s.pan)
+  const addElement = useEditorStore((s) => s.addElement)
 
   const isPanning = useRef(false)
   const lastPos = useRef({ x: 0, y: 0 })
+
+  // Drag state for shape creation
+  const isDragging = useRef(false)
+  const dragStart = useRef<{ x: number; y: number } | null>(null)
+
+  // Hidden file input for image tool
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Ref to canvas element for bounding box calculations
+  const canvasRef = useRef<HTMLElement>(null)
 
   // Undo / Redo keyboard shortcuts
   useEffect(() => {
@@ -190,11 +208,9 @@ export function Canvas() {
     }
   }, [])
 
-  const handleCanvasClick = () => {
-    if (activeTool !== 'select') {
-      revertToSelect()
-    }
-  }
+  const getCanvasRect = useCallback((): DOMRect | null => {
+    return canvasRef.current?.getBoundingClientRect() ?? null
+  }, [])
 
   const handleWheel = (e: React.WheelEvent<HTMLElement>) => {
     // Block zoom when a modal is active
@@ -207,30 +223,225 @@ export function Canvas() {
     zoomAt(-e.deltaY, originX, originY)
   }
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handleMouseDown = (e: React.MouseEvent<HTMLElement>) => {
     lastPos.current = { x: e.clientX, y: e.clientY }
+
+    if (isPanning.current) return
+
+    const dragTools = ['frame', 'rectangle', 'ellipse']
+    if (dragTools.includes(activeTool)) {
+      const rect = getCanvasRect()
+      if (!rect) return
+      const screenX = e.clientX - rect.left
+      const screenY = e.clientY - rect.top
+      const canvasPos = screenToCanvas(screenX, screenY, camera)
+      isDragging.current = true
+      dragStart.current = canvasPos
+      e.stopPropagation()
+    }
   }
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
     if (isPanning.current && e.buttons === 1) {
       pan(e.clientX - lastPos.current.x, e.clientY - lastPos.current.y)
       lastPos.current = { x: e.clientX, y: e.clientY }
     }
   }
 
+  const handleMouseUp = (e: React.MouseEvent<HTMLElement>) => {
+    if (!isDragging.current || dragStart.current === null) return
+
+    isDragging.current = false
+    const start = dragStart.current
+    dragStart.current = null
+
+    const rect = getCanvasRect()
+    if (!rect) return
+
+    const screenX = e.clientX - rect.left
+    const screenY = e.clientY - rect.top
+    const endPos = screenToCanvas(screenX, screenY, camera)
+
+    const rawWidth = endPos.x - start.x
+    const rawHeight = endPos.y - start.y
+
+    // Normalize: top-left corner + absolute dimensions
+    const x = rawWidth >= 0 ? start.x : endPos.x
+    const y = rawHeight >= 0 ? start.y : endPos.y
+    const width = Math.max(1, Math.abs(rawWidth))
+    const height = Math.max(1, Math.abs(rawHeight))
+
+    const id = generateId()
+    const base = {
+      id,
+      x,
+      y,
+      width,
+      height,
+      rotation: 0,
+      opacity: 1,
+      visible: true,
+      locked: false,
+      parentId: null,
+      childIds: [],
+    }
+
+    if (activeTool === 'frame') {
+      const el: FrameElement = {
+        ...base,
+        kind: 'frame',
+        name: 'Frame',
+        fill: '#ffffff',
+        borderRadius: 0,
+        clipContent: false,
+      }
+      addElement(el)
+    } else if (activeTool === 'rectangle') {
+      const el: RectangleElement = {
+        ...base,
+        kind: 'rectangle',
+        name: 'Rectangle',
+        fill: '#d1d5db',
+        stroke: '#000000',
+        strokeWidth: 0,
+        borderRadius: 0,
+      }
+      addElement(el)
+    } else if (activeTool === 'ellipse') {
+      const el: EllipseElement = {
+        ...base,
+        kind: 'ellipse',
+        name: 'Ellipse',
+        fill: '#d1d5db',
+        stroke: '#000000',
+        strokeWidth: 0,
+      }
+      addElement(el)
+    }
+
+    revertToSelect()
+  }
+
+  const handleClick = (e: React.MouseEvent<HTMLElement>) => {
+    // Drag tools are handled on mouseup; skip here to avoid double-handling
+    const dragTools = ['frame', 'rectangle', 'ellipse']
+    if (dragTools.includes(activeTool)) return
+
+    if (activeTool === 'text') {
+      const rect = getCanvasRect()
+      if (!rect) return
+      const screenX = e.clientX - rect.left
+      const screenY = e.clientY - rect.top
+      const canvasPos = screenToCanvas(screenX, screenY, camera)
+
+      const el: TextElement = {
+        id: generateId(),
+        kind: 'text',
+        name: 'Text',
+        x: canvasPos.x,
+        y: canvasPos.y,
+        width: 200,
+        height: 40,
+        rotation: 0,
+        opacity: 1,
+        visible: true,
+        locked: false,
+        parentId: null,
+        childIds: [],
+        content: 'Type something...',
+        fontSize: 16,
+        fontFamily: 'Inter, sans-serif',
+        fontWeight: 400,
+        color: '#000000',
+        textAlign: 'left',
+        lineHeight: 1.5,
+      }
+      addElement(el)
+      revertToSelect()
+    } else if (activeTool === 'image') {
+      // Open file picker
+      fileInputRef.current?.click()
+    } else {
+      // select tool or others
+      revertToSelect()
+    }
+  }
+
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) {
+      // User cancelled — no-op, just revert tool
+      revertToSelect()
+      // Reset input value so the same file can be picked again
+      e.target.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const src = ev.target?.result as string
+      if (!src) {
+        revertToSelect()
+        return
+      }
+
+      // Place image in center of visible canvas area
+      const rect = getCanvasRect()
+      const centerScreenX = rect ? rect.width / 2 : 400
+      const centerScreenY = rect ? rect.height / 2 : 300
+      const canvasPos = screenToCanvas(centerScreenX, centerScreenY, camera)
+
+      const el: ImageElement = {
+        id: generateId(),
+        kind: 'image',
+        name: 'Image',
+        x: canvasPos.x - 100,
+        y: canvasPos.y - 75,
+        width: 200,
+        height: 150,
+        rotation: 0,
+        opacity: 1,
+        visible: true,
+        locked: false,
+        parentId: null,
+        childIds: [],
+        src,
+        objectFit: 'cover',
+      }
+      addElement(el)
+      revertToSelect()
+    }
+    reader.readAsDataURL(file)
+
+    // Reset input value
+    e.target.value = ''
+  }
+
   const transformStyle = `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`
 
   return (
     <main
+      ref={canvasRef as React.RefObject<HTMLElement>}
       data-testid="canvas"
       data-modal-open={isModalOpen ? 'true' : 'false'}
-      onClick={handleCanvasClick}
+      onClick={handleClick}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
       className="flex-1 h-full relative overflow-hidden bg-[#111111]"
       style={{ cursor: activeTool === 'select' ? 'default' : 'crosshair' }}
     >
+      {/* Hidden file input for image tool */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        data-testid="image-file-input"
+        style={{ display: 'none' }}
+        onChange={handleImageFileChange}
+      />
+
       {/* Canvas viewport with CSS transform for zoom/pan */}
       <div
         data-testid="canvas-viewport"

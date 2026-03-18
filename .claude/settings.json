@@ -109,6 +109,26 @@
         ]
       }
     ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/edit-error-recovery.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/tool-failure-tracker.sh"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "",

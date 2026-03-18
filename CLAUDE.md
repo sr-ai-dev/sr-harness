@@ -54,6 +54,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 | `UserPromptSubmit` | User submits a prompt | Initialize state, intercept slash commands |
 | `PreToolUse` | Before a tool executes | Block or modify tool calls |
 | `PostToolUse` | After a tool completes | Validate output, trigger follow-up |
+| `PostToolUseFailure` | After a tool fails | Error recovery, failure tracking |
 | `Stop` | Session ends | Transition to next pipeline stage |
 
 ### Active Hooks
@@ -68,6 +69,9 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 | `skill-session-guard.sh` | PreToolUse[Edit\|Write] | Plan guard (specify) / orchestrator guard (execute) |
 | `ralph-dod-guard.sh` | PreToolUse[Edit\|Write] | Enforce DoD before allowing writes in /ralph loop |
 | `validate-output.sh` | PostToolUse[Task\|Skill] | Validate agent/skill output against `validate_prompt` frontmatter |
+| `tool-output-truncator.sh` | PostToolUse[Grep\|Glob\|WebFetch\|Bash] | Truncate oversized tool output (50K/10K limits, stderr preserved) |
+| `edit-error-recovery.sh` | PostToolUseFailure[Edit\|Write] | Detect Edit failures and inject recovery guidance (5 error patterns) |
+| `tool-failure-tracker.sh` | PostToolUseFailure[*] | Track repeated failures per tool, escalate at 3/5 failures in 60s window |
 | `ultrawork-stop-hook.sh` | Stop | Advance ultrawork pipeline on session stop |
 | `skill-session-stop.sh` | Stop | Block exit if execute has incomplete tasks (circuit breaker: 30 iter) |
 | `rv-validator.sh` | Stop | Run re-validation pass on stop |

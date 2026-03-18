@@ -36,6 +36,9 @@ export interface EditorState {
   // Active tool / preview mode
   activeTool: Tool
   isPreviewMode: boolean
+
+  // Modal state (blocks canvas interactions when a dialog is active)
+  isModalOpen: boolean
 }
 
 // ─── Actions shape ───────────────────────────────────────────────────────────
@@ -63,6 +66,9 @@ export interface EditorActions {
   setActiveTool: (tool: Tool) => void
   setPreviewMode: (active: boolean) => void
   revertToSelect: () => void
+
+  // Modal
+  setModalOpen: (open: boolean) => void
 }
 
 export type EditorStore = EditorState & EditorActions
@@ -76,6 +82,7 @@ const initialState: EditorState = {
   selection: { selectedIds: [], hoveredId: null },
   activeTool: 'select',
   isPreviewMode: false,
+  isModalOpen: false,
 }
 
 // ─── Store creation ───────────────────────────────────────────────────────────
@@ -239,6 +246,12 @@ export const useEditorStore = create<EditorStore>()(
       revertToSelect: () => {
         set((state: WritableDraft<EditorStore>) => {
           state.activeTool = 'select'
+        })
+      },
+
+      setModalOpen: (open) => {
+        set((state: WritableDraft<EditorStore>) => {
+          state.isModalOpen = open
         })
       },
     })),

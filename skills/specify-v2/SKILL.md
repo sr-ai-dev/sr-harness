@@ -735,6 +735,23 @@ Then call gate-keeper via SendMessage with requirements + scenario summary.
 - Map `research.patterns` → `tasks[].references`
 - Map `research.commands` → `TF.acceptance_criteria.checks` (type: build/lint/static)
 
+#### file_scope = hint, not constraint
+
+`file_scope` lists the **most likely files** to be modified based on L1 research. Workers MAY touch additional files discovered during implementation. The field helps workers know where to start, NOT where to stop.
+
+- Write as: `["src/auth/middleware.ts", "src/config/auth.json"]` — likely starting points
+- Do NOT write exhaustive lists. Workers will discover additional files from imports, tests, etc.
+- If two tasks have overlapping `file_scope`, they MUST have a `depends_on` relationship
+
+#### steps = strategy, not prescription
+
+`steps` describes the **approach and intent** (why), not line-by-line instructions (what). Workers read the actual code and adapt. Steps that are too prescriptive become wrong the moment code differs from expectation.
+
+- Good: `"Add rate limiting middleware to auth endpoints using existing RateLimiter class"`
+- Bad: `"Open src/auth/middleware.ts, go to line 42, add import for RateLimiter"`
+- Good: `"Write integration tests covering the 3 scenarios referenced in acceptance_criteria"`
+- Bad: `"Create file tests/auth.test.ts with exactly 3 test cases"`
+
 #### Task Type Field
 
 | Type | Retry on Fail | Edit/Write Tools | Failure Handling |
@@ -779,7 +796,39 @@ hoyeon-cli spec sandbox-tasks .dev/specs/{name}/spec.json
 hoyeon-cli spec coverage .dev/specs/{name}/spec.json --layer tasks
 ```
 
-Then call gate-keeper via SendMessage with tasks + scenario coverage summary.
+Then call gate-keeper via SendMessage with tasks + scenario coverage summary + **L4-specific review checklist**:
+
+```
+SendMessage(to="gate-keeper", message="
+Review the following tasks for L4 gate.
+
+{tasks summary with scenario mappings}
+
+## L4-Specific Review Checklist (in addition to standard DRIFT/GAP/CONFLICT/BACKTRACK)
+
+**Task granularity:**
+- Each work task should be completable in a single worker session (1-3 files, clear scope)
+- If a task touches 5+ files or has 5+ steps, suggest splitting
+- TF (verification) task should depend on ALL work tasks
+
+**Dependency DAG quality:**
+- No circular dependencies in depends_on chains
+- Tasks with overlapping file_scope MUST have depends_on relationship
+- Identify parallelizable tasks (disjoint file_scope + no depends_on) — flag if unnecessarily serialized
+
+**file_scope as hint:**
+- file_scope should list likely starting points, not exhaustive file lists
+- Flag any task where file_scope has 6+ files (likely needs splitting)
+
+**steps as strategy:**
+- Steps should describe intent/approach, not line-level instructions
+- Flag steps that reference specific line numbers or exact code to write (these will be stale at execution)
+
+**Acceptance criteria completeness:**
+- Every scenario referenced in a task should be verifiable by the checks + scenarios in AC
+- checks[] should have at least one runnable command per work task
+")
+```
 
 **Quick**: No gate. Auto-advance after tasks merge.
 **Standard**: Run coverage check + gate-keeper SendMessage. PASS → advance to L5.

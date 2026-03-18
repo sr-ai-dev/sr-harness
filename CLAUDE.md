@@ -119,7 +119,21 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v1.0.1)
+## Recent Changes (v1.1.0)
+
+- refactor(specify): replace phase-based specify with layer-based derivation chain (L0-L5)
+  - L0:Goal → L1:Context → L2:Decisions → L3:Requirements+Scenarios → L4:Tasks → L5:Review
+  - Each layer has merge checkpoint (CLI) + gate-keeper (step-back via agent team)
+  - Team-mode gate-keepers replace single-agent phase2-stepback
+  - Spec coverage CLI gates at each layer transition
+- refactor(execute): remove per-task :Verify, simplify to Worker→Commit pipeline
+  - Worker self-check + Final Verify replaces triple verification
+  - Add Worker BLOCKED status for scope blocker detection
+  - Remove reconciliation (triage/retry/adapt) — ~285 lines removed
+- feat(README): rewrite around "All you need is requirements" messaging
+- chore: remove dead phase2-stepback agent, old specify templates
+
+## Previous Changes (v1.0.1)
 
 - feat(specify): add Phase 2 requirements extraction with source tracing and mini-mirror
 - feat(specify): add phase2-stepback agent for goal alignment review before planning

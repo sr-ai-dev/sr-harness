@@ -239,7 +239,8 @@ export const useEditorStore = create<EditorState>()(
       set((state) => {
         if (!state.elements[id]) return
         // No history snapshot — used during drag to avoid undo pollution
-        state.elements[id] = { ...state.elements[id], ...patch }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        state.elements[id] = { ...state.elements[id], ...patch } as any
       })
     },
 

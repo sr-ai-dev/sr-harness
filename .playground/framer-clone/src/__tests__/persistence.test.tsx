@@ -379,7 +379,7 @@ describe('persistence', () => {
       expect((Object.prototype as Record<string, unknown>)['polluted']).toBe(before)
 
       // The stored element must not carry the __proto__ own key
-      const stored = useEditorStore.getState().elements['el-attack'] as Record<string, unknown>
+      const stored = useEditorStore.getState().elements['el-attack'] as unknown as Record<string, unknown>
       expect(Object.prototype.hasOwnProperty.call(stored, '__proto__')).toBe(false)
     })
 

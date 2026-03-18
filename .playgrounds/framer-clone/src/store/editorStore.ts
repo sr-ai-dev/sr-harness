@@ -4,6 +4,7 @@ import { immer } from 'zustand/middleware/immer'
 import type { WritableDraft } from 'immer'
 import {
   type EditorElement,
+  type ElementAnimation,
   type ElementTree,
   type Camera,
   type Selection,
@@ -12,6 +13,12 @@ import {
   screenToCanvas,
   canvasToScreen,
 } from '../types/editor'
+import {
+  type BreakpointId,
+  type BreakpointOverrides,
+  DEFAULT_BREAKPOINTS,
+  validateBreakpointWidth,
+} from './breakpoints'
 
 // Re-export helpers so consumers can import from store
 export { screenToCanvas, canvasToScreen }
@@ -39,6 +46,14 @@ export interface EditorState {
 
   // Modal state (blocks canvas interactions when a dialog is active)
   isModalOpen: boolean
+
+  // Breakpoints
+  activeBreakpoint: BreakpointId
+  breakpointWidths: Record<BreakpointId, number>
+  /** Per-breakpoint style overrides (delta from desktop base). Only tablet/mobile. */
+  breakpointOverrides: Record<BreakpointId, BreakpointOverrides>
+  /** Validation error for breakpoint width input */
+  breakpointWidthError: string | null
 }
 
 // ─── Actions shape ───────────────────────────────────────────────────────────
@@ -75,6 +90,17 @@ export interface EditorActions {
 
   // Modal
   setModalOpen: (open: boolean) => void
+
+  // Animations
+  setElementAnimations: (id: string, animations: ElementAnimation[]) => void
+
+  // Breakpoints
+  setActiveBreakpoint: (id: BreakpointId) => void
+  setBreakpointWidth: (id: BreakpointId, width: string | number) => void
+  /** Save an override for the current (non-desktop) breakpoint. Ignores if desktop is active. */
+  setBreakpointOverride: (elementId: string, patch: Record<string, unknown>) => void
+  /** Clear a specific breakpoint's overrides for one element */
+  clearBreakpointOverride: (breakpointId: BreakpointId, elementId: string) => void
 }
 
 export type EditorStore = EditorState & EditorActions
@@ -89,6 +115,18 @@ const initialState: EditorState = {
   activeTool: 'select',
   isPreviewMode: false,
   isModalOpen: false,
+  activeBreakpoint: 'desktop',
+  breakpointWidths: {
+    desktop: DEFAULT_BREAKPOINTS.desktop.width,
+    tablet: DEFAULT_BREAKPOINTS.tablet.width,
+    mobile: DEFAULT_BREAKPOINTS.mobile.width,
+  },
+  breakpointOverrides: {
+    desktop: {},
+    tablet: {},
+    mobile: {},
+  },
+  breakpointWidthError: null,
 }
 
 // ─── Store creation ───────────────────────────────────────────────────────────
@@ -276,6 +314,60 @@ export const useEditorStore = create<EditorStore>()(
       setModalOpen: (open) => {
         set((state: WritableDraft<EditorStore>) => {
           state.isModalOpen = open
+        })
+      },
+
+      // ── Animations ────────────────────────────────────────────────────────
+
+      setElementAnimations: (id, animations) => {
+        set((state: WritableDraft<EditorStore>) => {
+          if (state.elements[id]) {
+            state.elements[id].animations = animations as WritableDraft<ElementAnimation[]>
+          }
+        })
+      },
+
+      // ── Breakpoints ───────────────────────────────────────────────────────
+
+      setActiveBreakpoint: (id) => {
+        set((state: WritableDraft<EditorStore>) => {
+          state.activeBreakpoint = id
+        })
+      },
+
+      setBreakpointWidth: (id, width) => {
+        set((state: WritableDraft<EditorStore>) => {
+          const error = validateBreakpointWidth(width)
+          if (error) {
+            state.breakpointWidthError = error
+            return
+          }
+          const num = typeof width === 'string' ? parseFloat(width) : width
+          state.breakpointWidths[id] = num
+          state.breakpointWidthError = null
+        })
+      },
+
+      setBreakpointOverride: (elementId, patch) => {
+        set((state: WritableDraft<EditorStore>) => {
+          const bp = state.activeBreakpoint
+          // Desktop is the base — never store overrides for it
+          if (bp === 'desktop') return
+          if (!state.breakpointOverrides[bp]) {
+            state.breakpointOverrides[bp] = {}
+          }
+          if (!state.breakpointOverrides[bp][elementId]) {
+            state.breakpointOverrides[bp][elementId] = {}
+          }
+          Object.assign(state.breakpointOverrides[bp][elementId], patch)
+        })
+      },
+
+      clearBreakpointOverride: (breakpointId, elementId) => {
+        set((state: WritableDraft<EditorStore>) => {
+          if (state.breakpointOverrides[breakpointId]) {
+            delete state.breakpointOverrides[breakpointId][elementId]
+          }
         })
       },
     })),

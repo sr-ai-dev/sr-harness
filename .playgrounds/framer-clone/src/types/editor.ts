@@ -1,3 +1,32 @@
+// ─── Animation Types ─────────────────────────────────────────────────────────
+
+export type AnimationTrigger = 'hover' | 'click'
+
+export type AnimationEasing = 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'linear'
+
+export const VALID_EASINGS: AnimationEasing[] = ['ease', 'ease-in', 'ease-out', 'ease-in-out', 'linear']
+
+/** Target properties that can be animated */
+export interface AnimationTargetProps {
+  opacity?: number
+  scale?: number
+  x?: number
+  y?: number
+  color?: string
+}
+
+export interface ElementAnimation {
+  trigger: AnimationTrigger
+  /** Target style properties to transition to */
+  targetProps: AnimationTargetProps
+  /** Duration in milliseconds (clamped to >= 0) */
+  duration: number
+  /** CSS easing function (falls back to 'ease' for unknown values) */
+  easing: AnimationEasing
+  /** Delay in milliseconds */
+  delay: number
+}
+
 // ─── Element Types ───────────────────────────────────────────────────────────
 
 export type ElementKind = 'frame' | 'text' | 'image' | 'rectangle' | 'ellipse'
@@ -24,13 +53,30 @@ export interface BaseElement {
   parentId: string | null
   childIds: string[]
   shadow?: Shadow
+  animations?: ElementAnimation[]
 }
+
+export type LayoutMode = 'absolute' | 'stack' | 'grid'
+export type StackDirection = 'row' | 'column'
+export type StackAlign = 'flex-start' | 'center' | 'flex-end' | 'stretch'
+export type StackJustify = 'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around'
 
 export interface FrameElement extends BaseElement {
   kind: 'frame'
   fill: string
   borderRadius: number
   clipContent: boolean
+  // Layout mode
+  layoutMode: LayoutMode
+  // Stack (flex) properties
+  stackDirection: StackDirection
+  stackGap: number
+  stackWrap: boolean
+  stackAlign: StackAlign
+  stackJustify: StackJustify
+  // Grid properties
+  gridColumns: number
+  gridGap: number
 }
 
 export interface TextElement extends BaseElement {

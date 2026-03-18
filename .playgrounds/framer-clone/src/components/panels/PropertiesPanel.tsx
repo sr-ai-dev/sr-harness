@@ -7,7 +7,9 @@ import type {
   RectangleElement,
   EllipseElement,
   Shadow,
+  LayoutMode,
 } from '../../types/editor'
+import { AnimationsSection } from './AnimationsSection'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -25,6 +27,27 @@ function hasBorder(el: EditorElement): el is RectangleElement | EllipseElement {
 
 function hasBorderRadius(el: EditorElement): el is FrameElement | RectangleElement {
   return el.kind === 'frame' || el.kind === 'rectangle'
+}
+
+// ─── Breakpoint-aware update hook ────────────────────────────────────────────
+
+/**
+ * Returns a function that updates an element property.
+ * - On desktop: calls updateElement (modifies the base style)
+ * - On tablet/mobile: calls setBreakpointOverride (saves delta only, does NOT touch base)
+ */
+function useBreakpointUpdate() {
+  const updateElement = useEditorStore((s) => s.updateElement)
+  const setBreakpointOverride = useEditorStore((s) => s.setBreakpointOverride)
+  const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint)
+
+  return (elementId: string, patch: Partial<EditorElement>) => {
+    if (activeBreakpoint === 'desktop') {
+      updateElement(elementId, patch)
+    } else {
+      setBreakpointOverride(elementId, patch as Record<string, unknown>)
+    }
+  }
 }
 
 // ─── Section wrapper ─────────────────────────────────────────────────────────
@@ -147,7 +170,7 @@ function ColorInput({
 // ─── Position / Size section ─────────────────────────────────────────────────
 
 function PositionSizeSection({ el }: { el: EditorElement }) {
-  const updateElement = useEditorStore((s) => s.updateElement)
+  const updateProp = useBreakpointUpdate()
 
   return (
     <Section title="Position & Size">
@@ -156,14 +179,14 @@ function PositionSizeSection({ el }: { el: EditorElement }) {
           <NumberInput
             testId="prop-x"
             value={el.x}
-            onChange={(v) => updateElement(el.id, { x: v })}
+            onChange={(v) => updateProp(el.id, { x: v })}
           />
         </PropRow>
         <PropRow label="Y">
           <NumberInput
             testId="prop-y"
             value={el.y}
-            onChange={(v) => updateElement(el.id, { y: v })}
+            onChange={(v) => updateProp(el.id, { y: v })}
           />
         </PropRow>
         <PropRow label="W">
@@ -171,7 +194,7 @@ function PositionSizeSection({ el }: { el: EditorElement }) {
             testId="prop-w"
             value={el.width}
             min={1}
-            onChange={(v) => updateElement(el.id, { width: clampPositive(v) })}
+            onChange={(v) => updateProp(el.id, { width: clampPositive(v) })}
           />
         </PropRow>
         <PropRow label="H">
@@ -179,7 +202,7 @@ function PositionSizeSection({ el }: { el: EditorElement }) {
             testId="prop-h"
             value={el.height}
             min={1}
-            onChange={(v) => updateElement(el.id, { height: clampPositive(v) })}
+            onChange={(v) => updateProp(el.id, { height: clampPositive(v) })}
           />
         </PropRow>
       </div>
@@ -187,7 +210,7 @@ function PositionSizeSection({ el }: { el: EditorElement }) {
         <NumberInput
           testId="prop-rotation"
           value={el.rotation}
-          onChange={(v) => updateElement(el.id, { rotation: v })}
+          onChange={(v) => updateProp(el.id, { rotation: v })}
         />
       </PropRow>
     </Section>
@@ -197,7 +220,7 @@ function PositionSizeSection({ el }: { el: EditorElement }) {
 // ─── Fill section ─────────────────────────────────────────────────────────────
 
 function FillSection({ el, mixed }: { el: EditorElement; mixed: boolean }) {
-  const updateElement = useEditorStore((s) => s.updateElement)
+  const updateProp = useBreakpointUpdate()
 
   if (!hasFill(el)) return null
 
@@ -214,7 +237,7 @@ function FillSection({ el, mixed }: { el: EditorElement; mixed: boolean }) {
           <ColorInput
             testId="prop-fill"
             value={currentFill}
-            onChange={(v) => updateElement(el.id, { fill: v } as Partial<EditorElement>)}
+            onChange={(v) => updateProp(el.id, { fill: v } as Partial<EditorElement>)}
           />
         )}
       </div>
@@ -225,7 +248,7 @@ function FillSection({ el, mixed }: { el: EditorElement; mixed: boolean }) {
 // ─── Border section ───────────────────────────────────────────────────────────
 
 function BorderSection({ el }: { el: EditorElement }) {
-  const updateElement = useEditorStore((s) => s.updateElement)
+  const updateProp = useBreakpointUpdate()
 
   if (!hasBorder(el)) {
     // Frame only has borderRadius
@@ -240,7 +263,7 @@ function BorderSection({ el }: { el: EditorElement }) {
                 value={frame.borderRadius}
                 min={0}
                 onChange={(v) =>
-                  updateElement(el.id, { borderRadius: Math.max(0, v) } as Partial<EditorElement>)
+                  updateProp(el.id, { borderRadius: Math.max(0, v) } as Partial<EditorElement>)
                 }
               />
             </PropRow>
@@ -262,7 +285,7 @@ function BorderSection({ el }: { el: EditorElement }) {
             value={bordered.strokeWidth}
             min={0}
             onChange={(v) =>
-              updateElement(el.id, { strokeWidth: Math.max(0, v) } as Partial<EditorElement>)
+              updateProp(el.id, { strokeWidth: Math.max(0, v) } as Partial<EditorElement>)
             }
           />
         </PropRow>
@@ -270,7 +293,7 @@ function BorderSection({ el }: { el: EditorElement }) {
           <ColorInput
             testId="prop-stroke"
             value={bordered.stroke}
-            onChange={(v) => updateElement(el.id, { stroke: v } as Partial<EditorElement>)}
+            onChange={(v) => updateProp(el.id, { stroke: v } as Partial<EditorElement>)}
           />
         </PropRow>
         {hasBorderRadius(el) && (
@@ -280,7 +303,7 @@ function BorderSection({ el }: { el: EditorElement }) {
               value={(el as RectangleElement).borderRadius}
               min={0}
               onChange={(v) =>
-                updateElement(el.id, { borderRadius: Math.max(0, v) } as Partial<EditorElement>)
+                updateProp(el.id, { borderRadius: Math.max(0, v) } as Partial<EditorElement>)
               }
             />
           </PropRow>
@@ -293,7 +316,7 @@ function BorderSection({ el }: { el: EditorElement }) {
 // ─── Typography section ───────────────────────────────────────────────────────
 
 function TypographySection({ el }: { el: EditorElement }) {
-  const updateElement = useEditorStore((s) => s.updateElement)
+  const updateProp = useBreakpointUpdate()
 
   if (el.kind !== 'text') return null
   const text = el as TextElement
@@ -306,7 +329,7 @@ function TypographySection({ el }: { el: EditorElement }) {
             type="text"
             data-testid="prop-font-family"
             value={text.fontFamily}
-            onChange={(e) => updateElement(el.id, { fontFamily: e.target.value })}
+            onChange={(e) => updateProp(el.id, { fontFamily: e.target.value })}
             className="flex-1 bg-[#2a2a2a] text-xs text-white outline-none rounded px-2 py-1"
           />
         </PropRow>
@@ -316,7 +339,7 @@ function TypographySection({ el }: { el: EditorElement }) {
               testId="prop-font-size"
               value={text.fontSize}
               min={1}
-              onChange={(v) => updateElement(el.id, { fontSize: Math.max(1, v) })}
+              onChange={(v) => updateProp(el.id, { fontSize: Math.max(1, v) })}
             />
           </PropRow>
           <PropRow label="Wt">
@@ -324,21 +347,21 @@ function TypographySection({ el }: { el: EditorElement }) {
               testId="prop-font-weight"
               value={text.fontWeight}
               min={100}
-              onChange={(v) => updateElement(el.id, { fontWeight: v })}
+              onChange={(v) => updateProp(el.id, { fontWeight: v })}
             />
           </PropRow>
           <PropRow label="LH">
             <NumberInput
               testId="prop-line-height"
               value={text.lineHeight}
-              onChange={(v) => updateElement(el.id, { lineHeight: v })}
+              onChange={(v) => updateProp(el.id, { lineHeight: v })}
             />
           </PropRow>
           <PropRow label="LS">
             <NumberInput
               testId="prop-letter-spacing"
               value={text.letterSpacing ?? 0}
-              onChange={(v) => updateElement(el.id, { letterSpacing: v })}
+              onChange={(v) => updateProp(el.id, { letterSpacing: v })}
             />
           </PropRow>
         </div>
@@ -348,7 +371,7 @@ function TypographySection({ el }: { el: EditorElement }) {
               <button
                 key={align}
                 data-testid={`prop-align-${align}`}
-                onClick={() => updateElement(el.id, { textAlign: align })}
+                onClick={() => updateProp(el.id, { textAlign: align })}
                 className={`flex-1 text-xs py-1 rounded ${
                   text.textAlign === align
                     ? 'bg-[#0099ff] text-white'
@@ -364,9 +387,97 @@ function TypographySection({ el }: { el: EditorElement }) {
           <ColorInput
             testId="prop-text-color"
             value={text.color}
-            onChange={(v) => updateElement(el.id, { color: v })}
+            onChange={(v) => updateProp(el.id, { color: v })}
           />
         </PropRow>
+      </div>
+    </Section>
+  )
+}
+
+// ─── Layout Mode section ──────────────────────────────────────────────────────
+
+function LayoutModeSection({ el }: { el: EditorElement }) {
+  const updateProp = useBreakpointUpdate()
+
+  if (el.kind !== 'frame') return null
+  const frame = el as FrameElement
+  const layoutMode: LayoutMode = frame.layoutMode ?? 'absolute'
+
+  return (
+    <Section title="Layout">
+      <div data-testid="layout-mode-section">
+        {/* Mode selector */}
+        <div className="flex gap-1 mb-2" data-testid="layout-mode-selector">
+          {(['absolute', 'stack', 'grid'] as LayoutMode[]).map((mode) => (
+            <button
+              key={mode}
+              data-testid={`layout-mode-${mode}`}
+              onClick={() => updateProp(el.id, { layoutMode: mode } as Partial<FrameElement>)}
+              className={`flex-1 text-xs py-1 rounded capitalize ${
+                layoutMode === mode
+                  ? 'bg-[#0099ff] text-white'
+                  : 'bg-[#2a2a2a] text-[#9ca3af]'
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+
+        {/* Stack controls */}
+        {layoutMode === 'stack' && (
+          <div data-testid="stack-controls">
+            <PropRow label="Dir">
+              <div className="flex gap-1 flex-1">
+                {(['row', 'column'] as const).map((dir) => (
+                  <button
+                    key={dir}
+                    data-testid={`stack-direction-${dir}`}
+                    onClick={() => updateProp(el.id, { stackDirection: dir } as Partial<FrameElement>)}
+                    className={`flex-1 text-xs py-1 rounded capitalize ${
+                      (frame.stackDirection ?? 'column') === dir
+                        ? 'bg-[#0099ff] text-white'
+                        : 'bg-[#2a2a2a] text-[#9ca3af]'
+                    }`}
+                  >
+                    {dir}
+                  </button>
+                ))}
+              </div>
+            </PropRow>
+            <PropRow label="Gap">
+              <NumberInput
+                testId="stack-gap"
+                value={frame.stackGap ?? 0}
+                min={0}
+                onChange={(v) => updateProp(el.id, { stackGap: Math.max(0, v) } as Partial<FrameElement>)}
+              />
+            </PropRow>
+          </div>
+        )}
+
+        {/* Grid controls */}
+        {layoutMode === 'grid' && (
+          <div data-testid="grid-controls">
+            <PropRow label="Cols">
+              <NumberInput
+                testId="grid-columns"
+                value={frame.gridColumns ?? 2}
+                min={1}
+                onChange={(v) => updateProp(el.id, { gridColumns: Math.max(1, v) } as Partial<FrameElement>)}
+              />
+            </PropRow>
+            <PropRow label="Gap">
+              <NumberInput
+                testId="grid-gap"
+                value={frame.gridGap ?? 0}
+                min={0}
+                onChange={(v) => updateProp(el.id, { gridGap: Math.max(0, v) } as Partial<FrameElement>)}
+              />
+            </PropRow>
+          </div>
+        )}
       </div>
     </Section>
   )
@@ -375,12 +486,12 @@ function TypographySection({ el }: { el: EditorElement }) {
 // ─── Shadow section ───────────────────────────────────────────────────────────
 
 function ShadowSection({ el }: { el: EditorElement }) {
-  const updateElement = useEditorStore((s) => s.updateElement)
+  const updateProp = useBreakpointUpdate()
 
   const shadow: Shadow = el.shadow ?? { offsetX: 0, offsetY: 4, blur: 8, color: '#00000040' }
 
   const updateShadow = (patch: Partial<Shadow>) => {
-    updateElement(el.id, { shadow: { ...shadow, ...patch } } as Partial<EditorElement>)
+    updateProp(el.id, { shadow: { ...shadow, ...patch } } as Partial<EditorElement>)
   }
 
   return (
@@ -437,7 +548,13 @@ function MultiSelectBanner({ count }: { count: number }) {
 
 // ─── Single-element panel ─────────────────────────────────────────────────────
 
-function SingleElementPanel({ el }: { el: EditorElement }) {
+function SingleElementPanel({
+  el,
+  resolvedEl,
+}: {
+  el: EditorElement
+  resolvedEl: EditorElement
+}) {
   return (
     <div>
       <div className="text-xs font-medium text-white mb-3 flex items-center gap-2">
@@ -449,11 +566,13 @@ function SingleElementPanel({ el }: { el: EditorElement }) {
         </span>
         <span className="truncate">{el.name}</span>
       </div>
-      <PositionSizeSection el={el} />
-      <FillSection el={el} mixed={false} />
-      <BorderSection el={el} />
-      <TypographySection el={el} />
-      <ShadowSection el={el} />
+      <PositionSizeSection el={resolvedEl} />
+      <LayoutModeSection el={resolvedEl} />
+      <FillSection el={resolvedEl} mixed={false} />
+      <BorderSection el={resolvedEl} />
+      <TypographySection el={resolvedEl} />
+      <ShadowSection el={resolvedEl} />
+      <AnimationsSection el={el} />
     </div>
   )
 }
@@ -567,6 +686,8 @@ function MultiElementPanel({ els }: { els: EditorElement[] }) {
 export function PropertiesPanel() {
   const selectedIds = useEditorStore((s) => s.selection.selectedIds)
   const elements = useEditorStore((s) => s.elements)
+  const activeBreakpoint = useEditorStore((s) => s.activeBreakpoint)
+  const breakpointOverrides = useEditorStore((s) => s.breakpointOverrides)
 
   const selectedEls = selectedIds
     .map((id) => elements[id])
@@ -582,7 +703,12 @@ export function PropertiesPanel() {
           No selection
         </div>
       )}
-      {selectedEls.length === 1 && <SingleElementPanel el={selectedEls[0]} />}
+      {selectedEls.length === 1 && (() => {
+        const base = selectedEls[0]
+        const bpOv = activeBreakpoint !== 'desktop' ? breakpointOverrides[activeBreakpoint]?.[base.id] : undefined
+        const resolvedEl: EditorElement = bpOv ? { ...base, ...bpOv } as EditorElement : base
+        return <SingleElementPanel el={base} resolvedEl={resolvedEl} />
+      })()}
       {selectedEls.length > 1 && <MultiElementPanel els={selectedEls} />}
     </div>
   )

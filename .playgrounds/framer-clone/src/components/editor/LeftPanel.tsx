@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { LayersPanel } from '../panels/LayersPanel'
 import { PropertiesPanel } from '../panels/PropertiesPanel'
+import { AssetLibrary } from '../panels/AssetLibrary'
 
-type PanelTab = 'layers' | 'properties'
+type PanelTab = 'layers' | 'properties' | 'assets'
 
 export function LeftPanel() {
   const [activeTab, setActiveTab] = useState<PanelTab>('layers')
@@ -27,6 +28,18 @@ export function LeftPanel() {
           Layers
         </button>
         <button
+          data-testid="tab-assets"
+          onClick={() => setActiveTab('assets')}
+          className={[
+            'flex-1 py-2 text-xs font-medium transition-colors',
+            activeTab === 'assets'
+              ? 'text-white border-b-2 border-[rgb(0,153,255)]'
+              : 'text-[#9ca3af] hover:text-white',
+          ].join(' ')}
+        >
+          Assets
+        </button>
+        <button
           data-testid="tab-properties"
           onClick={() => setActiveTab('properties')}
           className={[
@@ -36,12 +49,14 @@ export function LeftPanel() {
               : 'text-[#9ca3af] hover:text-white',
           ].join(' ')}
         >
-          Properties
+          Props
         </button>
       </div>
 
       {/* Panel content */}
-      {activeTab === 'layers' ? <LayersPanel /> : <PropertiesPanel />}
+      {activeTab === 'layers' && <LayersPanel />}
+      {activeTab === 'assets' && <AssetLibrary />}
+      {activeTab === 'properties' && <PropertiesPanel />}
     </aside>
   )
 }

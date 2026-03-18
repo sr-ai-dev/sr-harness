@@ -104,13 +104,11 @@ hoyeon-cli session set --sid $SESSION_ID --spec ".dev/specs/{name}/spec.json"
 
 After init, if non-goals are already apparent from the user's request, merge them early:
 
-```bash
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
-  "meta": {
-    "non_goals": ["...", "..."]
-  }
-}'
-```
+> **⚠️ Merge Convention**: Always use file-based JSON passing to avoid zsh shell escaping issues. Always run `hoyeon-cli spec guide <section>` before constructing merge JSON to verify field names and types. See `.guide/cli-conventions.md` for the full pattern.
+
+1. Run `hoyeon-cli spec guide meta` to check `non_goals` field structure
+2. Construct JSON with `meta.non_goals[]` (array of strings)
+3. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)"`
 
 > Non-goals are strategic scope exclusions — "What this project is NOT trying to achieve."
 > They are NOT verifiable rules (those go in `constraints`). They are direction statements for humans and reviewers.
@@ -182,30 +180,9 @@ Task(subagent_type="ux-reviewer",
 
 > **Continuous Update**: spec.json is updated incrementally after each interaction. Each agent completion triggers a `spec merge`. Do not batch — merge immediately after each phase completes.
 
-```bash
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
-  "context": {
-    "request": "[user original request]",
-    "research": {
-      "summary": "[high-level summary]",
-      "patterns": [
-        {"path": "src/...", "start_line": 10, "end_line": 25, "description": "..."}
-      ],
-      "structure": ["src/middleware/", "src/config/"],
-      "commands": {"test": "npm test", "lint": "npm run lint"},
-      "documentation": [
-        {"path": "docs/arch.md", "line": 15, "description": "..."}
-      ],
-      "ux_review": {
-        "current_flow": "...",
-        "impact": "...",
-        "recommendations": ["..."],
-        "must_not_do": ["..."]
-      }
-    }
-  }
-}'
-```
+1. Run `hoyeon-cli spec guide context` to check `research` field structure
+2. Construct JSON with `context.request` and `context.research` (summary, patterns, structure, commands, documentation, ux_review)
+3. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)"`
 
 > Quick mode: omit `documentation` and `ux_review` from research.
 
@@ -236,15 +213,9 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
 
 Apply Autopilot Decision Rules, then:
 
-```bash
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json '{
-  "context": {
-    "assumptions": [
-      {"id": "A1", "belief": "...", "if_wrong": "...", "impact": "minor"}
-    ]
-  }
-}'
-```
+1. Run `hoyeon-cli spec guide context` to check `assumptions` field structure
+2. Construct JSON with `context.assumptions[]` (id, belief, if_wrong, impact)
+3. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json "$(cat /tmp/spec-merge.json)"`
 
 ### Interactive → Mirror + Decisions
 
@@ -268,13 +239,9 @@ Before asking any questions, mirror the user's goal back to confirm alignment:
 
 After Mirror is confirmed, merge the confirmed goal:
 
-```bash
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
-  "context": {
-    "confirmed_goal": "[confirmed goal statement from mirror]"
-  }
-}'
-```
+1. Run `hoyeon-cli spec guide context` to check `confirmed_goal` field structure
+2. Construct JSON with `context.confirmed_goal` (string)
+3. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)"`
 
 #### Step 1: Structured Questions (MANDATORY, iterative)
 
@@ -308,16 +275,9 @@ AskUserQuestion(
 
 After each round of questions, immediately merge decisions:
 
-```bash
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json '{
-  "context": {
-    "decisions": [
-      {"id": "D1", "decision": "...", "rationale": "...",
-       "alternatives_rejected": [{"option": "...", "reason": "..."}]}
-    ]
-  }
-}'
-```
+1. Run `hoyeon-cli spec guide context` to check `decisions` field structure
+2. Construct JSON with `context.decisions[]` (id, decision, rationale, alternatives_rejected)
+3. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json "$(cat /tmp/spec-merge.json)"`
 
 #### Step 2: Interview Progress Check (iterative loop)
 
@@ -401,14 +361,9 @@ AskUserQuestion(
 
 After user confirms (or autopilot auto-applies), update decisions/requirements accordingly, then merge:
 
-```bash
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
-  "requirements": [
-    {"id": "R1", "behavior": "...", "priority": 1, "source": {"type": "goal"}, "scenarios": []},
-    {"id": "R2", "behavior": "...", "priority": 1, "source": {"type": "decision", "ref": "D1"}, "scenarios": []}
-  ]
-}'
-```
+1. Run `hoyeon-cli spec guide requirements` to check `requirements` field structure
+2. Construct JSON with `requirements[]` (id, behavior, priority, source with type/ref, scenarios as empty array)
+3. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)"`
 
 > Note: `scenarios` are empty at this point — verification-planner will fill them in Phase 3.
 
@@ -603,52 +558,43 @@ Gap-analyzer results are handled by severity — not all gaps need user input:
 | `medium` | Auto-merge with mitigation, log as assumption | Reduces question fatigue; visible in Phase 6 Plan Approval Summary |
 | `low` | Auto-merge silently | Not worth user attention |
 
-```bash
-# IMPORTANT: merge one section at a time, sequentially. Do NOT merge multiple sections in parallel.
+IMPORTANT: merge one section at a time, sequentially. Do NOT merge multiple sections in parallel.
 
-# known_gaps from gap-analyzer (all severities merged, medium/low without asking user)
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json '{
-  "context": {
-    "known_gaps": [
-      {"gap": "...", "severity": "medium", "mitigation": "...", "auto_merged": true}
-    ]
-  }
-}'
+**Step 1 — known_gaps** (all severities merged, medium/low without asking user):
+1. Run `hoyeon-cli spec guide context` to check `known_gaps` field structure
+2. Construct JSON with `context.known_gaps[]` (gap, severity, mitigation, auto_merged)
+3. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json "$(cat /tmp/spec-merge.json)"`
 
-# constraints from gap-analyzer
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
-  "constraints": [
-    {"id": "C1", "type": "must_not_do", "rule": "...",
-     "verified_by": "agent", "verify": {"type": "assertion", "checks": ["..."]}}
-  ]
-}'
+**Step 2 — constraints** from gap-analyzer:
+1. Run `hoyeon-cli spec guide constraints` to check field structure
+2. Construct JSON with `constraints[]` (id, type, rule, verified_by, verify)
+3. Run `hoyeon-cli spec guide verify` to check the `verify` object structure for constraints
+4. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)"`
 
-# Update existing requirements with scenarios from verification-planner
-# (apply Sandbox Scenario Fallback Rules above)
-# Requirements are the SINGLE SOURCE OF TRUTH for all verification.
-# verification_summary is DERIVED from requirements (not stored independently).
-#
-# Use --patch to match requirements by id and fill in scenarios in place.
-# This preserves the source field and other metadata set in Phase 2.
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --patch --json '{
-  "requirements": [
-    {
-      "id": "R1",
-      "scenarios": [
-        {"id": "R1-S1", "given": "...", "when": "...", "then": "...",
-         "verified_by": "machine", "execution_env": "host",
-         "verify": {"type": "command", "run": "...", "expect": {"exit_code": 0}}}
-      ]
-    }
-  ]
-}'
-# verification_summary is derived from requirements at Phase 5d / Phase 6:
-#   Auto = scenarios where verified_by is "machine" or "agent" AND execution_env is "host"
-#   Manual = scenarios where verified_by is "human"
-#   Agent [sandbox] = scenarios where execution_env is "sandbox"
+**Step 3 — requirements with scenarios** from verification-planner:
 
-# If verification-planner output contains suggested_additions (behaviors not covered by
-# confirmed requirements), present them to the user before adding:
+Requirements are the SINGLE SOURCE OF TRUTH for all verification.
+`verification_summary` is DERIVED from requirements (not stored independently).
+Use `--patch` to match requirements by id and fill in scenarios in place.
+This preserves the source field and other metadata set in Phase 2.
+Apply Sandbox Scenario Fallback Rules above.
+
+1. Run `hoyeon-cli spec guide requirements` and `hoyeon-cli spec guide scenario` to check field structures
+2. Run `hoyeon-cli spec guide verify` to check the `verify` object structure for scenarios
+3. Construct JSON with `requirements[]` containing id and `scenarios[]` (id, given, when, then, verified_by, execution_env, verify)
+4. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --patch --json "$(cat /tmp/spec-merge.json)"`
+
+> verification_summary is derived from requirements at Phase 5d / Phase 6:
+> Auto = scenarios where verified_by is "machine" or "agent" AND execution_env is "host"
+> Manual = scenarios where verified_by is "human"
+> Agent [sandbox] = scenarios where execution_env is "sandbox"
+
+**Step 4 — suggested_additions** (conditional):
+
+If verification-planner output contains suggested_additions (behaviors not covered by
+confirmed requirements), present them to the user before adding:
+
+```
 IF verification_planner.suggested_additions is non-empty:
   AskUserQuestion(
     "The analysis found behaviors not covered by confirmed requirements. Add these?",
@@ -656,31 +602,22 @@ IF verification_planner.suggested_additions is non-empty:
   )
   # Only merge user-approved suggestions as new requirements
   IF user approves any:
-    hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json '{
-      "requirements": [<approved suggested_additions as full requirement objects>]
-    }'
-
-# external_dependencies — HUMAN-ONLY tasks from exploration + verification-planner output
-# If no external dependencies exist, omit this merge entirely.
-#
-# IMPORTANT: pre_work and post_work are HUMAN-ONLY tasks.
-# These are things the agent CANNOT do — infrastructure setup, API key provisioning,
-# environment configuration, deployment triggers, manual verification, etc.
-# If a task CAN be automated by the agent, put it in the Task DAG instead.
-#
-# pre_work: things the human must complete BEFORE /execute starts
-# post_work: things the human must do AFTER execution completes
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
-  "external_dependencies": {
-    "pre_work": [
-      {"id": "PW-1", "dependency": "PostgreSQL", "action": "Create DB instance and set DATABASE_URL", "blocking": true}
-    ],
-    "post_work": [
-      {"id": "POW-1", "dependency": "Staging env", "action": "Deploy to staging and verify"}
-    ]
-  }
-}'
+    # Run spec guide requirements, construct JSON, merge with --append
+    hoyeon-cli spec merge .dev/specs/{name}/spec.json --append --json "$(cat /tmp/spec-merge.json)"
 ```
+
+**Step 5 — external_dependencies** (omit if none exist):
+
+IMPORTANT: `pre_work` and `post_work` are HUMAN-ONLY tasks.
+These are things the agent CANNOT do -- infrastructure setup, API key provisioning,
+environment configuration, deployment triggers, manual verification, etc.
+If a task CAN be automated by the agent, put it in the Task DAG instead.
+`pre_work`: things the human must complete BEFORE /execute starts.
+`post_work`: things the human must do AFTER execution completes.
+
+1. Run `hoyeon-cli spec guide external` to check `external_dependencies` field structure
+2. Construct JSON with `external_dependencies.pre_work[]` and `external_dependencies.post_work[]`
+3. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)"`
 
 ---
 
@@ -739,42 +676,12 @@ This single command handles everything:
 
 ### Merge tasks
 
-```bash
-hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{
-  "tasks": [
-    {
-      "id": "T1", "action": "...", "type": "work", "status": "pending",
-      "risk": "low",
-      "file_scope": ["src/..."],
-      "inputs": [],
-      "outputs": [{"id": "config_path", "path": "src/config/auth.json"}],
-      "steps": ["Step 1", "Step 2"],
-      "references": [{"path": "src/...", "start_line": 10, "end_line": 25}],
-      "must_not_do": ["Do not run git commands"],
-      "acceptance_criteria": {
-        "scenarios": ["R1-S1", "R1-S2"],
-        "checks": [
-          {"type": "static", "run": "node -e \"require('./src/config/auth.json')\""},
-          {"type": "build", "run": "npm test"}
-        ]
-      }
-    },
-    {
-      "id": "TF", "action": "Full verification", "type": "verification", "status": "pending",
-      "depends_on": ["T1"],
-      "inputs": [{"from_task": "T1", "artifact": "all_outputs"}],
-      "must_not_do": ["Do not modify any files", "Do not run git commands"],
-      "acceptance_criteria": {
-        "scenarios": ["R1-S1", "R1-S2", "R2-S1"],
-        "checks": [
-          {"type": "lint", "run": "npm run lint"},
-          {"type": "build", "run": "npm test"}
-        ]
-      }
-    }
-  ]
-}'
-```
+1. Run `hoyeon-cli spec guide tasks` to check task field structure
+2. Run `hoyeon-cli spec guide acceptance-criteria` to check `acceptance_criteria` field structure
+3. Construct JSON with `tasks[]` containing:
+   - Work tasks: id, action, type, status, risk, file_scope, inputs, outputs, steps, references, must_not_do, acceptance_criteria (scenarios refs + checks)
+   - Verification task (TF): id, action, type="verification", depends_on, inputs, must_not_do, acceptance_criteria (all scenario refs + checks)
+4. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)"`
 
 ### Requirements note
 
@@ -935,8 +842,9 @@ IF result.reclassification_suggestions AND len(result.reclassification_suggestio
 
   IF answer == "Apply all":
     FOR EACH s IN result.reclassification_suggestions:
-      Bash("hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{...}'")
+      # Run spec guide verify + spec guide scenario, construct JSON, merge with --patch
       # Update scenario: verified_by → s.suggested, execution_env → s.execution_env, verify → appropriate format
+      Bash("hoyeon-cli spec merge .dev/specs/{name}/spec.json --patch --json \"$(cat /tmp/spec-merge.json)\"")
 
   IF answer == "Let me pick":
     # Present each suggestion individually for user selection
@@ -949,7 +857,8 @@ IF result.reclassification_suggestions AND len(result.reclassification_suggestio
         ]
       )
       IF choice == "Yes":
-        Bash("hoyeon-cli spec merge .dev/specs/{name}/spec.json --json '{...}'")
+        # Run spec guide verify + spec guide scenario, construct JSON, merge with --patch
+        Bash("hoyeon-cli spec merge .dev/specs/{name}/spec.json --patch --json \"$(cat /tmp/spec-merge.json)\"")
 ```
 
 #### Examples of auto-fix rewrites
@@ -1181,7 +1090,9 @@ AskUserQuestion(
 - **spec.json is the ONLY output** — no DRAFT.md, no PLAN.md, no state.json
 - **Always use cli** — `hoyeon-cli spec init`, `spec merge`, `spec validate`, `spec check`
 - **Never hand-write spec.json** — always go through `spec merge` for auto-validation
-- **Read guide before merge** — run `hoyeon-cli spec guide <section>` before constructing merge JSON for unfamiliar or complex sections (especially `requirements`, `constraints`, `verify`). Also run `hoyeon-cli spec guide merge` to choose the right mode (replace vs `--append` vs `--patch`)
+- **Read guide before EVERY merge** — run `hoyeon-cli spec guide <section>` before constructing merge JSON for ANY section. This is mandatory, not optional. Field names, types (especially `verify` which must be an object `{type, run}`, not a string), and allowed properties vary per section. Also run `hoyeon-cli spec guide merge` to choose the right mode (replace vs `--append` vs `--patch`)
+- **File-based JSON passing** — never pass JSON directly as `--json '...'` argument. Instead: (1) write JSON to `/tmp/spec-merge.json` via heredoc with quoted EOF (`<< 'EOF'`), (2) pass via `--json "$(cat /tmp/spec-merge.json)"`, (3) clean up with `rm /tmp/spec-merge.json`. This prevents zsh glob/variable expansion from corrupting JSON with special characters like `[`, `{`, `$`
+- **Merge failure recovery** — when `spec merge` fails with validation error: (1) run `hoyeon-cli spec guide <failed-section>` to check exact schema, (2) fix the JSON to match schema (common issues: `verify` must be `{type, run}` object not string, no extra properties in `references` items, no unknown top-level keys), (3) retry merge. Do NOT attempt multiple blind retries
 - **One merge per section** — call `spec merge` once per top-level key (context, constraints, requirements, tasks). Never merge multiple sections in parallel — if one fails validation, parallel calls get cancelled and waste tokens
 - **--append for arrays** — use `--append` when adding to existing arrays (decisions, assumptions, known_gaps)
 - **--patch for updates** — use `--patch` when updating specific items by id (e.g., updating a single task's status or a single requirement's scenario)

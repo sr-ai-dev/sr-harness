@@ -5,8 +5,8 @@
   --color-surface: #1a1a1a;
   --color-surface-2: #2a2a2a;
   --color-border: #3a3a3a;
-  --color-accent: #3b82f6;
-  --color-accent-hover: #2563eb;
+  --color-accent: rgb(0, 153, 255);
+  --color-accent-hover: rgb(0, 120, 200);
   --color-text: #ffffff;
   --color-text-muted: #9ca3af;
   --font-family-sans: "Inter", ui-sans-serif, system-ui, sans-serif;

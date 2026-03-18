@@ -1,7 +1,9 @@
+import { EditorLayout } from './components/editor/EditorLayout'
+
 function App() {
   return (
     <div className="w-full h-full">
-      <p>Framer Clone</p>
+      <EditorLayout />
     </div>
   )
 }

@@ -276,36 +276,40 @@ export function LayersPanel() {
   // Empty state
   if (rootIds.length === 0) {
     return (
-      <div
-        data-testid="layers-panel-empty"
-        style={{
-          padding: '24px 16px',
-          color: '#888',
-          fontSize: 12,
-          textAlign: 'center',
-        }}
-      >
-        No layers yet. Add elements to the canvas to see them here.
+      <div data-testid="layers-panel">
+        <div
+          data-testid="layers-panel-empty"
+          style={{
+            padding: '24px 16px',
+            color: '#888',
+            fontSize: 12,
+            textAlign: 'center',
+          }}
+        >
+          No layers yet. Add elements to the canvas to see them here.
+        </div>
       </div>
     )
   }
 
   return (
-    <div data-testid="layers-panel-tree" style={{ paddingTop: 4 }}>
-      {rootIds.map((id) => (
-        <TreeNode
-          key={id}
-          id={id}
-          depth={0}
-          expandedIds={expandedIds}
-          selectedIds={selectedIds}
-          onToggleExpand={handleToggleExpand}
-          onSelect={handleSelect}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-        />
-      ))}
+    <div data-testid="layers-panel">
+      <div data-testid="layers-panel-tree" style={{ paddingTop: 4 }}>
+        {rootIds.map((id) => (
+          <TreeNode
+            key={id}
+            id={id}
+            depth={0}
+            expandedIds={expandedIds}
+            selectedIds={selectedIds}
+            onToggleExpand={handleToggleExpand}
+            onSelect={handleSelect}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          />
+        ))}
+      </div>
     </div>
   )
 }

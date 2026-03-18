@@ -96,7 +96,7 @@ export function saveToLocalStorage(): boolean {
     const snapshot = buildSnapshot()
     localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
     return true
-  } catch (err) {
+  } catch (_err) {
     // Covers QuotaExceededError and SecurityError (private browsing)
     notify(
       'warn',

@@ -3,8 +3,8 @@
 This file contains all dev-specific execution logic for the `/execute` skill.
 It is loaded when `meta.type == "dev"` (or absent) after Phase 0 completes.
 
-**Prerequisite**: Phase 0 (Find Spec, Get Plan, Init Context, Confirm Pre-work) is already done.
-`spec_path`, `plan`, `CONTEXT_DIR`, and `meta_type` are all established.
+**Prerequisite**: Phase 0 (Find Spec, Get Plan, Init Context, Confirm Pre-work, Work Mode Selection) is already done.
+`spec_path`, `plan`, `CONTEXT_DIR`, `meta_type`, `work_mode`, and `WORK_DIR` are all established.
 
 ---
 
@@ -82,6 +82,17 @@ function should_auto_pass_code_review() → bool:
 
 Create TaskCreate entries for all tasks. **Batch all in one turn.**
 
+### Worktree Setup (if work_mode == "worktree")
+
+Before creating tasks, the orchestrator must `cd` into the worktree so all workers operate there.
+
+```
+IF work_mode == "worktree":
+  # All Bash commands, Agent prompts, and file paths must use WORK_DIR
+  # Workers receive WORK_DIR in their description and cd into it first
+  print("Working in worktree: {WORK_DIR} (branch: {branch_name})")
+```
+
 ### Task Creation (Both Modes)
 
 ```
@@ -93,12 +104,16 @@ FOR EACH task in plan (flattened from rounds, excluding done):
   w  = TaskCreate(subject="{task.id}.1:Worker — {task.action}",
                   description=WORKER_DESCRIPTION(task.id),
                   activeForm="{task.id}.1: Running Worker")
-  cm = TaskCreate(subject="{task.id}.2:Commit",
-                  description="Commit {task.id} changes.",
-                  activeForm="{task.id}.2: Committing")
 
-# Finalize tasks
-rc = TaskCreate(subject="Finalize:Residual Commit", ...)
+  # Commit tasks only for worktree and branch-commit modes
+  IF work_mode != "no-commit":
+    cm = TaskCreate(subject="{task.id}.2:Commit",
+                    description="Commit {task.id} changes.",
+                    activeForm="{task.id}.2: Committing")
+
+# Finalize tasks — commit-related steps only when commits are enabled
+IF work_mode != "no-commit":
+  rc = TaskCreate(subject="Finalize:Residual Commit", ...)
 
 # Standard only: Code Review
 IF depth == "standard":
@@ -125,6 +140,10 @@ rp = TaskCreate(subject="Finalize:Report",
 ```
 WORKER_DESCRIPTION(task_id) = """
 You are a Worker agent. Implement task {task_id}.
+
+## Step 0: Working directory
+{IF WORK_DIR != ".": "cd {WORK_DIR} before any file operations. All paths are relative to {WORK_DIR}."}
+{IF WORK_DIR == ".": "Work in the current directory."}
 
 ## Step 1: Read your task spec
 Run: `hoyeon-cli spec task {task_id} --get {spec_path}`
@@ -199,31 +218,54 @@ Only append with ## {task_id} header — do NOT overwrite existing content.
 # TURN 2: Set ALL dependencies in PARALLEL (single message)
 # ═══════════════════════════════════════════════════
 
-# Worker → Commit chain (both modes)
-FOR EACH task:
-  TaskUpdate(taskId=w, addBlocks=[cm])
+IF work_mode != "no-commit":
+  # Worker → Commit chain
+  FOR EACH task:
+    TaskUpdate(taskId=w, addBlocks=[cm])
 
-# Cross-task dependencies (from spec.json depends_on)
-FOR EACH task WHERE task.depends_on is not empty:
-  FOR EACH dep_id in task.depends_on:
-    producer_last = task_ids[dep_id].commit
-    consumer_first = task_ids[task.id].worker
-    TaskUpdate(taskId=producer_last, addBlocks=[consumer_first])
+  # Cross-task dependencies (from spec.json depends_on)
+  FOR EACH task WHERE task.depends_on is not empty:
+    FOR EACH dep_id in task.depends_on:
+      producer_last = task_ids[dep_id].commit
+      consumer_first = task_ids[task.id].worker
+      TaskUpdate(taskId=producer_last, addBlocks=[consumer_first])
 
-# All last steps → Residual Commit
-all_last = [task_ids[T].commit for each T]
-FOR EACH last in all_last:
-  TaskUpdate(taskId=last, addBlocks=[rc])
+  # All last steps → Residual Commit
+  all_last = [task_ids[T].commit for each T]
+  FOR EACH last in all_last:
+    TaskUpdate(taskId=last, addBlocks=[rc])
 
-# Standard finalize chain: Residual Commit → Code Review → Final Verify → Report
-IF depth == "standard":
-  TaskUpdate(taskId=rc, addBlocks=[cr])
-  TaskUpdate(taskId=cr, addBlocks=[fv])
-  TaskUpdate(taskId=fv, addBlocks=[rp])
+  # Standard finalize chain: Residual Commit → Code Review → Final Verify → Report
+  IF depth == "standard":
+    TaskUpdate(taskId=rc, addBlocks=[cr])
+    TaskUpdate(taskId=cr, addBlocks=[fv])
+    TaskUpdate(taskId=fv, addBlocks=[rp])
 
-# Quick finalize chain: Residual Commit → Final Verify → Report
-IF depth == "quick":
-  TaskUpdate(taskId=rc, addBlocks=[fv])
+  # Quick finalize chain: Residual Commit → Final Verify → Report
+  IF depth == "quick":
+    TaskUpdate(taskId=rc, addBlocks=[fv])
+    TaskUpdate(taskId=fv, addBlocks=[rp])
+
+ELSE:  # no-commit mode
+  # Cross-task dependencies: Worker → Worker (no commit in between)
+  FOR EACH task WHERE task.depends_on is not empty:
+    FOR EACH dep_id in task.depends_on:
+      producer_last = task_ids[dep_id].worker
+      consumer_first = task_ids[task.id].worker
+      TaskUpdate(taskId=producer_last, addBlocks=[consumer_first])
+
+  all_last = [task_ids[T].worker for each T]
+
+  IF depth == "standard":
+    # Workers → Code Review → Final Verify → Report
+    FOR EACH last in all_last:
+      TaskUpdate(taskId=last, addBlocks=[cr])
+    TaskUpdate(taskId=cr, addBlocks=[fv])
+  ELSE:
+    # Workers → Final Verify → Report (quick, no code review)
+    FOR EACH last in all_last:
+      TaskUpdate(taskId=last, addBlocks=[fv])
+
   TaskUpdate(taskId=fv, addBlocks=[rp])
 ```
 
@@ -395,14 +437,18 @@ ELIF result.status == "FAILED":
 
 ### 1b. :Commit — Per-Task Commit
 
+> **Skipped entirely when `work_mode == "no-commit"`** — no :Commit tasks exist in the DAG.
+
 ```
 # task_action comes from TaskGet(task.id).subject (e.g., "T1.2:Commit" → parent "T1.1:Worker — Project init")
 # Or parse from the Worker TaskCreate subject which includes the action text.
 
+# For worktree mode, git-master operates in WORK_DIR
 Agent(
   subagent_type="git-master",
   description="Commit: {task_id}",
   prompt="""
+    {IF work_mode == "worktree": "cd {WORK_DIR} first."}
     Commit changes for task {task_id}: {task_action from TaskCreate subject}
     Files modified: {from worker result or git status}
     Spec: {spec_path}
@@ -425,11 +471,16 @@ After all task rounds complete, run finalize steps in order.
 
 ### 2a. :Residual Commit
 
+> **Skipped entirely when `work_mode == "no-commit"`** — no `rc` task exists in the DAG.
+
 ```bash
-git_status = Bash("git status --porcelain")
-IF git_status is not empty:
-  Agent(subagent_type="git-master", prompt="Commit remaining changes from spec: {spec.meta.goal}")
-TaskUpdate(taskId=rc, status="completed")
+IF work_mode == "no-commit":
+  # Skip — no residual commit task exists
+ELSE:
+  git_status = Bash("cd {WORK_DIR} && git status --porcelain")
+  IF git_status is not empty:
+    Agent(subagent_type="git-master", prompt="{IF work_mode == 'worktree': 'cd {WORK_DIR} first. '}Commit remaining changes from spec: {spec.meta.goal}")
+  TaskUpdate(taskId=rc, status="completed")
 ```
 
 ### 2b. :Code Review (Standard Only)
@@ -591,6 +642,7 @@ print("""
 SPEC: {spec_path}
 GOAL: {spec.meta.goal}
 MODE: {depth}
+WORK: {work_mode}{IF work_mode == "worktree": " ({WORK_DIR}, branch: {branch_name})"}
 
 ───────────────────────────────────────────────────
 TASKS
@@ -694,6 +746,8 @@ Details: {summary}
 10. **must_not_do checked at FV only** — Workers self-certify must_not_do compliance. Final Verify is the sole independent check for must_not_do violations (no per-task independent verification)
 11. **Adaptation updates spec.json** — new tasks go through `spec derive` (handles ID generation, origin=derived, derived_from, depends_on, re-plan automatically)
 12. **Background for parallel** — use `run_in_background: true` for round-parallel workers
+13. **work_mode governs git behavior** — `worktree`: creates `.worktrees/{spec-name}` with `feat/{spec-name}` branch, all work happens there; `branch-commit`: current branch with per-task commits; `no-commit`: current branch, no commits at all (no :Commit tasks, no Residual Commit)
+14. **Worktree workers must cd** — when `work_mode == "worktree"`, all file operations (Edit, Write, Bash) must target `WORK_DIR`. Workers receive `WORK_DIR` in their description and cd into it first.
 
 ---
 

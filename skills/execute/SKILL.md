@@ -134,6 +134,47 @@ ELSE:
     IF answer == "Abort": HALT
 ```
 
+### 0.5 Work Mode Selection
+
+Ask the user how they want to work. This determines git branching and commit behavior.
+
+```
+work_mode = AskUserQuestion(
+  question: "How do you want to work?",
+  options: [
+    { label: "Worktree", description: "Create .worktrees/{spec-name} branch, commit per task" },
+    { label: "Branch + Commit", description: "Work on current branch, commit per task" },
+    { label: "No Commit", description: "Work on current branch, no commits (just apply changes)" }
+  ]
+)
+```
+
+**Worktree mode setup:**
+
+```
+IF work_mode == "Worktree":
+  spec_name = basename(dirname(spec_path))  # e.g. "auth-login"
+  branch_name = "feat/{spec_name}"
+  worktree_path = ".worktrees/{spec_name}"
+
+  Bash("mkdir -p .worktrees")
+  Bash("git worktree add {worktree_path} -b {branch_name}")
+
+  # Convert spec_path to absolute so it works from any directory
+  spec_path = Bash("realpath {spec_path}").trim()
+
+  # All subsequent work happens in worktree_path
+  WORK_DIR = Bash("realpath {worktree_path}").trim()
+  print("Worktree created: {WORK_DIR} (branch: {branch_name})")
+  print("spec_path (absolute): {spec_path}")
+ELSE:
+  WORK_DIR = "."  # current directory
+```
+
+**Variables forwarded to dev.md / plain.md:**
+- `work_mode`: `"worktree"` | `"branch-commit"` | `"no-commit"`
+- `WORK_DIR`: absolute path to working directory
+
 ---
 
 ## Meta.type Routing

@@ -1099,14 +1099,21 @@ Then call gate-keeper via SendMessage with requirements + scenario summary.
 
 **Worker completion condition**: All referenced scenarios verified AND all checks pass
 
-#### Sandbox Scenario Infra Auto-task
+#### Sandbox Scenario Infra Auto-task (MANDATORY)
 
-When any scenario has `execution_env: "sandbox"`:
+⚠️ **MUST run immediately after task merge** when `context.sandbox_capability.scaffold_required == true`:
 
 ```bash
-# Auto-generates T_SANDBOX (infra prep) + T_SV1~N (per-scenario verification) tasks
 hoyeon-cli spec sandbox-tasks .dev/specs/{name}/spec.json
 ```
+
+This auto-generates:
+- **T_SANDBOX**: sandbox environment preparation (Docker Compose, Playwright config, seed data, healthcheck)
+- **T_SV1~N**: per-scenario verification tasks for every `execution_env: "sandbox"` scenario
+
+**Skip condition**: `scaffold_required == false` (sandbox infra already exists, detected in Phase A).
+**If skipped when required**: L4 gate WILL fail — gate-keeper checks for `sandbox_tasks_missing`.
+**Execution order**: Run AFTER manual task merge, BEFORE L4.5 (External Dependencies) and L4 Gate.
 
 ### Merge tasks
 
@@ -1203,6 +1210,14 @@ Review the following tasks for L4 gate.
 **Acceptance criteria completeness:**
 - Every scenario referenced in a task should be verifiable by the checks + scenarios in AC
 - checks[] should have at least one runnable command per work task
+
+**Sandbox tasks check (BLOCKING):**
+- IF context.sandbox_capability.scaffold_required == true:
+  → T_SANDBOX task MUST exist in tasks[]
+  → T_SV* tasks MUST cover ALL execution_env: 'sandbox' scenarios
+  → Count T_SV* tasks vs sandbox scenario count — they MUST match
+  → Missing → flag as BLOCKING gap (category: 'sandbox_tasks_missing')
+- IF scaffold_required == false: verify sandbox infra was detected in Phase A (no scaffold needed)
 ")
 ```
 
@@ -1516,7 +1531,8 @@ No TeamCreate, no SendMessage gates in quick mode. Max 1 plan-reviewer round if 
 - [ ] Human scenario ratio < 30% (or justified exception)
 - [ ] Sandbox Capability Check completed (auto-detect → scaffold if needed → re-run L3 with capability set)
 - [ ] L3-devil's-advocate checked execution_env diversity (sandbox_underuse / sandbox_capability_unknown / browser_sandbox_skipped_for_ui_project gaps)
-- [ ] If no sandbox infra and project benefits from it: T-sandbox-* scaffold task(s) added to spec
+- [ ] IF `scaffold_required == true`: `hoyeon-cli spec sandbox-tasks` executed AND T_SANDBOX + T_SV* tasks present in spec
+- [ ] IF `scaffold_required == false`: sandbox infra detected in Phase A (no scaffold needed)
 - [ ] plan-reviewer returned OKAY
 - [ ] `spec coverage` passes (full chain + per-layer at each transition)
 

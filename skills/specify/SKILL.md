@@ -1116,6 +1116,26 @@ Pre-work (human actions — must complete before /execute)
 {pre_work items or "(none)"}
 ────────────────────────────────────────
 
+Breaking Changes
+────────────────────────────────────────
+{Scan tasks and decisions for breaking change signals. For each match, show:
+  [category] description ← T{id} or D{id}
+
+Categories and detection heuristics:
+  [DB]    — file_scope matches **/migrations/**, **/schema/**, prisma/schema.prisma,
+             or action contains: migration, schema change, alter table, add column, drop, rename table
+  [ENV]   — file_scope matches .env*, or action contains: environment variable, env var, new secret
+  [API]   — action contains: breaking change, remove endpoint, rename route, change response format,
+             API version, deprecate
+  [INFRA] — file_scope matches docker-compose*, Dockerfile, terraform/**, k8s/**, .github/workflows/**,
+             or action contains: infrastructure, deploy, container, CI/CD, pipeline
+  [DEPS]  — action contains: upgrade major, replace library, remove dependency, migrate from X to Y
+
+If no signals detected: "(none detected)"
+If signals found, also append: "⚠ Review these before /execute — they may require coordination, backups, or rollback plans."
+}
+────────────────────────────────────────
+
 Task Overview
 ────────────────────────────────────────
 T1: {action}                             [work|{risk}] — pending
@@ -1226,7 +1246,8 @@ No TeamCreate, no SendMessage gates in quick mode. Max 1 plan-reviewer round if 
 - [ ] `meta.non_goals` populated (use empty array `[]` if none)
 - [ ] `history` includes `spec_created` entry
 - [ ] `meta.mode` is set
-- [ ] Plan Approval Summary presented
+- [ ] Plan Approval Summary presented (including Breaking Changes scan)
+- [ ] Breaking Changes section shows detected signals or "(none detected)"
 - [ ] `meta.approved_by` and `meta.approved_at` written after approval
 
 ### Standard mode (additional)

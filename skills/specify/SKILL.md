@@ -135,17 +135,17 @@ TeamCreate("specify-session")
 | Name | Role | Active During | Spawn Prompt Focus |
 |------|------|---------------|-------------------|
 | **gate-keeper** | Layer-transition reviewer | L0~L4 gate | Check for DRIFT, GAP, CONFLICT, BACKTRACK + information sufficiency (EXTERNAL_REF_UNVERIFIED, CODEBASE_CLAIM_UNVERIFIED, ASSUMPTION_LOAD). Return PASS or REVIEW_NEEDED with numbered items. Read-only: use Read, Grep, Glob only. Do NOT write files, run Bash, or create Tasks. |
-| **user-advocate** | User journey mapper + priority judge | L3 | From decisions, derive user personas and their journeys. For every screen/feature, enumerate ALL reachability paths (navigation, deep link, URL direct access, back button, redirect). Judge gap severity from user perspective. |
-| **requirement-writer** | Requirements + scenarios author | L3 | Receive user journeys from user-advocate. Structure into formal Requirements + Given-When-Then Scenarios. Ensure every journey path becomes a requirement or scenario. Output structured JSON with requirements[] and scenarios[]. |
-| **devil's-advocate** | Adversarial completeness tester | L3 | Attack requirements: find missing paths, contradictions, impossible assumptions. When uncertain about external API/library constraints or codebase state, request research from orchestrator. Return PASS (no more gaps) or GAPS (with specific issues). |
+| **L3-user-advocate** | User journey mapper + priority judge | L3 | From decisions, derive user personas and their journeys. For every screen/feature, enumerate ALL reachability paths (navigation, deep link, URL direct access, back button, redirect). Judge gap severity from user perspective. |
+| **L3-requirement-writer** | Requirements + scenarios author | L3 | Receive user journeys from L3-user-advocate. Structure into formal Requirements + Given-When-Then Scenarios. Ensure every journey path becomes a requirement or scenario. Output structured JSON with requirements[] and scenarios[]. |
+| **L3-devil's-advocate** | Adversarial completeness tester | L3 | Attack requirements: find missing paths, contradictions, impossible assumptions. When uncertain about external API/library constraints or codebase state, request research from orchestrator. Return PASS (no more gaps) or GAPS (with specific issues). |
 
 > All teammates are general-purpose agents. Specialization is defined entirely through spawn prompts.
-> L3 agents (user-advocate, requirement-writer, devil's-advocate) are idle during L0~L2 and L4~L5. They are pre-spawned because TeamCreate can only be called once per session.
+> L3 agents (L3-user-advocate, L3-requirement-writer, L3-devil's-advocate) are idle during L0~L2 and L4~L5. They are pre-spawned because TeamCreate can only be called once per session.
 
 **Teammate lifecycle:**
 - L0~L2: gate-keeper active, L3 agents idle
 - L3: all 4 active
-- L3 complete → **shutdown L3 agents** via `SendMessage(to="user-advocate", message={type: "shutdown_request"})` (repeat for requirement-writer and devil's-advocate). Gate-keeper excluded.
+- L3 complete → **shutdown L3 agents** via `SendMessage(to="L3-user-advocate", message={type: "shutdown_request"})` (repeat for L3-requirement-writer and L3-devil's-advocate). Gate-keeper excluded.
 - L4~L5: gate-keeper only
 
 **gate-keeper return contract:**
@@ -571,7 +571,7 @@ If exit code non-zero → gate failure. Handle per Gate Protocol.
 
 ## L3: Requirements + Scenarios
 
-**Who**: user-advocate + requirement-writer + devil's-advocate (teammates) — 3-Agent Requirements Workshop
+**Who**: L3-user-advocate + L3-requirement-writer + L3-devil's-advocate (teammates) — 3-Agent Requirements Workshop
 **Input**: goal + decisions + provisional requirements (as seed)
 **Output**: `requirements[]` with source fields + `scenarios[]` with category/verified_by/verify
 **Merge**: `spec merge requirements` (atomic, with scenarios)
@@ -580,7 +580,7 @@ If exit code non-zero → gate failure. Handle per Gate Protocol.
 
 ### Pre-read: VERIFICATION.md
 
-Before starting the workshop, read VERIFICATION.md to inline into requirement-writer's prompt:
+Before starting the workshop, read VERIFICATION.md to inline into L3-requirement-writer's prompt:
 
 ```bash
 # ${baseDir} is provided as header context to the main agent.
@@ -592,7 +592,7 @@ TESTING_MD_CONTENT = Read("${baseDir}/references/VERIFICATION_GUIDE.md")
 
 ### Sandbox Capability Check (before workshop)
 
-Run **before** the 3-agent workshop so requirement-writer knows whether to generate sandbox scenarios.
+Run **before** the 3-agent workshop so L3-requirement-writer knows whether to generate sandbox scenarios.
 
 ```
 IF context.sandbox_capability is NOT set:
@@ -619,7 +619,7 @@ IF context.sandbox_capability is NOT set:
   Setting capability based on general assumptions (e.g., "Docker is available") is FORBIDDEN.
 ```
 
-Pass the resolved `context.sandbox_capability` into requirement-writer's SendMessage prompt so it knows what sandbox environments are available.
+Pass the resolved `context.sandbox_capability` into L3-requirement-writer's SendMessage prompt so it knows what sandbox environments are available.
 
 ### Quick Mode Shortcut
 
@@ -627,7 +627,7 @@ Pass the resolved `context.sandbox_capability` into requirement-writer's SendMes
 
 ### 3-Agent Requirements Workshop (standard mode) — Collaborative Communication
 
-Three L3 teammates (user-advocate, requirement-writer, devil's-advocate) are **activated simultaneously** and collaborate freely via SendMessage. The orchestrator sends all 3 initial prompts **in a single message**, then monitors for convergence.
+Three L3 teammates (L3-user-advocate, L3-requirement-writer, L3-devil's-advocate) are **activated simultaneously** and collaborate freely via SendMessage. The orchestrator sends all 3 initial prompts **in a single message**, then monitors for convergence.
 
 **Key principle**: This is a **workshop, not a pipeline**. All 3 agents are alive and can message each other at any time. The orchestrator does NOT sequence their work — they self-organize.
 
@@ -635,28 +635,28 @@ Three L3 teammates (user-advocate, requirement-writer, devil's-advocate) are **a
 1. User-advocate starts by deriving journeys (fastest to produce initial output)
 2. Requirement-writer begins structuring as journeys arrive
 3. Devil's-advocate attacks requirements as they form
-4. Devil's-advocate asks user-advocate about gap severity
-5. Requirement-writer revises based on devil's-advocate feedback
-6. Cross-talk continues until devil's-advocate sends PASS
+4. Devil's-advocate asks L3-user-advocate about gap severity
+5. Requirement-writer revises based on L3-devil's-advocate feedback
+6. Cross-talk continues until L3-devil's-advocate sends PASS
 
-**Convergence condition**: devil's-advocate sends `PASS` to orchestrator (no more gaps found).
-**Circuit breaker**: After 3 writer→devil's-advocate exchanges without PASS, orchestrator escalates remaining gaps to user.
+**Convergence condition**: L3-devil's-advocate sends `PASS` to orchestrator (no more gaps found).
+**Circuit breaker**: After 3 writer→L3-devil's-advocate exchanges without PASS, orchestrator escalates remaining gaps to user.
 
-> All agents can have micro-conversations freely (e.g., devil's-advocate asks user-advocate "is this path critical?", user-advocate asks requirement-writer "did you cover the search→profile journey?"). These do NOT count as cycles. A 'cycle' is: devil's-advocate sends GAPS → writer revises → devil's-advocate reviews again.
+> All agents can have micro-conversations freely (e.g., L3-devil's-advocate asks L3-user-advocate "is this path critical?", L3-user-advocate asks L3-requirement-writer "did you cover the search→profile journey?"). These do NOT count as cycles. A 'cycle' is: L3-devil's-advocate sends GAPS → writer revises → L3-devil's-advocate reviews again.
 
 #### Initial Prompts (sent simultaneously)
 
 The orchestrator sends all 3 prompts **in one message** to activate the workshop. User-advocate starts first naturally (journeys are the input), but all agents are alive and can interact immediately.
 
-**Prompt 1 — user-advocate:**
+**Prompt 1 — L3-user-advocate:**
 ```
-SendMessage(to="user-advocate", message="
-You are in a 3-agent requirements workshop with requirement-writer and devil's-advocate.
+SendMessage(to="L3-user-advocate", message="
+You are in a 3-agent requirements workshop with L3-requirement-writer and L3-devil's-advocate.
 Derive user journeys from the confirmed goal, decisions, and their implications.
 
-Send your journeys to requirement-writer via SendMessage(to='requirement-writer').
-Stay alive throughout the workshop — devil's-advocate will ask you to judge gap severity,
-and requirement-writer may ask about journey coverage. You can also proactively flag
+Send your journeys to L3-requirement-writer via SendMessage(to='L3-requirement-writer').
+Stay alive throughout the workshop — L3-devil's-advocate will ask you to judge gap severity,
+and L3-requirement-writer may ask about journey coverage. You can also proactively flag
 issues you notice in requirements as they develop.
 
 Goal: {confirmed_goal}
@@ -694,16 +694,16 @@ Also output:
 ")
 ```
 
-**Prompt 2 — requirement-writer** (sent simultaneously with Prompt 1 and 3):
+**Prompt 2 — L3-requirement-writer** (sent simultaneously with Prompt 1 and 3):
 ```
-SendMessage(to="requirement-writer", message="
-You are in a 3-agent requirements workshop with user-advocate and devil's-advocate.
-You will receive user journeys from user-advocate. Structure them into formal Requirements + Scenarios.
+SendMessage(to="L3-requirement-writer", message="
+You are in a 3-agent requirements workshop with L3-user-advocate and L3-devil's-advocate.
+You will receive user journeys from L3-user-advocate. Structure them into formal Requirements + Scenarios.
 
-Send your requirements to devil's-advocate via SendMessage(to='devil\'s-advocate').
-If devil's-advocate sends GAPS back, revise and re-send to devil's-advocate.
-You can also ask user-advocate for clarification on journey coverage at any time.
-When devil's-advocate sends PASS, it goes to the orchestrator — you're done.
+Send your requirements to L3-devil's-advocate via SendMessage(to='devil\'s-advocate').
+If L3-devil's-advocate sends GAPS back, revise and re-send to L3-devil's-advocate.
+You can also ask L3-user-advocate for clarification on journey coverage at any time.
+When L3-devil's-advocate sends PASS, it goes to the orchestrator — you're done.
 
 Goal: {confirmed_goal}
 
@@ -784,11 +784,11 @@ Target: human scenarios < 30% of total.
 ")
 ```
 
-**If requirement-writer reports decision_gaps** → L3 backtracking:
+**If L3-requirement-writer reports decision_gaps** → L3 backtracking:
 
 ```
 AskUserQuestion(
-  question: "L3 requirement-writer found missing decisions needed to finalize requirements. Shall we return to L2?",
+  question: "L3 L3-requirement-writer found missing decisions needed to finalize requirements. Shall we return to L2?",
   header: "Decision Gap Found",
   options: [
     { label: "Yes, go back to L2", description: "I'll answer the missing decision questions" },
@@ -805,15 +805,15 @@ If user selects "Yes, go back to L2" → merge additional decisions, then re-run
 2. On re-run: start fresh — do NOT reuse previous L3 output.
 3. Requirements merge overwrites entirely (no `--append`, no `--patch`).
 
-**Prompt 3 — devil's-advocate** (sent simultaneously with Prompt 1 and 2):
+**Prompt 3 — L3-devil's-advocate** (sent simultaneously with Prompt 1 and 2):
 ```
-SendMessage(to="devil's-advocate", message="
-You are in a 3-agent requirements workshop with user-advocate and requirement-writer.
-You will receive requirements+scenarios from requirement-writer. Your job is to BREAK them — find missing paths, contradictions, impossible assumptions, and untested edge cases.
+SendMessage(to="L3-devil's-advocate", message="
+You are in a 3-agent requirements workshop with L3-user-advocate and L3-requirement-writer.
+You will receive requirements+scenarios from L3-requirement-writer. Your job is to BREAK them — find missing paths, contradictions, impossible assumptions, and untested edge cases.
 
 IMPORTANT: Communication protocol:
-- If you find GAPS: send them DIRECTLY to requirement-writer via SendMessage(to='requirement-writer'). Include cycle counter.
-- If you need user perspective on a gap's severity: ask user-advocate via SendMessage(to='user-advocate').
+- If you find GAPS: send them DIRECTLY to L3-requirement-writer via SendMessage(to='L3-requirement-writer'). Include cycle counter.
+- If you need user perspective on a gap's severity: ask L3-user-advocate via SendMessage(to='L3-user-advocate').
 - If you need research to verify a claim: send RESEARCH_REQUEST to orchestrator via SendMessage(to='team-lead') with format: {type: 'research', query: '...', target: 'internal'|'external'}. Orchestrator will dispatch a Task subagent and send findings back to you.
 - If PASS (no more gaps): send the final converged requirements JSON to orchestrator via SendMessage(to='team-lead').
 
@@ -860,18 +860,18 @@ IMPORTANT: Communication protocol:
 ## Output Protocol
 
 - **PASS** (no more gaps): Send final converged requirements JSON to **team-lead**. Include complete requirements[] array.
-- **GAPS** (cycle N/3): Send gap list to **requirement-writer**. Include cycle counter. Writer will revise and re-send.
+- **GAPS** (cycle N/3): Send gap list to **L3-requirement-writer**. Include cycle counter. Writer will revise and re-send.
 - **ESCALATE** (cycle 3 exhausted): Send remaining gaps to **team-lead**. Orchestrator presents to user.
 - **RESEARCH_REQUEST**: Send to **team-lead** with {type: 'research', query: '...', target: 'internal'|'external'}. Wait for response before continuing review.
 
 A 'cycle' is: you send GAPS → writer revises → you review again.
-Micro-conversations (asking user-advocate about severity, clarifications) do NOT count.
+Micro-conversations (asking L3-user-advocate about severity, clarifications) do NOT count.
 ")
 ```
 
-**Orchestrator handles messages from devil's-advocate:**
+**Orchestrator handles messages from L3-devil's-advocate:**
 - `PASS` + requirements JSON → proceed to merge
-- `RESEARCH_REQUEST` → dispatch Task subagent (code-explorer or external-researcher), send findings back to devil's-advocate
+- `RESEARCH_REQUEST` → dispatch Task subagent (code-explorer or external-researcher), send findings back to L3-devil's-advocate
 - `ESCALATE` + remaining gaps → present to user:
 
 ```
@@ -886,7 +886,7 @@ AskUserQuestion(
 )
 ```
 
-**Safety net**: If devil's-advocate reports a BLOCKING gap (`sandbox_capability_unknown` or `browser_sandbox_skipped_for_ui_project`),
+**Safety net**: If L3-devil's-advocate reports a BLOCKING gap (`sandbox_capability_unknown` or `browser_sandbox_skipped_for_ui_project`),
 orchestrator MUST intervene before next cycle:
 - `sandbox_capability_unknown`: read `references/sandbox-guide.md`, execute Phase A → B → C inline
 - `browser_sandbox_skipped_for_ui_project`: re-run Phase B of sandbox-guide.md
@@ -896,9 +896,9 @@ orchestrator MUST intervene before next cycle:
 After L3 merge completes (requirements merged into spec.json):
 
 ```
-SendMessage(to="user-advocate", message={type: "shutdown_request", reason: "L3 complete"})
-SendMessage(to="requirement-writer", message={type: "shutdown_request", reason: "L3 complete"})
-SendMessage(to="devil's-advocate", message={type: "shutdown_request", reason: "L3 complete"})
+SendMessage(to="L3-user-advocate", message={type: "shutdown_request", reason: "L3 complete"})
+SendMessage(to="L3-requirement-writer", message={type: "shutdown_request", reason: "L3 complete"})
+SendMessage(to="L3-devil's-advocate", message={type: "shutdown_request", reason: "L3 complete"})
 ```
 
 Gate-keeper remains active for L4.
@@ -918,7 +918,7 @@ IF review.suggested_additions is non-empty:
 
 ```
 # sandbox_capability was resolved before workshop (see "Sandbox Capability Check" above).
-# This section handles the fallback: if requirement-writer generated sandbox scenarios
+# This section handles the fallback: if L3-requirement-writer generated sandbox scenarios
 # but the capability doesn't support them, convert to agent+host.
 
 sandbox_scenarios = [s for r in draft.requirements for s in r.scenarios if s.execution_env == "sandbox"]
@@ -1075,7 +1075,7 @@ hoyeon-cli spec sandbox-tasks .dev/specs/{name}/spec.json
 3. Include TF (full verification) task with `depends_on` referencing all work tasks
 4. Merge via `hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)"`
 
-> Requirements were confirmed in L2 (with source fields) and scenarios were generated in L3 by the 3-agent workshop (user-advocate / requirement-writer / devil's-advocate). Do NOT merge requirements again here.
+> Requirements were confirmed in L2 (with source fields) and scenarios were generated in L3 by the 3-agent workshop (L3-user-advocate / L3-requirement-writer / L3-devil's-advocate). Do NOT merge requirements again here.
 
 ### L4.5: External Dependencies Derivation (non-interactive)
 
@@ -1431,9 +1431,9 @@ No TeamCreate, no SendMessage gates in quick mode. Max 1 plan-reviewer round if 
 - **Incremental merge** — merge after every layer and every user response; do not batch
 - **confirmed_goal in context** — NEVER move `confirmed_goal` to `meta` (C4)
 - **gate-keeper** — teammate spawned via TeamCreate, role defined by spawn prompt (not a custom agent file)
-- **user-advocate** — teammate for user journey mapping + gap severity judgment (spawned at session start, active during L3, shutdown after L3)
-- **requirement-writer** — teammate for requirements + scenarios structuring from journeys (spawned at session start, active during L3, shutdown after L3)
-- **devil's-advocate** — teammate for adversarial completeness testing + research requests (spawned at session start, active during L3, shutdown after L3)
+- **L3-user-advocate** — teammate for user journey mapping + gap severity judgment (spawned at session start, active during L3, shutdown after L3)
+- **L3-requirement-writer** — teammate for requirements + scenarios structuring from journeys (spawned at session start, active during L3, shutdown after L3)
+- **L3-devil's-advocate** — teammate for adversarial completeness testing + research requests (spawned at session start, active during L3, shutdown after L3)
 - **Team mode members** — disallowed-tools MUST include Task and Skill (C3)
 
 ## Checklist Before Stopping
@@ -1456,7 +1456,7 @@ No TeamCreate, no SendMessage gates in quick mode. Max 1 plan-reviewer round if 
 
 ### Standard mode (additional)
 - [ ] TeamCreate called at session start
-- [ ] TeamCreate called with 4 teammates: gate-keeper, user-advocate, requirement-writer, devil's-advocate
+- [ ] TeamCreate called with 4 teammates: gate-keeper, L3-user-advocate, L3-requirement-writer, L3-devil's-advocate
 - [ ] Gate-keeper defined via spawn prompt (DRIFT/GAP/CONFLICT/BACKTRACK review, read-only)
 - [ ] SendMessage called at each layer gate (L0, L1, L2, L3, L4)
 - [ ] `context.research` is structured object (not string)
@@ -1464,14 +1464,14 @@ No TeamCreate, no SendMessage gates in quick mode. Max 1 plan-reviewer round if 
 - [ ] `context.decisions[]` populated from interview
 - [ ] `constraints` populated (L2.7 — merge empty array explicitly if none apply)
 - [ ] `external_dependencies` populated (L4.5 — merge empty pre_work/post_work explicitly if none apply)
-- [ ] L3 workshop ran (user-advocate → requirement-writer → devil's-advocate, max 3 cycles)
-- [ ] VERIFICATION.md pre-read and inlined into requirement-writer SendMessage prompt
+- [ ] L3 workshop ran (L3-user-advocate → L3-requirement-writer → L3-devil's-advocate, max 3 cycles)
+- [ ] VERIFICATION.md pre-read and inlined into L3-requirement-writer SendMessage prompt
 - [ ] L3 agents shutdown after L3 merge (gate-keeper excluded)
 - [ ] Sandbox Scenario Fallback Rules applied
 - [ ] Human minimization applied (every `verified_by: human` has `conversion_rejected` justification)
 - [ ] Human scenario ratio < 30% (or justified exception)
 - [ ] Sandbox Capability Check completed (auto-detect → scaffold if needed → re-run L3 with capability set)
-- [ ] devil's-advocate checked execution_env diversity (sandbox_underuse / sandbox_capability_unknown / browser_sandbox_skipped_for_ui_project gaps)
+- [ ] L3-devil's-advocate checked execution_env diversity (sandbox_underuse / sandbox_capability_unknown / browser_sandbox_skipped_for_ui_project gaps)
 - [ ] If no sandbox infra and project benefits from it: T-sandbox-* scaffold task(s) added to spec
 - [ ] plan-reviewer returned OKAY
 - [ ] `spec coverage` passes (full chain + per-layer at each transition)

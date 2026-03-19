@@ -509,6 +509,21 @@ TESTING_MD_CONTENT = Read("${baseDir}/references/VERIFICATION_GUIDE.md")
 
 > Why inline? Teammates cannot resolve `${baseDir}`. The orchestrator reads the file and passes content directly into the SendMessage prompt.
 
+### Sandbox Capability Check (before pingpong)
+
+Run **before** the draft-review pingpong so L3-drafter knows whether to generate sandbox scenarios.
+
+```
+IF context.sandbox_capability is NOT set:
+  Read references/sandbox-guide.md and execute Phase A → B → C inline.
+  - Phase A: auto-detect existing infra (silent, no user prompt)
+  - Phase B: no infra → classify project signals → ask user (scaffold requires approval)
+  - Phase C: add T-sandbox-* scaffold tasks → record capability in spec.json
+  After: capability is set — L3-drafter can use it to decide execution_env per scenario.
+```
+
+Pass the resolved `context.sandbox_capability` into L3-drafter's SendMessage prompt so it knows what sandbox environments are available.
+
 ### Quick Mode Shortcut
 
 > **Mode Gate**: Quick → orchestrator derives requirements + scenarios directly (no pingpong, no teammates). Merge and auto-advance.
@@ -583,6 +598,16 @@ Each scenario MUST include:
 - verified_by: 'machine' (automated command), 'agent' (AI assertion), or 'human' (manual inspection)
 - execution_env: 'host' (local), 'sandbox' (docker/container), or 'ci' (CI pipeline) — default 'host'
 - verify: object matching verified_by type (command for machine, assertion for agent, instruction for human)
+
+## Sandbox Capability
+{IF sandbox_capability is set:
+  Available: {sandbox_capability.tools} (docker: {sandbox_capability.docker}, browser: {sandbox_capability.browser})
+  → USE execution_env: 'sandbox' for scenarios where these tools apply
+  → Browser sandbox: E2E flows, visual regression, real DOM interactions (drag-drop, CSS transforms, layout)
+  → Docker sandbox: DB integration, API contract tests, service dependency tests
+ELSE:
+  No sandbox available — use execution_env: 'host' for all scenarios
+}
 
 ## Testing Strategy (from VERIFICATION.md)
 {TESTING_MD_CONTENT}
@@ -679,6 +704,9 @@ FOR round IN 1..3:
   - IF sandbox capability is available (docker/browser) AND all scenarios are execution_env: 'host':
     → Flag as gap (category: 'sandbox_underuse') — sandbox-capable projects MUST use sandbox for at least some UI/integration scenarios
   - Count execution_env distribution: if 100% host when sandbox is available → GAPS
+  - IF `context.sandbox_capability` is NOT set:
+    → Flag as gap (category: 'sandbox_capability_unknown') — should have been resolved before pingpong
+    → Safety net: orchestrator must run Sandbox Capability Check (references/sandbox-guide.md) before next round
 
   **Human minimization:**
   - Every verified_by: 'human' scenario MUST have a 'conversion_rejected' justification
@@ -699,6 +727,12 @@ FOR round IN 1..3:
   IF review.status == "PASS":
     print("L3 Draft-Review converged in {round} round(s)")
     BREAK
+
+  # Safety net: if sandbox_capability_unknown gap detected, resolve it before next round
+  IF ANY gap.category == "sandbox_capability_unknown" in review.gaps:
+    Read references/sandbox-guide.md and execute Phase A → B → C inline.
+    Re-inject resolved sandbox_capability into next SendMessage to L3-drafter.
+    round -= 1  # This is a setup step, not a revision round — don't count it
 
   IF round == 3 AND review.status != "PASS":
     # Circuit breaker: escalate remaining gaps to user
@@ -727,15 +761,20 @@ IF review.suggested_additions is non-empty:
   # Only merge user-approved suggestions as new requirements
 ```
 
-#### Sandbox Capability Check (conditional, before merge)
+#### Sandbox Scenario Fallback (before merge)
 
 ```
-# Collect all sandbox scenarios from the final draft
+# sandbox_capability was resolved before pingpong (see "Sandbox Capability Check" above).
+# This section handles the fallback: if L3-drafter generated sandbox scenarios
+# but the capability doesn't support them, convert to agent+host.
+
 sandbox_scenarios = [s for r in draft.requirements for s in r.scenarios if s.execution_env == "sandbox"]
 
 IF sandbox_scenarios is non-empty:
   # Check if capability already recorded in spec.json context
-  existing_capability = spec.context.sandbox_capability  # from previous specify session or L2
+  # NOTE: In normal flow, capability is always set by the before-pingpong check.
+  # This branch is a defensive fallback — should not fire in happy path.
+  existing_capability = spec.context.sandbox_capability
 
   IF existing_capability is NOT set:
     # First time — ask user (once per project, stored in spec.json context)
@@ -1204,8 +1243,9 @@ No TeamCreate, no SendMessage gates in quick mode. Max 1 plan-reviewer round if 
 - [ ] Sandbox Scenario Fallback Rules applied
 - [ ] Human minimization applied (every `verified_by: human` has `conversion_rejected` justification)
 - [ ] Human scenario ratio < 30% (or justified exception)
-- [ ] Sandbox Capability Check completed (if sandbox scenarios exist and `context.sandbox_capability` was not set)
-- [ ] L3-reviewer checked execution_env diversity (sandbox_underuse gap if applicable)
+- [ ] Sandbox Capability Check completed (auto-detect → scaffold if needed → re-run L3 with capability set)
+- [ ] L3-reviewer checked execution_env diversity (sandbox_underuse / sandbox_capability_unknown gaps)
+- [ ] If no sandbox infra and project benefits from it: T-sandbox-* scaffold task(s) added to spec
 - [ ] plan-reviewer returned OKAY
 - [ ] `spec coverage` passes (full chain + per-layer at each transition)
 

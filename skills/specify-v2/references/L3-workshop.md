@@ -517,11 +517,38 @@ If merge fails → follow Merge Failure Recovery (SKILL.md). Do NOT proceed to L
 
 ### L3 User Approval (mandatory before gate)
 
-Before running the gate, present ALL requirements to the user for explicit approval:
+Before running the gate, present ALL requirements and their scenarios to the user as **text output first**, then ask for approval.
+
+**Step 1 — Display full details as text output (NOT inside AskUserQuestion):**
+
+Print all requirements with their scenarios in full detail. This is regular text output, not a tool call:
+
+```markdown
+---
+## L3 Requirements & Scenarios for Approval
+
+### R1 [P1]: {behavior}
+- **S1.1** (HP): Given {given}, When {when}, Then {then}
+- **S1.2** (EP): Given {given}, When {when}, Then {then}
+- **S1.3** (BC): Given {given}, When {when}, Then {then}
+
+### R2 [P2]: {behavior}
+- **S2.1** (HP): Given {given}, When {when}, Then {then}
+- ...
+
+{repeat for ALL requirements}
+
+**Total: {N} requirements, {M} scenarios**
+---
+```
+
+> Show EVERY requirement and EVERY scenario. Do not summarize or truncate even if the list is long. The user needs to see everything before approving.
+
+**Step 2 — Ask for approval (simple choice only):**
 
 ```
 AskUserQuestion(
-  question: "L3 requirements are ready. Please review:\n\n{FOR EACH r in requirements: R{r.id} [{r.priority}]: {r.behavior} (scenarios: {r.scenarios.length})\n}",
+  question: "Review the requirements and scenarios above. Ready to proceed?",
   header: "L3 Requirements Approval",
   options: [
     { label: "Approve all", description: "Requirements look good — proceed to L4" },

@@ -370,6 +370,7 @@
               "description": "List of detected tool names (e.g., 'playwright', 'docker', 'xcrun simctl')"
             },
             "confirmed_at": { "type": "string", "description": "ISO date when capability was confirmed" },
+            "detected": { "type": "boolean", "description": "True if sandbox capability was auto-detected" },
             "scaffold_required": { "type": "boolean", "description": "True if T-sandbox-* scaffold tasks are needed (infra not yet present, T_SANDBOX will set it up)" }
           }
         }

@@ -92,9 +92,39 @@ The system pushes everything toward `machine` verification. AC Quality Gate revi
 
 Human review is reserved for what machines genuinely can't judge — UX feel, business logic correctness, naming decisions. Everything else runs automatically, every time, without asking.
 
+### 4. Knowledge compounds
+
+> *Most AI tools start from zero every session. Hoyeon remembers.*
+
+Every execution generates structured learnings — not logs, not chat history, but **typed knowledge**: what went wrong, why, and the rule to prevent it next time.
+
+```
+  /execute runs → Worker hits edge case
+       │
+  Worker records:
+    { problem: "localStorage quota exceeded at 5MB",
+      cause:   "No size check before write",
+      rule:    "Always check remaining quota before localStorage.setItem" }
+       │
+  Next /specify → searches past learnings via BM25
+       │
+  Result: "Found: localStorage quota issue in todo-app spec.
+           → Adding R5: quota guard requirement automatically"
+```
+
+This is **cross-spec compounding**. A lesson learned in one project surfaces as a requirement in the next. The system doesn't just avoid repeating mistakes — it actively strengthens future specs with evidence from past executions.
+
+Three mechanisms make this work:
+
+- **`spec learning`** — Workers record structured learnings during execution, auto-mapped to the requirements and tasks that produced them
+- **`spec search`** — BM25 search across all specs: requirements, scenarios, constraints, and learnings. What you learned in project A informs what you ask in project B
+- **Compounding loop** — Each /specify session starts by searching past learnings. More projects → richer search results → more complete requirements → fewer surprises during execution → better learnings → the cycle continues
+
+The result: **the tenth project you run through Hoyeon is meaningfully better than the first** — not because the LLM improved, but because the knowledge base did.
+
 ---
 
-These aren't aspirations. They're enforced by the architecture — the CLI rejects invalid specs, gates block unverified layers, hooks guard writes, and agents verify in isolation. The system is designed so that **doing the right thing is the path of least resistance.**
+These aren't aspirations. They're enforced by the architecture — the CLI rejects invalid specs, gates block unverified layers, hooks guard writes, agents verify in isolation, and learnings compound across projects. The system is designed so that **doing the right thing is the path of least resistance.**
 
 ---
 

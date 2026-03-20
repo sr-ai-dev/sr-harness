@@ -41,7 +41,7 @@ Throughout this document, `{depth}` refers to the resolved mode value:
 
 | Aspect | Standard | Quick |
 |--------|----------|-------|
-| Per-task steps | Worker → Commit | Worker → Commit |
+| Per-task steps | Worker → Verify → Commit | Worker → Verify → Commit |
 | On failure | Worker FAILED → HALT | Worker FAILED → HALT |
 | Parallel | Round-based background workers | Round-based background workers |
 | Code Review | code-reviewer agent (SHIP/NEEDS_FIXES) | Skipped |
@@ -99,6 +99,9 @@ FOR EACH task in plan (flattened from rounds, excluding done):
   w  = TaskCreate(subject="{task.id}.1:Worker — {task.action}",
                   description=WORKER_DESCRIPTION(task.id),
                   activeForm="{task.id}.1: Running Worker")
+  v  = TaskCreate(subject="{task.id}.V:Verify",
+                  description=VERIFIER_DESCRIPTION(task.id),
+                  activeForm="{task.id}.V: Verifying scenarios")
 
   # Commit tasks only for worktree and branch-commit modes
   IF work_mode != "no-commit":
@@ -123,7 +126,7 @@ rp = TaskCreate(subject="Finalize:Report",
      activeForm="Generating report")
 ```
 
-### Description Template
+### Description Templates
 
 > **Why descriptions, not orchestrator-built prompts?**
 > Workers self-read task details via `cli`. This means:
@@ -157,20 +160,13 @@ Meet ALL acceptance_criteria (run commands to verify before reporting DONE).
 Respect must_not_do constraints.
 Do NOT run git commands — Orchestrator handles commits.
 
-### Verifying acceptance_criteria (v5 schema)
-Task AC has two parts:
-1. `acceptance_criteria.scenarios[]` — list of scenario IDs from `requirements[].scenarios[].id`
-   - Fetch full spec: `hoyeon-cli spec task {task_id} --get {spec_path}` to get scenario IDs
-   - Then look up each scenario in `requirements[].scenarios[]` to find verify commands
-   - Run each `verified_by: "machine"` scenario's `verify.run` command (skip `execution_env: "sandbox"` — unless this task's ID starts with T_SV, in which case sandbox scenarios MUST be executed)
-   - For `verified_by: "agent"` scenarios, assert the checks manually
-   - For `verified_by: "human"` scenarios, skip (report only)
-   - After verifying each scenario, record the result:
-     Run: `hoyeon-cli spec requirement {scenario_id} --status pass|fail --task {task_id} {spec_path}`
-2. `acceptance_criteria.checks[]` — automated checks (static/build/lint/format)
+### Verifying acceptance_criteria (Tier 1 only)
+Task AC has two parts — Worker handles checks[] only:
+1. `acceptance_criteria.checks[]` — automated checks (static/build/lint/format)
    - Run each check's `run` command and verify exit code 0
+2. `acceptance_criteria.scenarios[]` — DO NOT verify these. An independent Verifier agent will handle scenario verification after you complete.
 
-Note: If this task's ID starts with T_SV, it is a sandbox verification task — do NOT skip sandbox scenarios. Run them and record each result with `hoyeon-cli spec requirement`.
+Note: If this task's ID starts with T_SV, it is a sandbox verification task — you MUST run sandbox scenarios. Use `hoyeon-cli spec task {task_id} --get {spec_path}` to get scenario details and execute them.
 
 ## Step 5: Update context files
 Append to {CONTEXT_DIR}/learnings.md:
@@ -189,7 +185,7 @@ Only append with ## {task_id} header — do NOT overwrite existing content.
 {"status": "DONE"|"FAILED"|"BLOCKED",
  "summary": "...",
  "files_modified": [...],
- "acceptance_criteria": [{"id":"...", "category":"...", "status":"PASS|FAIL", "reason":"..."}],
+ "tier1_checks": [{"type":"build|lint|static|format", "run":"...", "status":"PASS|FAIL"}],
  "scope_blockers": null | {"type": "missing_api|env_constraint|permission|dependency", "reason": "...", "suggested_fix": "..."}}
 ```
 
@@ -203,6 +199,60 @@ Only append with ## {task_id} header — do NOT overwrite existing content.
 """
 ```
 
+### Verifier Description Template
+
+```
+VERIFIER_DESCRIPTION(task_id) = """
+You are an independent Verifier agent. Verify task {task_id} scenarios.
+You did NOT write this code — verify it objectively.
+Work in the current directory (session CWD — already set to worktree if applicable).
+
+## Step 1: Read your task's scenarios
+Run: `hoyeon-cli spec task {task_id} --get {spec_path}`
+Extract `acceptance_criteria.scenarios[]` — these are scenario IDs.
+
+## Step 2: Lookup each scenario
+Read the spec file at {spec_path}. Find each scenario ID in `requirements[].scenarios[]`.
+For each scenario, note: given, when, then, verified_by, execution_env, verify.
+
+## Step 3: Verify each scenario
+
+FOR EACH scenario:
+  IF verified_by == "machine" AND execution_env != "sandbox":
+    Run the command in verify.run
+    Check against verify.expect (exit_code, stdout_contains, stderr_empty)
+    Record: `hoyeon-cli spec requirement {scenario.id} --status pass|fail --task {task_id} {spec_path}`
+
+  IF verified_by == "agent" AND execution_env != "sandbox":
+    Read relevant source code (find files yourself — do NOT assume file paths)
+    Independently assess each item in verify.checks[]
+    Each check must be conclusively true or false — no assumptions
+    Record: `hoyeon-cli spec requirement {scenario.id} --status pass|fail --task {task_id} {spec_path}`
+
+  IF verified_by == "agent" AND execution_env == "sandbox":
+    Execute sandbox verification (browser test, docker, screenshot as appropriate)
+    Record result via spec requirement command
+
+  IF verified_by == "human":
+    Skip — record as pending: `hoyeon-cli spec requirement {scenario.id} --status pending --task {task_id} {spec_path}`
+
+## Step 4: Read context files
+Read: {CONTEXT_DIR}/learnings.md — for additional context from previous workers
+
+## Output (print as last message)
+{"status": "VERIFIED"|"FAILED",
+ "scenarios": [
+   {"id": "R1-S1", "status": "pass|fail|pending", "evidence": "what was checked and result"}
+ ],
+ "failed_count": 0,
+ "pending_human_count": 0}
+
+### Status meanings:
+- **VERIFIED**: All non-human scenarios passed.
+- **FAILED**: One or more scenarios failed. Include evidence for each failure.
+"""
+```
+
 ### Set Dependencies (TURN 2)
 
 ```
@@ -211,9 +261,10 @@ Only append with ## {task_id} header — do NOT overwrite existing content.
 # ═══════════════════════════════════════════════════
 
 IF work_mode != "no-commit":
-  # Worker → Commit chain
+  # Worker → Verify → Commit chain
   FOR EACH task:
-    TaskUpdate(taskId=w, addBlocks=[cm])
+    TaskUpdate(taskId=w, addBlocks=[v])
+    TaskUpdate(taskId=v, addBlocks=[cm])
 
   # Cross-task dependencies (from spec.json depends_on)
   FOR EACH task WHERE task.depends_on is not empty:
@@ -239,22 +290,26 @@ IF work_mode != "no-commit":
     TaskUpdate(taskId=fv, addBlocks=[rp])
 
 ELSE:  # no-commit mode
-  # Cross-task dependencies: Worker → Worker (no commit in between)
+  # Worker → Verify chain (no commit)
+  FOR EACH task:
+    TaskUpdate(taskId=w, addBlocks=[v])
+
+  # Cross-task dependencies: Verify → next Worker
   FOR EACH task WHERE task.depends_on is not empty:
     FOR EACH dep_id in task.depends_on:
-      producer_last = task_ids[dep_id].worker
+      producer_last = task_ids[dep_id].verify
       consumer_first = task_ids[task.id].worker
       TaskUpdate(taskId=producer_last, addBlocks=[consumer_first])
 
-  all_last = [task_ids[T].worker for each T]
+  all_last = [task_ids[T].verify for each T]
 
   IF depth == "standard":
-    # Workers → Code Review → Final Verify → Report
+    # Verifiers → Code Review → Final Verify → Report
     FOR EACH last in all_last:
       TaskUpdate(taskId=last, addBlocks=[cr])
     TaskUpdate(taskId=cr, addBlocks=[fv])
   ELSE:
-    # Workers → Final Verify → Report (quick, no code review)
+    # Verifiers → Final Verify → Report (quick, no code review)
     FOR EACH last in all_last:
       TaskUpdate(taskId=last, addBlocks=[fv])
 
@@ -313,7 +368,7 @@ WHILE TaskList() has pending tasks:
 ### Parallel Dispatch Rules
 
 ```
-IF len(runnable) > 1 AND all are :Worker:
+IF len(runnable) > 1 AND all are :Worker or :Verify:
   # PARALLEL — mark in_progress FIRST, then send ALL in ONE message
   FOR EACH task in runnable:
     TaskUpdate(taskId=task.id, status="in_progress")
@@ -327,6 +382,7 @@ ELSE:
 
 **Which types can run in parallel:**
 - `:Worker` — YES (if touching disjoint files per spec file_scope)
+- `:Verify` — YES (read-only, no file conflicts)
 - `:Commit` — NO (git operations must be sequential)
 
 ---
@@ -414,7 +470,7 @@ Agent(
 IF result.status == "DONE":
   Bash("hoyeon-cli spec task {task_id} --status in_progress {spec_path}")
   TaskUpdate(taskId, status="completed")
-  # → :Commit becomes runnable
+  # → :Verify becomes runnable
 
 ELIF result.status == "BLOCKED":
   # Scope blocker detected — create derived fix task
@@ -452,7 +508,65 @@ ELIF result.status == "FAILED":
 
 ---
 
-### 1b. :Commit — Per-Task Commit
+### 1b. :Verify — Independent Scenario Verification
+
+> **Self-read pattern**: Same as Worker — Verifier reads spec via CLI.
+> Runs in a SEPARATE context from Worker — no shared state, no bias.
+
+```
+Agent(
+  subagent_type="worker",
+  description="Verify: {task_id}",
+  prompt=TaskGet(task.id).description,
+  run_in_background=true  # if parallel round
+)
+```
+
+**On completion:**
+
+```
+IF result.status == "VERIFIED":
+  Bash("hoyeon-cli spec task {task_id} --status done --summary 'Verified: {result.scenarios.length} scenarios passed' {spec_path}")
+  TaskUpdate(taskId, status="completed")
+  # → :Commit becomes runnable (or next task if no-commit)
+
+ELIF result.status == "FAILED":
+  # Fix loop — max 2 retries per task
+  verify_attempt = verify_attempts.get(task_id, 0) + 1
+  verify_attempts[task_id] = verify_attempt
+
+  IF verify_attempt > 2:
+    log_to_audit("VERIFY FAILED (max retries): {task_id} — {result.failed_count} scenarios failed")
+    HALT
+
+  log_to_audit("VERIFY FAILED (attempt {verify_attempt}): {task_id}")
+
+  # Create fix task via spec derive
+  failed_scenarios = result.scenarios.filter(s => s.status == "fail")
+  derive_result = Bash("""hoyeon-cli spec derive \
+    --parent {task_id} \
+    --source verifier \
+    --trigger scenario_failure \
+    --action "Fix verified failures: {failed_scenarios.map(s => s.id).join(', ')}" \
+    --reason "Verifier found {result.failed_count} scenario failure(s): {failed_scenarios.map(s => s.id + ': ' + s.evidence).join('; ')}" \
+    {spec_path}""")
+
+  # Dispatch fix worker (lightweight — no per-task commit)
+  dispatch_fv_fix(derive_result, spec_path)
+
+  # Re-dispatch Verifier (fresh context)
+  v_retry = TaskCreate(subject="{task_id}.V.{verify_attempt}:Verify — retry",
+       description=VERIFIER_DESCRIPTION(task_id),
+       activeForm="{task_id}: Re-verifying (attempt {verify_attempt})")
+  TaskUpdate(taskId=v_retry, status="in_progress")
+  result = Agent(subagent_type="worker", description="Re-verify: {task_id}",
+                 prompt=TaskGet(v_retry).description)
+  # Handle result recursively (same VERIFIED/FAILED logic)
+```
+
+---
+
+### 1c. :Commit — Per-Task Commit
 
 > **Skipped entirely when `work_mode == "no-commit"`** — no :Commit tasks exist in the DAG.
 
@@ -758,8 +872,8 @@ Details: {summary}
 6. **Description = recipe** — TaskCreate description contains the full self-read recipe (CLI commands, context paths, output format). At dispatch time, orchestrator just passes `TaskGet(id).description` as the Agent prompt.
 7. **Per-task commit** — every task gets its own commit via git-master
 8. **Worker BLOCKED = scope fix** — when Worker reports BLOCKED, orchestrator creates a derived fix task via `spec derive --trigger scope_blocker`, dispatches it, then re-runs the original worker
-9. **Worker FAILED = immediate HALT** — no per-task retry. This is an intentional simplification; Final Verify's fix loop handles recoverable failures at the spec level
-10. **must_not_do checked at FV only** — Workers self-certify must_not_do compliance. Final Verify is the sole independent check for must_not_do violations (no per-task independent verification)
+9. **Worker FAILED = immediate HALT** — no per-task retry. **Verifier FAILED = fix loop** — max 2 retries via spec derive → fix worker → re-verify
+10. **Scenario verification by independent Verifier** — Workers perform Tier 1 only (checks[]), Verifier agent handles scenario verification in separate context. must_not_do compliance checked at FV.
 11. **Adaptation updates spec.json** — new tasks go through `spec derive` (handles ID generation, origin=derived, derived_from, depends_on, re-plan automatically)
 12. **Background for parallel** — use `run_in_background: true` for round-parallel workers
 13. **work_mode governs git behavior** — `worktree`: uses `EnterWorktree` to switch session CWD into an isolated worktree (all tools automatically operate there); `branch-commit`: current branch with per-task commits; `no-commit`: current branch, no commits at all (no :Commit tasks, no Residual Commit)

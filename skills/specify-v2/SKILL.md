@@ -351,6 +351,7 @@ No TeamCreate, no SendMessage gates. Max 1 plan-reviewer round if run.
 - **One merge per section** — call `spec merge` once per top-level key. Never merge multiple sections in parallel.
 - **--append for arrays** — use `--append` when adding to existing arrays (decisions, assumptions, known_gaps)
 - **--patch for updates** — use `--patch` when updating specific items by id
+- **verify abstraction** — verify fields must describe observable behavior (API contracts, input/output relations), NOT implementation details (file paths, function names, code patterns). Self-check: "If implementation files were renamed, would this verify still hold?"
 - **Every task needs must_not_do** — at minimum `["Do not run git commands"]`
 - **Every task needs acceptance_criteria** — `scenarios` (refs to requirement scenario IDs) + `checks` (runnable commands)
 - **Requirements = single source of truth** — all verification lives in `requirements[].scenarios` with `verified_by` + `execution_env`

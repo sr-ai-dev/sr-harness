@@ -121,7 +121,16 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v1.1.0)
+## Recent Changes (v1.2.0)
+
+- feat(execute): add independent Verifier agent for scenario-based verification (Worker→Verify→Commit pipeline)
+- feat(execute): add Final Verify Tier 2 semantic cross-verification (cross-task compatibility, scenario coverage, constraint audit)
+- feat(specify-v2): add verify abstraction rules to L3 workshop (requirement-writer + devil's-advocate)
+- refactor(execute): Worker performs Tier 1 checks only (build/lint), scenario verification moved to Verifier
+- refactor(execute): Verifier FAIL triggers fix loop (spec derive + re-verify, max 2 retries)
+- feat(specify-v2): add Mandatory Merge Protocol + Merge Failure Recovery to SKILL.md and all reference files
+
+## Previous Changes (v1.1.0)
 
 - refactor(specify): replace phase-based specify with layer-based derivation chain (L0-L5)
   - L0:Goal → L1:Context → L2:Decisions → L3:Requirements+Scenarios → L4:Tasks → L5:Review

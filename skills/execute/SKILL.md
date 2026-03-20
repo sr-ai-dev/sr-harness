@@ -27,6 +27,7 @@ validate_prompt: |
   Context files (learnings.md, issues.md) must exist if meta.type == "dev". audit.md must be populated if meta.type == "dev".
   Final Verify must run (all modes and types).
   Final report must be output.
+  Verifier agents must run for each work task (independent scenario verification).
 ---
 
 # /execute — Spec-Driven Orchestrator
@@ -229,6 +230,10 @@ plain.md owns: flexible dispatch (direct/Skill/Agent), Final Verify, and report.
 
 ### dev mode (additional)
 - [ ] Follow ${baseDir}/references/dev.md completely for all dev-specific steps
+- [ ] Verifier ran for each work task (Worker → Verify → Commit chain)
+- [ ] Verifier FAIL triggered fix loop (max 2 retries via spec derive)
+- [ ] Final Verify Tier 1 passed (gate for Tier 2)
+- [ ] Final Verify Tier 2 ran in standard mode (cross-task compatibility, scenario coverage, constraint audit)
 
 ### plain mode (additional)
 - [ ] Follow ${baseDir}/references/plain.md completely for all plain-specific steps

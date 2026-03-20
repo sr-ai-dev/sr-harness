@@ -189,6 +189,36 @@ Each scenario MUST include:
 - execution_env: 'host' | 'sandbox' | 'ci'
 - verify: object matching verified_by type
 
+## verify Abstraction Rules (MANDATORY)
+
+verify describes OBSERVABLE BEHAVIOR, not implementation details.
+
+### Prohibited in verify fields:
+- File paths (src/auth/login.ts)
+- Function/class names (validatePassword(), AuthService)
+- Code patterns (if(!pw) throw)
+- Line numbers
+- Internal variable names
+
+### Allowed in verify fields:
+- API contracts (POST /login with empty body → 400)
+- Input/output relations (empty password → validation error message)
+- Behavior properties (invalid input does not trigger database query)
+- UI states (login success → dashboard shows username)
+
+### Self-check: "If all implementation file names changed, would this verify still be valid?"
+  Yes → correct abstraction level. No → rewrite.
+
+### Examples
+
+WRONG (implementation-coupled):
+  machine: {"type": "command", "run": "grep 'validation' src/auth/login.ts", "expect": {"exit_code": 0}}
+  agent: {"type": "assertion", "checks": ["src/auth/login.ts has validation guard before db.query call"]}
+
+RIGHT (behavior-level):
+  machine: {"type": "command", "run": "curl -s -w '%{http_code}' -X POST localhost:3000/login -d '{}'", "expect": {"stdout_contains": "400"}}
+  agent: {"type": "assertion", "checks": ["Empty password request returns HTTP 400 with error message containing 'required' or 'validation'", "Invalid input does not trigger database query"]}
+
 ## Sandbox Capability
 {IF sandbox_capability is set:
   Available: {sandbox_capability.tools} (docker: {sandbox_capability.docker}, browser: {sandbox_capability.browser})
@@ -267,6 +297,12 @@ IMPORTANT: Communication protocol:
 - Machine: verify.run is executable shell command, verify.expect has concrete value
 - Agent: verify.checks is falsifiable (can be proven wrong)
 - Human: verify.ask is actionable (step-by-step instructions)
+
+**verify abstraction level (BLOCKING):**
+- IF verify.run or verify.checks reference specific file paths → REJECT ("verify coupled to implementation: {path}")
+- IF verify.run or verify.checks reference function/class names → REJECT ("verify coupled to implementation: {name}")
+- IF verify.checks contain vague words: "works", "correctly", "properly", "as expected" → REJECT ("verify not falsifiable: {check}")
+- Self-check per scenario: "If implementation files were renamed, would this verify still hold?" No → REJECT
 
 **Sandbox/execution_env diversity:**
 - Tier 4 items have execution_env: 'sandbox'

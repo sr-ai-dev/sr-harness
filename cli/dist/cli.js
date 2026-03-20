@@ -11015,11 +11015,24 @@ async function handleLearning(args) {
     process.stderr.write("Error: --task <task-id> is required\n");
     process.stderr.write(`Usage: hoyeon-cli spec learning --task T1 --json '{"problem":"...","cause":"...","rule":"...","tags":[...]}' <path>
 `);
+    process.stderr.write("   or: hoyeon-cli spec learning --task T1 --stdin <path> << 'EOF'\n");
     process.exit(1);
   }
-  const jsonStr = parsed.json;
+  let jsonStr = parsed.json;
+  if (parsed.stdin !== void 0) {
+    if (typeof parsed.stdin === "string") {
+      parsed._.unshift(parsed.stdin);
+    }
+    try {
+      jsonStr = readFileSync("/dev/stdin", "utf8").trim();
+    } catch (err) {
+      process.stderr.write(`Error: failed to read stdin: ${err.message}
+`);
+      process.exit(1);
+    }
+  }
   if (!jsonStr) {
-    process.stderr.write("Error: --json is required\n");
+    process.stderr.write("Error: --json or --stdin is required\n");
     process.exit(1);
   }
   let learningData;

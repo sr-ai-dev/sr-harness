@@ -2149,12 +2149,29 @@ async function handleLearning(args) {
   if (!taskId) {
     process.stderr.write('Error: --task <task-id> is required\n');
     process.stderr.write('Usage: hoyeon-cli spec learning --task T1 --json \'{"problem":"...","cause":"...","rule":"...","tags":[...]}\' <path>\n');
+    process.stderr.write('   or: hoyeon-cli spec learning --task T1 --stdin <path> << \'EOF\'\n');
     process.exit(1);
   }
 
-  const jsonStr = parsed.json;
+  let jsonStr = parsed.json;
+
+  // Support --stdin: read JSON from stdin (avoids tmp files and SESSION_ID dependency)
+  // parseArgs may consume the next positional arg as --stdin's value, so recover it
+  if (parsed.stdin !== undefined) {
+    if (typeof parsed.stdin === 'string') {
+      // --stdin consumed the spec path as its value — push it back to positionals
+      parsed._.unshift(parsed.stdin);
+    }
+    try {
+      jsonStr = readFileSync('/dev/stdin', 'utf8').trim();
+    } catch (err) {
+      process.stderr.write(`Error: failed to read stdin: ${err.message}\n`);
+      process.exit(1);
+    }
+  }
+
   if (!jsonStr) {
-    process.stderr.write('Error: --json is required\n');
+    process.stderr.write('Error: --json or --stdin is required\n');
     process.exit(1);
   }
 

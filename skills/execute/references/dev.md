@@ -174,7 +174,7 @@ Note: If this task's ID starts with T_SV, it is a sandbox verification task — 
 For each learning discovered during implementation, save via CLI:
 
 ```bash
-cat > ~/.hoyeon/${SESSION_ID}/tmp/learning.json << 'EOF'
+hoyeon-cli spec learning --task {task_id} --stdin {spec_path} << 'EOF'
 {
   "problem": "what went wrong or was unexpected",
   "cause": "why it happened",
@@ -182,8 +182,6 @@ cat > ~/.hoyeon/${SESSION_ID}/tmp/learning.json << 'EOF'
   "tags": ["relevant", "tech", "keywords"]
 }
 EOF
-hoyeon-cli spec learning --task {task_id} --json "$(cat ~/.hoyeon/${SESSION_ID}/tmp/learning.json)" {spec_path}
-rm ~/.hoyeon/${SESSION_ID}/tmp/learning.json
 ```
 
 **What to record**: surprising behavior, version-specific gotchas, workarounds, breaking changes, performance pitfalls.

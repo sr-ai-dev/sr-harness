@@ -256,9 +256,11 @@ Available guide sections:
 
 **Learning** — Workers record structured learnings via CLI (auto-maps task→requirements):
 ```bash
-hoyeon-cli spec learning --task T1 --json "$(cat ~/.hoyeon/${SESSION_ID}/tmp/learning.json)" <spec_path>
-# learning.json: { "problem": "...", "cause": "...", "rule": "...", "tags": [...] }
+hoyeon-cli spec learning --task T1 --stdin <spec_path> << 'EOF'
+{"problem": "...", "cause": "...", "rule": "...", "tags": [...]}
+EOF
 # Saves to: context/learnings.json (structured, searchable)
+# Also supports: --json '{"problem":"..."}' (but heredoc stdin preferred for subagents)
 ```
 
 **Search** — BM25 search across all specs (requirements, scenarios, constraints, learnings):

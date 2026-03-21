@@ -2,11 +2,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from 
 import { resolve, dirname } from 'path';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import specSchema from '../../schemas/dev-spec-v4.schema.json' with { type: 'json' };
-import specSchemaV5 from '../../schemas/dev-spec-v5.schema.json' with { type: 'json' };
 import specSchemaV6 from '../../schemas/dev-spec-v6.schema.json' with { type: 'json' };
-// v5 is the default schema. Pass specData with meta.schema_version === 'v4' to use legacy v4 validation.
-// Pass specData with meta.schema_version === 'v6' to use v6 schema.
 
 import { writeState } from '../lib/state-io.js';
 
@@ -16,7 +12,7 @@ Usage:
   hoyeon-cli spec merge <path> --json '{...}'       Deep-merge a JSON fragment into spec.json
                                                     --append: concatenate arrays
                                                     --patch:  ID-based merge (match by id, update in place)
-  hoyeon-cli spec validate <path> [--layer decisions|requirements|scenarios|tasks] [--json]  Schema validation + coverage checks
+  hoyeon-cli spec validate <path> [--layer decisions|requirements|tasks] [--json]  Schema validation + coverage checks
   hoyeon-cli spec plan <path> [--format text|mermaid|json]  Show execution plan with parallel groups
   hoyeon-cli spec task <task-id> --status <status> [--summary "..."] <path>  Update task status
   hoyeon-cli spec task <task-id> --get <path>                               Get task details as JSON
@@ -58,14 +54,8 @@ Examples:
   hoyeon-cli spec sandbox-tasks ./spec.json
 `;
 
-function loadSchema(specData) {
-  if (specData?.meta?.schema_version === 'v4') {
-    return specSchema;
-  }
-  if (specData?.meta?.schema_version === 'v6') {
-    return specSchemaV6;
-  }
-  return specSchemaV5;
+function loadSchema() {
+  return specSchemaV6;
 }
 
 /**
@@ -349,7 +339,7 @@ async function handleValidate(args) {
 
   if (!filePath) {
     process.stderr.write('Error: missing <path> argument\n');
-    process.stderr.write('Usage: hoyeon-cli spec validate <path> [--layer decisions|requirements|scenarios|tasks] [--json]\n');
+    process.stderr.write('Usage: hoyeon-cli spec validate <path> [--layer decisions|requirements|tasks] [--json]\n');
     process.exit(1);
   }
 
@@ -458,91 +448,42 @@ function loadSpec(filePath) {
 
 /**
  * Build verify_plan array for a task by mapping its fulfills[] → requirements[].sub[] to verify entries.
- * For v5 specs (scenarios[]), falls back to legacy behavior.
  */
 function buildVerifyPlan(task, spec) {
-  // v6: use fulfills[] → requirements[].sub[]
-  // sub-requirement verify types: command (run+expect), assertion (checks[]), instruction (ask)
-  const reqIds = (task.fulfills) || [];
-  if (reqIds.length > 0) {
-    const entries = [];
-    for (const reqId of reqIds) {
-      const req = (spec.requirements || []).find(r => r.id === reqId);
-      if (!req) continue;
-      for (const sr of (req.sub || [])) {
-        const method = sr.verify?.type;  // "command" | "assertion" | "instruction"
+  const reqIds = task.fulfills || [];
+  if (reqIds.length === 0) return [];
 
-        const entry = {
-          sub_requirement: sr.id,
-          behavior: sr.behavior,
-          method: method || 'unknown',
-        };
+  const entries = [];
+  for (const reqId of reqIds) {
+    const req = (spec.requirements || []).find(r => r.id === reqId);
+    if (!req) continue;
+    for (const sr of (req.sub || [])) {
+      const method = sr.verify?.type;  // "command" | "assertion" | "instruction"
 
-        if (method === 'command' && sr.verify) {
-          entry.run = sr.verify.run;
-          if (sr.verify.expect !== undefined) entry.expect = sr.verify.expect;
-        }
+      const entry = {
+        sub_requirement: sr.id,
+        behavior: sr.behavior,
+        method: method || 'unknown',
+      };
 
-        if (method === 'assertion' && sr.verify) {
-          entry.checks = sr.verify.checks;
-        }
-
-        if (method === 'instruction') {
-          entry.action = 'skip';  // human review — verifier cannot execute
-          if (sr.verify?.ask) entry.ask = sr.verify.ask;
-        }
-
-        entries.push(entry);
+      if (method === 'command' && sr.verify) {
+        entry.run = sr.verify.run;
+        if (sr.verify.expect !== undefined) entry.expect = sr.verify.expect;
       }
-    }
-    return entries;
-  }
 
-  // v5 fallback: use scenarios[] → requirements[].scenarios[]
-  const scenarioIds = (task.acceptance_criteria && task.acceptance_criteria.scenarios) || [];
-  if (scenarioIds.length === 0) return [];
+      if (method === 'assertion' && sr.verify) {
+        entry.checks = sr.verify.checks;
+      }
 
-  // Build a flat lookup: scenario id → scenario object
-  const scenarioMap = new Map();
-  for (const req of (spec.requirements || [])) {
-    for (const s of (req.scenarios || [])) {
-      scenarioMap.set(s.id, s);
+      if (method === 'instruction') {
+        entry.action = 'skip';  // human review — verifier cannot execute
+        if (sr.verify?.ask) entry.ask = sr.verify.ask;
+      }
+
+      entries.push(entry);
     }
   }
-
-  return scenarioIds.map(sid => {
-    const s = scenarioMap.get(sid);
-    if (!s) return { scenario: sid, method: 'unknown', env: 'host' };
-
-    const env = s.execution_env || 'host';
-    const method = s.verified_by;
-
-    const entry = {
-      scenario: s.id,
-      method,
-      env,
-    };
-
-    if (method === 'machine' && s.verify) {
-      entry.run = s.verify.run;
-      if (s.verify.expect !== undefined) entry.expect = s.verify.expect;
-    }
-
-    if (method === 'agent' && env !== 'sandbox' && s.verify) {
-      entry.checks = s.verify.checks;
-    }
-
-    if (env === 'sandbox') {
-      entry.subject = s.subject;
-      entry.recipe = `${s.subject}.md`;
-    }
-
-    if (method === 'human') {
-      entry.action = 'skip';
-    }
-
-    return entry;
-  });
+  return entries;
 }
 
 /**
@@ -1103,47 +1044,28 @@ async function handleMeta(args) {
 }
 
 /**
- * Collect all requirement IDs (v6) or scenario IDs (v5) defined,
- * and the set of those IDs referenced by at least one task.
- *
- * Shared helper used by handleCheck and handleCoverage (C2).
- * Supports dual mode: v6 uses fulfills[] (requirement-level), v5 uses scenarios[].
+ * Collect all requirement IDs defined, and the set referenced by at least one task via fulfills[].
  *
  * @param {object} specData - parsed spec JSON
- * @returns {{ allScenarioIds: Set<string>, referencedScenarioIds: Set<string> }}
+ * @returns {{ allReqIds: Set<string>, referencedReqIds: Set<string> }}
  */
-function collectScenarioSets(specData) {
-  const isV6 = specData?.meta?.schema_version === 'v6';
-
-  const allScenarioIds = new Set();
+function collectRequirementSets(specData) {
+  const allReqIds = new Set();
   for (const req of (specData.requirements || [])) {
-    if (isV6) {
-      // v6: track requirement IDs (coverage is at requirement level via fulfills[])
-      if (req.id) allScenarioIds.add(req.id);
-    } else {
-      for (const sc of (req.scenarios || [])) {
-        if (sc.id) allScenarioIds.add(sc.id);
-      }
-    }
+    if (req.id) allReqIds.add(req.id);
   }
 
-  const referencedScenarioIds = new Set();
+  const referencedReqIds = new Set();
   for (const task of (specData.tasks || [])) {
-    if (isV6) {
-      for (const reqRef of (task.fulfills || [])) {
-        if (reqRef) referencedScenarioIds.add(reqRef);
-      }
-    } else {
-      for (const scenarioRef of (task.acceptance_criteria?.scenarios || [])) {
-        if (scenarioRef) referencedScenarioIds.add(scenarioRef);
-      }
+    for (const reqRef of (task.fulfills || [])) {
+      if (reqRef) referencedReqIds.add(reqRef);
     }
   }
 
-  return { allScenarioIds, referencedScenarioIds };
+  return { allReqIds, referencedReqIds };
 }
 
-const VALID_COVERAGE_LAYERS = ['decisions', 'requirements', 'scenarios', 'tasks'];
+const VALID_COVERAGE_LAYERS = ['decisions', 'requirements', 'tasks'];
 
 /**
  * Run coverage checks on parsed spec data.
@@ -1160,11 +1082,8 @@ function runCoverageChecks(specData, layer) {
   const requirements = specData.requirements || [];
   const decisionIds = new Set(decisions.map(d => d.id).filter(Boolean));
 
-  const isV6 = specData?.meta?.schema_version === 'v6';
-
   const runDecisions = !layer || layer === 'decisions';
   const runRequirements = !layer || layer === 'requirements';
-  const runScenarios = !layer || layer === 'scenarios';
   const runTasks = !layer || layer === 'tasks';
 
   // --- Check 1: source.ref integrity (decisions layer) ---
@@ -1207,64 +1126,28 @@ function runCoverageChecks(specData, layer) {
 
   // --- Check 3: sub-requirement coverage (requirements layer) ---
   if (runRequirements) {
-    if (isV6) {
-      for (const req of requirements) {
-        const subs = req.sub || [];
-        if (subs.length < 1) {
-          gaps.push({
-            layer: 'requirements',
-            check: 'sub-requirement-coverage',
-            message: `requirement '${req.id}' has no sub-requirements (sub[] must have at least 1 entry)`,
-          });
-        }
-      }
-    } else {
-      for (const req of requirements) {
-        const scenarios = req.scenarios || [];
-        const anyHasCategory = scenarios.some(sc => sc.category !== undefined);
-
-        if (anyHasCategory) {
-          const categories = new Set(scenarios.map(sc => sc.category).filter(Boolean));
-          const missing = [];
-          if (!categories.has('HP')) missing.push('HP');
-          if (!categories.has('EP')) missing.push('EP');
-          if (!categories.has('BC')) missing.push('BC');
-          if (missing.length > 0) {
-            gaps.push({
-              layer: 'requirements',
-              check: 'scenario-min-count',
-              message: `requirement '${req.id}' is missing scenario categories: ${missing.join(', ')}`,
-            });
-          }
-        } else {
-          if (scenarios.length < 3) {
-            gaps.push({
-              layer: 'requirements',
-              check: 'scenario-min-count',
-              message: `requirement '${req.id}' has ${scenarios.length} scenario(s) but needs at least 3 (count-only mode — no category field present)`,
-            });
-          }
-        }
+    for (const req of requirements) {
+      const subs = req.sub || [];
+      if (subs.length < 1) {
+        gaps.push({
+          layer: 'requirements',
+          check: 'sub-requirement-coverage',
+          message: `requirement '${req.id}' has no sub-requirements (sub[] must have at least 1 entry)`,
+        });
       }
     }
   }
 
-  // --- Check 4: orphan detection (requirements or scenarios layer) ---
-  const orphanLayer = isV6 ? 'requirements' : 'scenarios';
-  const orphanCheck = isV6 ? 'orphan-requirement' : 'orphan-scenario';
-  const runOrphanCheck = isV6 ? (runRequirements && runTasks) : (runScenarios && runTasks);
-
-  if (runOrphanCheck) {
-    const { allScenarioIds, referencedScenarioIds } = collectScenarioSets(specData);
-    const tasksWithFulfills = isV6
-      ? (specData.tasks || []).filter(t => t.fulfills && t.fulfills.length > 0)
-      : (specData.tasks || []).filter(t => t.acceptance_criteria?.scenarios);
-    if (allScenarioIds.size > 0 && tasksWithFulfills.length > 0) {
-      for (const id of allScenarioIds) {
-        if (!referencedScenarioIds.has(id)) {
+  // --- Check 4: orphan detection (requirements layer) ---
+  if (runRequirements && runTasks) {
+    const { allReqIds, referencedReqIds } = collectRequirementSets(specData);
+    const tasksWithFulfills = (specData.tasks || []).filter(t => t.fulfills && t.fulfills.length > 0);
+    if (allReqIds.size > 0 && tasksWithFulfills.length > 0) {
+      for (const id of allReqIds) {
+        if (!referencedReqIds.has(id)) {
           gaps.push({
-            layer: orphanLayer,
-            check: orphanCheck,
+            layer: 'requirements',
+            check: 'orphan-requirement',
             message: `'${id}' is defined but not referenced by any task fulfills[]`,
           });
         }
@@ -1285,7 +1168,7 @@ async function handleCoverage(args) {
 
   if (!filePath) {
     process.stderr.write('Error: missing <path> argument\n');
-    process.stderr.write('Usage: hoyeon-cli spec validate <path> [--layer decisions|requirements|scenarios|tasks] [--json]\n');
+    process.stderr.write('Usage: hoyeon-cli spec validate <path> [--layer decisions|requirements|tasks] [--json]\n');
     process.stderr.write('Note: "spec coverage" is deprecated — use "spec validate" instead.\n');
     process.exit(1);
   }
@@ -1332,8 +1215,6 @@ async function handleCheck(args) {
 
   const specData = loadSpec(resolve(filePath));
   const issues = [];
-  const isV6 = specData?.meta?.schema_version === 'v6';
-
   const taskIds = new Set(specData.tasks.map(t => t.id));
 
   // Check for duplicate IDs
@@ -1380,23 +1261,12 @@ async function handleCheck(args) {
     }
   }
 
-  // Referential integrity: fulfills[] (v6) or AC.scenarios[] (v5) must reference valid IDs
-  const { allScenarioIds, referencedScenarioIds } = collectScenarioSets(specData);
-  if (isV6) {
-    const reqIds = new Set((specData.requirements || []).map(r => r.id).filter(Boolean));
-    for (const task of specData.tasks) {
-      for (const reqRef of (task.fulfills || [])) {
-        if (!reqIds.has(reqRef)) {
-          issues.push(`task '${task.id}' fulfills[] references unknown requirement '${reqRef}'`);
-        }
-      }
-    }
-  } else {
-    for (const task of specData.tasks) {
-      for (const scenarioRef of (task.acceptance_criteria?.scenarios || [])) {
-        if (!allScenarioIds.has(scenarioRef)) {
-          issues.push(`task '${task.id}' acceptance_criteria.scenarios references unknown scenario '${scenarioRef}'`);
-        }
+  // Referential integrity: fulfills[] must reference valid requirement IDs
+  const reqIds = new Set((specData.requirements || []).map(r => r.id).filter(Boolean));
+  for (const task of specData.tasks) {
+    for (const reqRef of (task.fulfills || [])) {
+      if (!reqIds.has(reqRef)) {
+        issues.push(`task '${task.id}' fulfills[] references unknown requirement '${reqRef}'`);
       }
     }
   }
@@ -1413,19 +1283,14 @@ async function handleCheck(args) {
     }
   }
 
-  // Orphan detection: items defined but not referenced by any task
-  // v6: requirement not referenced by any task.fulfills[] → orphan
-  // v5: scenario not referenced by any task AC.scenarios[] → orphan
-  // (skip gracefully when no task defines fulfills/AC — v4 compat)
+  // Orphan detection: requirement not referenced by any task.fulfills[]
   {
-    const tasksWithRefs = isV6
-      ? (specData.tasks || []).filter(t => t.fulfills && t.fulfills.length > 0)
-      : (specData.tasks || []).filter(t => t.acceptance_criteria?.scenarios);
-    if (allScenarioIds.size > 0 && tasksWithRefs.length > 0) {
-      for (const id of allScenarioIds) {
-        if (!referencedScenarioIds.has(id)) {
-          const label = isV6 ? 'requirement' : 'scenario';
-          issues.push(`${label} '${id}' is defined but not referenced by any task fulfills[]`);
+    const tasksWithRefs = (specData.tasks || []).filter(t => t.fulfills && t.fulfills.length > 0);
+    if (reqIds.size > 0 && tasksWithRefs.length > 0) {
+      for (const id of reqIds) {
+        const referenced = tasksWithRefs.some(t => t.fulfills.includes(id));
+        if (!referenced) {
+          issues.push(`requirement '${id}' is defined but not referenced by any task fulfills[]`);
         }
       }
     }
@@ -1485,22 +1350,21 @@ async function handleCheck(args) {
  * Resolves $ref, shows required/optional fields, types, enums, and minimal examples.
  */
 function generateGuide(section) {
-  const schema = loadSchema(); // defaults to v5
+  const schema = loadSchema();
   const defs = schema.$defs || {};
 
   const SECTIONS = {
     meta: { ref: 'meta', desc: 'Spec metadata (name, goal, mode, etc.)' },
     context: { ref: 'context', desc: 'Request context, interview decisions, research, assumptions' },
     tasks: { ref: 'task', desc: 'Task DAG (work items + verification)', isArray: true },
-    requirements: { ref: 'requirement', desc: 'Requirements with sub[] (v6) or scenarios[] (v5)', isArray: true },
+    requirements: { ref: 'requirement', desc: 'Requirements with sub-requirements (sub[])', isArray: true },
     constraints: { ref: 'constraint', desc: 'Must-not-do / preserve constraints', isArray: true },
     history: { ref: 'historyEntry', desc: 'Spec change history entries', isArray: true },
     external: { ref: 'externalDependencies', desc: 'Human-only pre/post-work dependencies' },
-    sub: { ref: 'scenario', desc: 'v6 sub-requirement (behavior + verify)' },
-    scenario: { ref: 'scenario', desc: 'v5 requirement scenario (given/when/then + verify)' },
+    sub: { ref: 'subRequirement', desc: 'Sub-requirement (behavior + verify)' },
     verify: { ref: null, desc: 'Verify types: command, assertion, instruction', custom: 'verify' },
     merge: { ref: null, desc: 'Merge modes: replace (default), --append, --patch', custom: 'merge' },
-    'acceptance-criteria': { ref: null, desc: 'v6 AC structure: checks[] only — behavior coverage via fulfills[] (v5: scenarios[])', custom: 'acceptance-criteria' },
+    'acceptance-criteria': { ref: null, desc: 'AC structure: checks[] only — behavior coverage via fulfills[]', custom: 'acceptance-criteria' },
   };
 
   if (!section || section === 'list') {
@@ -1554,17 +1418,7 @@ function generateGuide(section) {
     return `Error: schema definition '${info.ref}' not found.`;
   }
 
-  let output = formatDef(section, def, defs, info.isArray);
-
-  // Append conditional requirement notes for scenario
-  if (section === 'scenario') {
-    output += '\n';
-    output += '\n  notes:';
-    output += '\n    subject: conditionally required when execution_env is sandbox';
-    output += '\n             enum(web|server|cli|database) — identifies which system under test';
-  }
-
-  return output;
+  return formatDef(section, def, defs, info.isArray);
 }
 
 function formatRoot(schema) {
@@ -1753,19 +1607,14 @@ function formatMergeGuide() {
 
 function formatAcceptanceCriteriaGuide() {
   const lines = [
-    'acceptance_criteria (v6): checks[] only',
-    '  (v5 compat: scenarios[] + checks[])',
+    'acceptance_criteria: checks[] only',
     '',
-    '  Note (v6): behavior verification coverage is declared via task.fulfills[]',
+    '  Behavior verification coverage is declared via task.fulfills[]',
     '    fulfills: string[]  (top-level task field)',
     '    List of requirement IDs (requirements[].id) that this task fulfills.',
     '    spec check validates that each ID exists in requirements[].',
     '    verify_plan is built by collecting sub[] entries from those requirements.',
     '    example: ["R1", "R2"]',
-    '',
-    '  scenarios: string[]  (v5 — backward compat)',
-    '    List of scenario IDs from requirements[].scenarios[].id that this task fulfills.',
-    '    example: ["R1-S1", "R1-S2", "R2-S1"]',
     '',
     '  checks: taskCheck[]',
     '    Automated checks to run when verifying the task.',
@@ -1774,19 +1623,18 @@ function formatAcceptanceCriteriaGuide() {
     '      * run: string (shell command)',
     '    example: [{"type":"build","run":"cd cli && node build.mjs"},{"type":"static","run":"tsc --noEmit"}]',
     '',
-    '  example acceptance_criteria (v6):',
+    '  example acceptance_criteria:',
     '    {',
     '      "checks": [',
     '        {"type": "build", "run": "cd cli && node build.mjs"},',
     '        {"type": "lint", "run": "eslint src/"}',
     '      ]',
     '    }',
-    '  example task.fulfills (v6):',
+    '  example task.fulfills:',
     '    "fulfills": ["R1", "R2"]',
     '',
     '  Note: spec check validates referential integrity.',
-    '    v6: task.fulfills[] IDs must exist in requirements[].id.',
-    '    v5: AC.scenarios IDs must exist in requirements[].scenarios[].id.',
+    '    task.fulfills[] IDs must exist in requirements[].id.',
     '    Run: hoyeon-cli spec check <path>',
   ];
   return lines.join('\n');
@@ -1992,12 +1840,12 @@ async function handleDrift(args) {
   process.exit(0);
 }
 
-async function handleScenario(args) {
-  const scenarioId = args[0];
+async function handleSub(args) {
+  const subId = args[0];
 
-  if (!scenarioId || scenarioId.startsWith('--')) {
-    process.stderr.write('Error: <scenario-id> is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec scenario <scenario-id> --get <path>\n');
+  if (!subId || subId.startsWith('--')) {
+    process.stderr.write('Error: <sub-id> is required\n');
+    process.stderr.write('Usage: hoyeon-cli spec sub <sub-id> --get <path>\n');
     process.exit(1);
   }
 
@@ -2005,13 +1853,13 @@ async function handleScenario(args) {
 
   if (parsed.get === undefined) {
     process.stderr.write('Error: --get <path> is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec scenario <scenario-id> --get <path>\n');
+    process.stderr.write('Usage: hoyeon-cli spec sub <sub-id> --get <path>\n');
     process.exit(1);
   }
 
   if (typeof parsed.get !== 'string') {
     process.stderr.write('Error: --get requires <path> argument\n');
-    process.stderr.write('Usage: hoyeon-cli spec scenario <scenario-id> --get <path>\n');
+    process.stderr.write('Usage: hoyeon-cli spec sub <sub-id> --get <path>\n');
     process.exit(1);
   }
 
@@ -2020,9 +1868,9 @@ async function handleScenario(args) {
 
   let found = null;
   for (const req of (specData.requirements || [])) {
-    for (const scenario of (req.scenarios || [])) {
-      if (scenario.id === scenarioId) {
-        found = scenario;
+    for (const sr of (req.sub || [])) {
+      if (sr.id === subId) {
+        found = sr;
         break;
       }
     }
@@ -2030,7 +1878,7 @@ async function handleScenario(args) {
   }
 
   if (!found) {
-    process.stderr.write(`Error: scenario '${scenarioId}' not found in spec\n`);
+    process.stderr.write(`Error: sub-requirement '${subId}' not found in spec\n`);
     process.exit(1);
   }
 
@@ -2039,24 +1887,14 @@ async function handleScenario(args) {
 }
 
 /**
- * Helper to find a scenario by ID across all requirements.
- * Returns { scenario, requirement } or null.
+ * Helper to find a sub-requirement by ID across all requirements.
+ * Returns { sub, requirement } or null.
  */
-function findScenarioById(specData, scenarioId) {
-  const isV6 = specData?.meta?.schema_version === 'v6';
+function findSubById(specData, subId) {
   for (const req of (specData.requirements || [])) {
-    // v6: search in sub[]
-    if (isV6) {
-      for (const sr of (req.sub || [])) {
-        if (sr.id === scenarioId) {
-          return { scenario: sr, requirement: req };
-        }
-      }
-    } else {
-      for (const scenario of (req.scenarios || [])) {
-        if (scenario.id === scenarioId) {
-          return { scenario, requirement: req };
-        }
+    for (const sr of (req.sub || [])) {
+      if (sr.id === subId) {
+        return { sub: sr, requirement: req };
       }
     }
   }
@@ -2068,15 +1906,15 @@ async function handleRequirement(args) {
 
   // Determine mode:
   // A) --status (flag without id) → full status view  (args[0] === '--status' or no positional id but --status flag)
-  // B) <id> --get <path>         → individual scenario lookup
-  // C) <id> --status <val> --task <task_id> <path> → update scenario status
+  // B) <id> --get <path>         → individual sub-requirement lookup
+  // C) <id> --status <val> --task <task_id> <path> → update sub-requirement status
 
   // Check if first positional looks like a flag (or absent)
   const firstPositional = parsed._[0];
   const isStatusFlag = parsed.status === true; // --status without value
 
   // Mode A: spec requirement --status <path>
-  // Detection: no scenario id positional AND --status is boolean true
+  // Detection: no sub id positional AND --status is boolean true
   if (!firstPositional && isStatusFlag) {
     const filePath = parsed._[0] || parsed._[1];
     // path comes as next positional after --status
@@ -2110,11 +1948,11 @@ async function handleRequirement(args) {
     return handleRequirementStatusView(specData, useJson);
   }
 
-  // If we have a positional (scenario id):
-  const scenarioId = firstPositional;
+  // If we have a positional (sub id):
+  const subId = firstPositional;
 
-  if (!scenarioId) {
-    process.stderr.write('Error: <scenario-id> or --status flag is required\n');
+  if (!subId) {
+    process.stderr.write('Error: <sub-id> or --status flag is required\n');
     process.stderr.write('Usage: hoyeon-cli spec requirement --status <path>\n');
     process.stderr.write('       hoyeon-cli spec requirement <id> --get <path>\n');
     process.stderr.write('       hoyeon-cli spec requirement <id> --status pass|fail|skipped --task <task_id> <path>\n');
@@ -2128,12 +1966,12 @@ async function handleRequirement(args) {
       process.exit(1);
     }
     const specData = loadSpec(resolve(parsed.get));
-    const found = findScenarioById(specData, scenarioId);
+    const found = findSubById(specData, subId);
     if (!found) {
-      process.stderr.write(`Error: scenario '${scenarioId}' not found in spec\n`);
+      process.stderr.write(`Error: sub-requirement '${subId}' not found in spec\n`);
       process.exit(1);
     }
-    process.stdout.write(JSON.stringify(found.scenario, null, 2) + '\n');
+    process.stdout.write(JSON.stringify(found.sub, null, 2) + '\n');
     process.exit(0);
   }
 
@@ -2147,7 +1985,7 @@ async function handleRequirement(args) {
     }
 
     if (!parsed.task) {
-      process.stderr.write('Error: --task <task_id> is required when updating scenario status\n');
+      process.stderr.write('Error: --task <task_id> is required when updating sub-requirement status\n');
       process.exit(1);
     }
 
@@ -2160,17 +1998,17 @@ async function handleRequirement(args) {
     const specPath = resolve(filePath);
     const specData = loadSpec(specPath);
 
-    const found = findScenarioById(specData, scenarioId);
+    const found = findSubById(specData, subId);
     if (!found) {
-      process.stderr.write(`Error: scenario '${scenarioId}' not found in spec\n`);
+      process.stderr.write(`Error: sub-requirement '${subId}' not found in spec\n`);
       process.exit(1);
     }
 
-    // Update scenario fields
-    found.scenario.status = statusValue;
-    found.scenario.verified_by_task = parsed.task;
+    // Update sub-requirement fields
+    found.sub.status = statusValue;
+    found.sub.verified_by_task = parsed.task;
     if (parsed.reason) {
-      found.scenario.verification_reason = parsed.reason;
+      found.sub.verification_reason = parsed.reason;
     }
 
     // Add history entry
@@ -2180,13 +2018,13 @@ async function handleRequirement(args) {
     writeState(specPath, specData);
     appendHistory(specPath, {
       ts: now,
-      type: 'scenario_verified',
-      scenario: scenarioId,
+      type: 'sub_verified',
+      sub: subId,
       status: statusValue,
       task: parsed.task,
     });
 
-    process.stdout.write(`Updated scenario '${scenarioId}': status=${statusValue}, verified_by_task=${parsed.task}\n`);
+    process.stdout.write(`Updated sub-requirement '${subId}': status=${statusValue}, verified_by_task=${parsed.task}\n`);
     process.exit(0);
   }
 
@@ -2197,12 +2035,9 @@ async function handleRequirement(args) {
 
 function handleRequirementStatusView(specData, useJson) {
   const requirements = specData.requirements || [];
-  const isV6 = specData?.meta?.schema_version === 'v6';
-
   const requirementRows = requirements.map(req => {
-    // v6: use sub[], v5: use scenarios[]
-    const items = isV6 ? (req.sub || []) : (req.scenarios || []);
-    const scenarios = items.map(sc => {
+    const items = req.sub || [];
+    const subs = items.map(sc => {
       const verifiedBy = sc.verified_by || 'unknown';
       const status = sc.status || 'pending';
       const verifiedByTask = sc.verified_by_task || null;
@@ -2218,7 +2053,7 @@ function handleRequirementStatusView(specData, useJson) {
     return {
       id: req.id,
       behavior: req.behavior,
-      scenarios,
+      subs,
     };
   });
 
@@ -2228,7 +2063,7 @@ function handleRequirementStatusView(specData, useJson) {
   let pendingCount = 0;
   let skippedCount = 0;
   for (const req of requirementRows) {
-    for (const sc of req.scenarios) {
+    for (const sc of req.subs) {
       if (sc.status === 'pass') passCount++;
       else if (sc.status === 'fail') failCount++;
       else if (sc.status === 'skipped') skippedCount++;
@@ -2246,9 +2081,9 @@ function handleRequirementStatusView(specData, useJson) {
   // Text format
   const lines = [];
   for (const req of requirementRows) {
-    const scCount = req.scenarios.length;
-    lines.push(`${req.id}: ${req.behavior} (${scCount} scenario${scCount !== 1 ? 's' : ''})`);
-    for (const sc of req.scenarios) {
+    const scCount = req.subs.length;
+    lines.push(`${req.id}: ${req.behavior} (${scCount} sub${scCount !== 1 ? 's' : ''})`);
+    for (const sc of req.subs) {
       const verifiedByLabel = sc.verified_by === 'human' ? 'Manual' :
         sc.verified_by === 'agent' ? `Agent ${sc.execution_env ? `[${sc.execution_env}]` : ''}`.trim() :
         sc.verified_by === 'machine' ? `Auto ${sc.execution_env ? `[${sc.execution_env}]` : ''}`.trim() :
@@ -2264,7 +2099,7 @@ function handleRequirementStatusView(specData, useJson) {
   if (failCount > 0) summaryParts.push(`${failCount} fail`);
   if (pendingCount > 0) summaryParts.push(`${pendingCount} pending`);
   if (skippedCount > 0) summaryParts.push(`${skippedCount} skipped`);
-  lines.push(`Summary: ${summaryParts.join(', ') || 'no scenarios'}`);
+  lines.push(`Summary: ${summaryParts.join(', ') || 'no sub-requirements'}`);
 
   process.stdout.write(lines.join('\n') + '\n');
   process.exit(0);
@@ -2284,25 +2119,22 @@ async function handleSandboxTasks(args) {
   const specData = loadSpec(specPath);
   const useJson = parsed.json === true;
 
-  const isV6 = specData?.meta?.schema_version === 'v6';
-
-  // Find all sandbox scenarios/sub-requirements
-  const sandboxScenarios = [];
+  // Find all sandbox sub-requirements
+  const sandboxSubs = [];
   for (const req of (specData.requirements || [])) {
-    // v6: use sub[], v5: use scenarios[]
-    const items = isV6 ? (req.sub || []) : (req.scenarios || []);
+    const items = req.sub || [];
     for (const sc of items) {
       if (sc.execution_env === 'sandbox') {
-        sandboxScenarios.push({ ...sc, requirement_id: req.id });
+        sandboxSubs.push({ ...sc, requirement_id: req.id });
       }
     }
   }
 
-  if (sandboxScenarios.length === 0) {
+  if (sandboxSubs.length === 0) {
     if (useJson) {
-      process.stdout.write(JSON.stringify({ sandbox_scenarios: [], created_tasks: [] }, null, 2) + '\n');
+      process.stdout.write(JSON.stringify({ sandbox_subs: [], created_tasks: [] }, null, 2) + '\n');
     } else {
-      process.stdout.write('No sandbox scenarios found. Nothing to do.\n');
+      process.stdout.write('No sandbox sub-requirements found. Nothing to do.\n');
     }
     process.exit(0);
   }
@@ -2310,15 +2142,12 @@ async function handleSandboxTasks(args) {
   const existingTasks = specData.tasks || [];
   const existingTaskIds = new Set(existingTasks.map(t => t.id));
 
-  // Build set of sandbox scenario IDs for lookup
-  const sandboxScenarioIds = new Set(sandboxScenarios.map(sc => sc.id));
+  // Build set of sandbox sub-requirement IDs for lookup
+  const sandboxSubIds = new Set(sandboxSubs.map(sc => sc.id));
 
-  // Find work tasks that reference sandbox scenarios/sub-requirements
+  // Find work tasks that reference sandbox sub-requirements
   const workTasksReferencingSandbox = existingTasks.filter(t => {
-    const acRefs = isV6
-      ? (t.fulfills || [])
-      : (t.acceptance_criteria?.scenarios || []);
-    return acRefs.some(sid => sandboxScenarioIds.has(sid));
+    return (t.fulfills || []).some(sid => sandboxSubIds.has(sid));
   });
 
   const createdTasks = [];
@@ -2327,7 +2156,7 @@ async function handleSandboxTasks(args) {
   if (!existingTaskIds.has('T_SANDBOX')) {
     const sandboxInfraTask = {
       id: 'T_SANDBOX',
-      action: 'Prepare sandbox environment for scenario verification',
+      action: 'Prepare sandbox environment for sub-requirement verification',
       type: 'work',
       status: 'pending',
       depends_on: workTasksReferencingSandbox.map(t => t.id),
@@ -2337,7 +2166,7 @@ async function handleSandboxTasks(args) {
     createdTasks.push(sandboxInfraTask);
   }
 
-  // Create T_SV1, T_SV2, ... for each sandbox scenario
+  // Create T_SV1, T_SV2, ... for each sandbox sub-requirement
   let svCounter = 1;
   // Find the max existing T_SV number
   for (const t of existingTasks) {
@@ -2349,12 +2178,12 @@ async function handleSandboxTasks(args) {
   }
 
   const newSvTasks = [];
-  for (const sc of sandboxScenarios) {
+  for (const sc of sandboxSubs) {
     const svId = `T_SV${svCounter++}`;
     if (!existingTaskIds.has(svId)) {
       const svTask = {
         id: svId,
-        action: `Verify ${sc.id}: ${isV6 ? sc.behavior : sc.then}`,
+        action: `Verify ${sc.id}: ${sc.behavior}`,
         type: 'work',
         status: 'pending',
         depends_on: ['T_SANDBOX'],
@@ -2381,7 +2210,7 @@ async function handleSandboxTasks(args) {
 
   if (useJson) {
     process.stdout.write(JSON.stringify({
-      sandbox_scenarios: sandboxScenarios.map(sc => sc.id),
+      sandbox_subs: sandboxSubs.map(sc => sc.id),
       created_tasks: createdTasks.map(t => t.id),
     }, null, 2) + '\n');
   } else {
@@ -2460,24 +2289,8 @@ async function handleLearning(args) {
     process.exit(1);
   }
 
-  // Extract requirement IDs: v6 uses fulfills[], v5 uses acceptance_criteria.scenarios
-  const requirementIds = [];
-  if (task.fulfills && task.fulfills.length > 0) {
-    // v6: fulfills[] already contains requirement IDs directly
-    for (const reqId of task.fulfills) {
-      if (!requirementIds.includes(reqId)) {
-        requirementIds.push(reqId);
-      }
-    }
-  } else if (task.acceptance_criteria?.scenarios) {
-    // v5 fallback: strip scenario suffix R1-S1 → R1
-    for (const scenarioId of task.acceptance_criteria.scenarios) {
-      const reqId = scenarioId.replace(/-S\d+$/, '');
-      if (!requirementIds.includes(reqId)) {
-        requirementIds.push(reqId);
-      }
-    }
-  }
+  // Extract requirement IDs from fulfills[]
+  const requirementIds = [...new Set(task.fulfills || [])];
 
   // Load or create learnings.json
   const contextDir = resolve(dirname(specPath), 'context');
@@ -2659,43 +2472,19 @@ async function handleSearch(args) {
     } catch { continue; }
 
     // Build task→requirement mapping
-    const specIsV6Search = specData?.meta?.schema_version === 'v6';
     const reqsByTask = {};
     for (const task of (specData.tasks || [])) {
-      if (specIsV6Search) {
-        // v6: fulfills[] already contains requirement IDs directly
-        const fulfills = task.fulfills || [];
-        if (fulfills.length > 0) {
-          reqsByTask[task.id] = [...fulfills];
-        }
-      } else {
-        const acRefs = task.acceptance_criteria?.scenarios || [];
-        if (acRefs.length > 0) {
-          const reqs = new Set();
-          for (const sid of acRefs) {
-            // Strip scenario suffix: R1-S1 → R1
-            reqs.add(sid.replace(/-S\d+$/, ''));
-          }
-          reqsByTask[task.id] = [...reqs];
-        }
+      const fulfills = task.fulfills || [];
+      if (fulfills.length > 0) {
+        reqsByTask[task.id] = [...fulfills];
       }
     }
 
-    const specIsV6 = specData?.meta?.schema_version === 'v6';
-
-    // Index requirements + sub-requirements (v6) or scenarios (v5)
+    // Index requirements + sub-requirements
     for (const req of (specData.requirements || [])) {
       let text = req.behavior || '';
-      if (specIsV6) {
-        // v6: index sub[].behavior text
-        for (const sr of (req.sub || [])) {
-          text += ' ' + (sr.behavior || '');
-        }
-      } else {
-        // v5: index scenarios GWT text
-        for (const s of (req.scenarios || [])) {
-          text += ' ' + [s.given, s.when, s.then].filter(Boolean).join(' ');
-        }
+      for (const sr of (req.sub || [])) {
+        text += ' ' + (sr.behavior || '');
       }
 
       docs.push({
@@ -2703,9 +2492,7 @@ async function handleSearch(args) {
         spec: specName,
         id: req.id,
         behavior: req.behavior,
-        scenarios: specIsV6
-          ? (req.sub || []).map(sr => ({ id: sr.id, behavior: sr.behavior }))
-          : (req.scenarios || []).map(s => ({ id: s.id, given: s.given, when: s.when, then: s.then })),
+        subs: (req.sub || []).map(sr => ({ id: sr.id, behavior: sr.behavior })),
         text,
         tasks: Object.entries(reqsByTask).filter(([, reqs]) => reqs.includes(req.id)).map(([tid]) => tid)
       });
@@ -2812,11 +2599,11 @@ async function handleSearch(args) {
       process.stdout.write(`[${r.spec}] ${r.type} ${r.id} (score: ${r.score.toFixed(1)})\n`);
       if (r.type === 'requirement') {
         process.stdout.write(`  behavior: ${r.behavior}\n`);
-        for (const s of (r.scenarios || []).slice(0, 3)) {
-          process.stdout.write(`  ${s.id}: given "${s.given}" when "${s.when}" then "${s.then}"\n`);
+        for (const s of (r.subs || []).slice(0, 3)) {
+          process.stdout.write(`  ${s.id}: ${s.behavior}\n`);
         }
-        if (r.scenarios?.length > 3) {
-          process.stdout.write(`  ... and ${r.scenarios.length - 3} more scenarios\n`);
+        if (r.subs?.length > 3) {
+          process.stdout.write(`  ... and ${r.subs.length - 3} more sub-requirements\n`);
         }
       } else if (r.type === 'learning') {
         process.stdout.write(`  problem: ${r.problem}\n`);
@@ -2862,8 +2649,8 @@ export default async function spec(args) {
     await handleAmend(args.slice(1));
   } else if (subcommand === 'guide') {
     await handleGuide(args.slice(1));
-  } else if (subcommand === 'scenario') {
-    await handleScenario(args.slice(1));
+  } else if (subcommand === 'scenario' || subcommand === 'sub') {
+    await handleSub(args.slice(1));
   } else if (subcommand === 'derive') {
     await handleDerive(args.slice(1));
   } else if (subcommand === 'drift') {

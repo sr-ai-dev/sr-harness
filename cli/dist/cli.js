@@ -7624,1602 +7624,6 @@ var import_ajv_formats = __toESM(require_dist(), 1);
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from "fs";
 import { resolve, dirname } from "path";
 
-// schemas/dev-spec-v4.schema.json
-var dev_spec_v4_schema_default = {
-  $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "dev-spec/v4",
-  title: "dev-spec v4",
-  description: "JSON Schema for dev spec v4 \u2014 unified spec + state document",
-  type: "object",
-  required: ["meta", "tasks"],
-  additionalProperties: false,
-  properties: {
-    $schema: { type: "string" },
-    meta: { $ref: "#/$defs/meta" },
-    context: { $ref: "#/$defs/context" },
-    requirements: {
-      type: "array",
-      items: { $ref: "#/$defs/requirement" }
-    },
-    tasks: {
-      type: "array",
-      minItems: 1,
-      items: { $ref: "#/$defs/task" }
-    },
-    constraints: {
-      type: "array",
-      items: { $ref: "#/$defs/constraint" }
-    },
-    history: {
-      type: "array",
-      items: { $ref: "#/$defs/historyEntry" }
-    },
-    verification_summary: {
-      $ref: "#/$defs/verificationSummary",
-      description: "Derived from requirements \u2014 A/H/S classification. Do not author independently."
-    },
-    external_dependencies: { $ref: "#/$defs/externalDependencies" }
-  },
-  $defs: {
-    sha256Hash: {
-      type: "string",
-      pattern: "^[a-f0-9]{64}$",
-      description: "Raw SHA-256 hex digest (64 lowercase hex characters, no prefix)"
-    },
-    reference: {
-      type: "object",
-      required: ["path"],
-      additionalProperties: false,
-      properties: {
-        path: { type: "string" },
-        start_line: { type: "integer", minimum: 1 },
-        end_line: { type: "integer", minimum: 1 }
-      }
-    },
-    taskConstraint: {
-      type: "object",
-      required: ["type", "target"],
-      additionalProperties: false,
-      properties: {
-        type: {
-          type: "string",
-          enum: ["no_modify", "no_delete", "preserve_string", "read_only"]
-        },
-        target: { type: "string" }
-      }
-    },
-    expect: {
-      type: "object",
-      required: ["exit_code"],
-      additionalProperties: false,
-      properties: {
-        exit_code: { type: "integer" },
-        stdout_contains: { type: "string" },
-        stderr_empty: { type: "boolean" }
-      }
-    },
-    verifyCommand: {
-      type: "object",
-      required: ["type", "run", "expect"],
-      additionalProperties: false,
-      properties: {
-        type: { type: "string", const: "command" },
-        run: { type: "string" },
-        expect: { $ref: "#/$defs/expect" }
-      }
-    },
-    verifyAssertion: {
-      type: "object",
-      required: ["type", "checks"],
-      additionalProperties: false,
-      properties: {
-        type: { type: "string", const: "assertion" },
-        checks: {
-          type: "array",
-          minItems: 1,
-          items: { type: "string" }
-        }
-      }
-    },
-    verifyInstruction: {
-      type: "object",
-      required: ["type", "ask"],
-      additionalProperties: false,
-      properties: {
-        type: { type: "string", const: "instruction" },
-        ask: { type: "string" }
-      }
-    },
-    verify: {
-      oneOf: [
-        { $ref: "#/$defs/verifyCommand" },
-        { $ref: "#/$defs/verifyAssertion" },
-        { $ref: "#/$defs/verifyInstruction" }
-      ]
-    },
-    scenario: {
-      type: "object",
-      required: ["id", "given", "when", "then", "verified_by", "verify"],
-      additionalProperties: false,
-      properties: {
-        id: { type: "string" },
-        given: { type: "string" },
-        when: { type: "string" },
-        then: { type: "string" },
-        verified_by: {
-          type: "string",
-          enum: ["machine", "agent", "human"],
-          description: "WHO verifies: machine=automated command, agent=AI assertion, human=manual inspection"
-        },
-        execution_env: {
-          type: "string",
-          enum: ["host", "sandbox", "ci"],
-          description: "WHERE verification runs: host=local, sandbox=docker/container, ci=CI pipeline"
-        },
-        verify: { $ref: "#/$defs/verify" }
-      },
-      allOf: [
-        {
-          if: {
-            properties: { verified_by: { const: "machine" } },
-            required: ["verified_by"]
-          },
-          then: {
-            properties: {
-              verify: { $ref: "#/$defs/verifyCommand" }
-            }
-          }
-        },
-        {
-          if: {
-            properties: { verified_by: { const: "agent" } },
-            required: ["verified_by"]
-          },
-          then: {
-            properties: {
-              verify: { $ref: "#/$defs/verifyAssertion" }
-            }
-          }
-        },
-        {
-          if: {
-            properties: { verified_by: { const: "human" } },
-            required: ["verified_by"]
-          },
-          then: {
-            properties: {
-              verify: { $ref: "#/$defs/verifyInstruction" }
-            }
-          }
-        }
-      ]
-    },
-    meta: {
-      type: "object",
-      required: ["name", "goal"],
-      additionalProperties: false,
-      properties: {
-        name: { type: "string" },
-        goal: { type: "string" },
-        non_goals: {
-          type: "array",
-          items: { type: "string" },
-          description: "What this project is explicitly NOT trying to achieve (strategic scope exclusion)"
-        },
-        deliverables: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["path", "description"],
-            additionalProperties: false,
-            properties: {
-              path: { type: "string" },
-              description: { type: "string" }
-            }
-          }
-        },
-        mode: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            depth: {
-              type: "string",
-              enum: ["quick", "standard"]
-            },
-            interaction: {
-              type: "string",
-              enum: ["interactive", "autopilot"]
-            }
-          }
-        },
-        derived_from: { type: "string" },
-        created_at: { type: "string" },
-        updated_at: { type: "string" },
-        approved_by: { type: "string" },
-        approved_at: { type: "string" },
-        type: {
-          type: "string",
-          enum: ["dev", "plain"],
-          description: "Spec type: dev = developer task spec (default), plain = lightweight plain task spec"
-        },
-        schema_version: {
-          type: "string",
-          enum: ["v4", "v5"],
-          description: "Schema version for validation routing. Defaults to v5 if omitted."
-        }
-      }
-    },
-    context: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        request: { type: "string" },
-        interview: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["topic", "decision"],
-            additionalProperties: false,
-            properties: {
-              topic: { type: "string" },
-              decision: { type: "string" }
-            }
-          }
-        },
-        research: {
-          oneOf: [
-            { type: "string" },
-            { $ref: "#/$defs/researchFindings" }
-          ]
-        },
-        assumptions: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "belief", "if_wrong", "impact"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              belief: { type: "string" },
-              if_wrong: { type: "string" },
-              impact: {
-                type: "string",
-                enum: ["minor", "major", "critical"]
-              }
-            }
-          }
-        },
-        decisions: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "decision", "rationale"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              decision: { type: "string" },
-              rationale: { type: "string" },
-              alternatives_rejected: {
-                type: "array",
-                items: {
-                  type: "object",
-                  required: ["option", "reason"],
-                  additionalProperties: false,
-                  properties: {
-                    option: { type: "string" },
-                    reason: { type: "string" }
-                  }
-                }
-              }
-            }
-          }
-        },
-        known_gaps: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["gap", "severity", "mitigation"],
-            additionalProperties: false,
-            properties: {
-              gap: { type: "string" },
-              severity: {
-                type: "string",
-                enum: ["low", "medium", "high", "critical"]
-              },
-              mitigation: { type: "string" }
-            }
-          }
-        }
-      }
-    },
-    requirement: {
-      type: "object",
-      required: ["id", "behavior", "priority", "scenarios"],
-      additionalProperties: false,
-      properties: {
-        id: { type: "string" },
-        behavior: { type: "string" },
-        priority: {
-          type: "integer",
-          minimum: 1,
-          maximum: 5
-        },
-        scenarios: {
-          type: "array",
-          items: { $ref: "#/$defs/scenario" }
-        }
-      }
-    },
-    checkpoint: {
-      type: "object",
-      required: ["enabled"],
-      additionalProperties: false,
-      properties: {
-        enabled: { type: "boolean" },
-        message: { type: "string" },
-        condition: {
-          type: "string",
-          enum: ["always", "on_fulfill", "manual"]
-        }
-      }
-    },
-    derivedFrom: {
-      type: "object",
-      required: ["parent", "trigger"],
-      additionalProperties: false,
-      description: "Provenance record linking a derived task back to its planned parent",
-      properties: {
-        parent: {
-          type: "string",
-          description: "ID of the planned parent task (depth-1 only)"
-        },
-        source: {
-          type: "string",
-          description: "Source context that triggered the derivation (e.g. file path, agent name)"
-        },
-        trigger: {
-          type: "string",
-          enum: ["adapt", "retry", "code_review", "final_verify"],
-          description: "Event that caused this task to be derived"
-        },
-        reason: {
-          type: "string",
-          description: "Human-readable explanation for the derivation"
-        }
-      }
-    },
-    task: {
-      type: "object",
-      required: ["id", "action", "type"],
-      additionalProperties: false,
-      properties: {
-        id: { type: "string" },
-        action: { type: "string" },
-        type: {
-          type: "string",
-          enum: ["work", "verification"]
-        },
-        origin: {
-          type: "string",
-          enum: ["planned", "derived", "adapted"],
-          default: "planned",
-          description: "How this task was created: planned=authored in spec, derived=created at runtime via spec derive, adapted=manually adjusted from a derived task"
-        },
-        derived_from: {
-          $ref: "#/$defs/derivedFrom",
-          description: "Provenance record \u2014 required when origin is derived or adapted"
-        },
-        risk: {
-          type: "string",
-          enum: ["low", "medium", "high"]
-        },
-        file_scope: {
-          type: "array",
-          items: { type: "string" }
-        },
-        fulfills: {
-          type: "array",
-          items: { type: "string" }
-        },
-        depends_on: {
-          type: "array",
-          items: { type: "string" }
-        },
-        steps: {
-          type: "array",
-          description: "Task steps \u2014 either plain strings (backward compat) or structured objects with done tracking",
-          items: {
-            oneOf: [
-              { type: "string" },
-              {
-                type: "object",
-                required: ["text"],
-                additionalProperties: false,
-                properties: {
-                  text: { type: "string" },
-                  done: { type: "boolean", default: false }
-                }
-              }
-            ]
-          }
-        },
-        references: {
-          type: "array",
-          items: { $ref: "#/$defs/reference" }
-        },
-        inputs: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["from_task", "artifact"],
-            additionalProperties: false,
-            properties: {
-              from_task: { type: "string" },
-              artifact: { type: "string" }
-            }
-          }
-        },
-        outputs: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "path"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              path: { type: "string" }
-            }
-          }
-        },
-        task_constraints: {
-          type: "array",
-          items: { $ref: "#/$defs/taskConstraint" }
-        },
-        checkpoint: {
-          oneOf: [
-            { $ref: "#/$defs/checkpoint" },
-            { type: "null" }
-          ]
-        },
-        status: {
-          type: "string",
-          enum: ["pending", "in_progress", "done"],
-          default: "pending"
-        },
-        started_at: { type: "string" },
-        completed_at: { type: "string" },
-        summary: { type: "string" },
-        required_tools: {
-          type: "array",
-          items: { type: "string" }
-        },
-        must_not_do: {
-          type: "array",
-          items: { type: "string" }
-        },
-        acceptance_criteria: { $ref: "#/$defs/taskAcceptanceCriteria" },
-        tool: { type: "string" },
-        args: { type: "string" }
-      },
-      allOf: [
-        {
-          if: { properties: { origin: { enum: ["derived", "adapted"] } }, required: ["origin"] },
-          then: { required: ["derived_from"] }
-        }
-      ]
-    },
-    historyEntry: {
-      type: "object",
-      required: ["ts", "type"],
-      additionalProperties: false,
-      properties: {
-        ts: { type: "string" },
-        type: {
-          type: "string",
-          enum: ["spec_created", "task_start", "task_done", "tasks_changed", "spec_updated", "scenario_verified"]
-        },
-        task: { type: "string" },
-        scenario: { type: "string" },
-        status: { type: "string" },
-        summary: { type: "string" },
-        detail: { type: "string" }
-      }
-    },
-    acceptanceCriterionItem: {
-      type: "object",
-      required: ["description"],
-      additionalProperties: false,
-      properties: {
-        description: { type: "string" },
-        command: { type: "string" },
-        status: {
-          type: "string",
-          enum: ["PASS", "FAIL", "SKIP"]
-        }
-      }
-    },
-    taskAcceptanceCriteria: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        functional: {
-          type: "array",
-          items: { $ref: "#/$defs/acceptanceCriterionItem" }
-        },
-        static: {
-          type: "array",
-          items: { $ref: "#/$defs/acceptanceCriterionItem" }
-        },
-        runtime: {
-          type: "array",
-          items: { $ref: "#/$defs/acceptanceCriterionItem" }
-        },
-        cleanup: {
-          type: "array",
-          items: { $ref: "#/$defs/acceptanceCriterionItem" }
-        }
-      }
-    },
-    verificationSummary: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        agent_items: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "criterion", "method"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              criterion: { type: "string" },
-              method: { type: "string" },
-              related_task: { type: "string" }
-            }
-          }
-        },
-        human_items: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "criterion", "reason"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              criterion: { type: "string" },
-              reason: { type: "string" },
-              review_material: { type: "string" }
-            }
-          }
-        },
-        sandbox_items: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "scenario", "agent", "method"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              scenario: { type: "string" },
-              agent: { type: "string" },
-              method: { type: "string" }
-            }
-          }
-        },
-        gaps: {
-          type: "array",
-          items: { type: "string" }
-        }
-      }
-    },
-    externalDependencies: {
-      description: "Human-only tasks that the agent cannot perform (infra setup, API keys, deployment, etc.). If automatable, put it in the Task DAG instead.",
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        pre_work: {
-          description: "Human actions that must be completed BEFORE execution starts.",
-          type: "array",
-          items: {
-            type: "object",
-            required: ["dependency", "action"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string", description: "Optional identifier (e.g., PW-1)" },
-              dependency: { type: "string" },
-              action: { type: "string", description: "What the human must do" },
-              command: { type: "string", description: "Hint command for the human (not agent-executed)" },
-              blocking: { type: "boolean", description: "If true, execution halts until human confirms completion" }
-            }
-          }
-        },
-        post_work: {
-          description: "Human actions to perform AFTER execution completes.",
-          type: "array",
-          items: {
-            type: "object",
-            required: ["dependency", "action"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string", description: "Optional identifier (e.g., POW-1)" },
-              dependency: { type: "string" },
-              action: { type: "string", description: "What the human must do" },
-              command: { type: "string", description: "Hint command for the human (not agent-executed)" }
-            }
-          }
-        }
-      }
-    },
-    researchFindings: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        summary: {
-          type: "string",
-          description: "High-level summary of exploration results"
-        },
-        patterns: {
-          type: "array",
-          description: "Existing code patterns discovered (file:line format)",
-          items: {
-            type: "object",
-            required: ["path", "description"],
-            additionalProperties: false,
-            properties: {
-              path: { type: "string" },
-              start_line: { type: "integer", minimum: 1 },
-              end_line: { type: "integer", minimum: 1 },
-              description: { type: "string" }
-            }
-          }
-        },
-        structure: {
-          type: "array",
-          description: "Key directory/file structure paths",
-          items: { type: "string" }
-        },
-        commands: {
-          type: "object",
-          description: "Project commands discovered",
-          additionalProperties: false,
-          properties: {
-            typecheck: { type: "string" },
-            lint: { type: "string" },
-            test: { type: "string" },
-            build: { type: "string" }
-          }
-        },
-        documentation: {
-          type: "array",
-          description: "Internal docs findings (ADRs, conventions, constraints)",
-          items: {
-            type: "object",
-            required: ["path", "description"],
-            additionalProperties: false,
-            properties: {
-              path: { type: "string" },
-              line: { type: "integer", minimum: 1 },
-              description: { type: "string" }
-            }
-          }
-        },
-        ux_review: {
-          type: "object",
-          description: "UX impact assessment from ux-reviewer agent",
-          additionalProperties: false,
-          properties: {
-            current_flow: { type: "string" },
-            impact: { type: "string" },
-            recommendations: {
-              type: "array",
-              items: { type: "string" }
-            },
-            must_not_do: {
-              type: "array",
-              items: { type: "string" }
-            }
-          }
-        }
-      }
-    },
-    constraint: {
-      type: "object",
-      required: ["id", "type", "rule", "verified_by", "verify"],
-      additionalProperties: false,
-      properties: {
-        id: { type: "string" },
-        type: {
-          type: "string",
-          enum: ["must_not_do", "preserve"]
-        },
-        rule: { type: "string" },
-        verified_by: {
-          type: "string",
-          enum: ["machine", "agent", "human"]
-        },
-        verify: { $ref: "#/$defs/verify" }
-      },
-      allOf: [
-        {
-          if: {
-            properties: { verified_by: { const: "machine" } },
-            required: ["verified_by"]
-          },
-          then: {
-            properties: {
-              verify: { $ref: "#/$defs/verifyCommand" }
-            }
-          }
-        },
-        {
-          if: {
-            properties: { verified_by: { const: "agent" } },
-            required: ["verified_by"]
-          },
-          then: {
-            properties: {
-              verify: { $ref: "#/$defs/verifyAssertion" }
-            }
-          }
-        },
-        {
-          if: {
-            properties: { verified_by: { const: "human" } },
-            required: ["verified_by"]
-          },
-          then: {
-            properties: {
-              verify: { $ref: "#/$defs/verifyInstruction" }
-            }
-          }
-        }
-      ]
-    }
-  }
-};
-
-// schemas/dev-spec-v5.schema.json
-var dev_spec_v5_schema_default = {
-  $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "dev-spec/v5",
-  title: "dev-spec v5",
-  description: "JSON Schema for dev spec v5 \u2014 unified spec + state document. AC uses scenarios[] + checks[] instead of functional/static/runtime/cleanup categories.",
-  type: "object",
-  required: ["meta", "tasks"],
-  additionalProperties: false,
-  properties: {
-    $schema: { type: "string" },
-    meta: { $ref: "#/$defs/meta" },
-    context: { $ref: "#/$defs/context" },
-    requirements: {
-      type: "array",
-      items: { $ref: "#/$defs/requirement" }
-    },
-    tasks: {
-      type: "array",
-      minItems: 1,
-      items: { $ref: "#/$defs/task" }
-    },
-    constraints: {
-      type: "array",
-      items: { $ref: "#/$defs/constraint" }
-    },
-    verification_summary: {
-      $ref: "#/$defs/verificationSummary",
-      description: "Derived from requirements \u2014 A/H/S classification. Do not author independently."
-    },
-    external_dependencies: { $ref: "#/$defs/externalDependencies" }
-  },
-  $defs: {
-    sha256Hash: {
-      type: "string",
-      pattern: "^[a-f0-9]{64}$",
-      description: "Raw SHA-256 hex digest (64 lowercase hex characters, no prefix)"
-    },
-    reference: {
-      type: "object",
-      required: ["path"],
-      additionalProperties: false,
-      properties: {
-        path: { type: "string" },
-        start_line: { type: "integer", minimum: 1 },
-        end_line: { type: "integer", minimum: 1 }
-      }
-    },
-    taskConstraint: {
-      type: "object",
-      required: ["type", "target"],
-      additionalProperties: false,
-      properties: {
-        type: {
-          type: "string",
-          enum: ["no_modify", "no_delete", "preserve_string", "read_only"]
-        },
-        target: { type: "string" }
-      }
-    },
-    expect: {
-      type: "object",
-      required: ["exit_code"],
-      additionalProperties: false,
-      properties: {
-        exit_code: { type: "integer" },
-        stdout_contains: { type: "string" },
-        stderr_empty: { type: "boolean" }
-      }
-    },
-    verifyCommand: {
-      type: "object",
-      required: ["type", "run", "expect"],
-      additionalProperties: false,
-      properties: {
-        type: { type: "string", const: "command" },
-        run: { type: "string" },
-        expect: { $ref: "#/$defs/expect" }
-      }
-    },
-    verifyAssertion: {
-      type: "object",
-      required: ["type", "checks"],
-      additionalProperties: false,
-      properties: {
-        type: { type: "string", const: "assertion" },
-        checks: {
-          type: "array",
-          minItems: 1,
-          items: { type: "string" }
-        }
-      }
-    },
-    verifyInstruction: {
-      type: "object",
-      required: ["type", "ask"],
-      additionalProperties: false,
-      properties: {
-        type: { type: "string", const: "instruction" },
-        ask: { type: "string" }
-      }
-    },
-    verify: {
-      oneOf: [
-        { $ref: "#/$defs/verifyCommand" },
-        { $ref: "#/$defs/verifyAssertion" },
-        { $ref: "#/$defs/verifyInstruction" }
-      ]
-    },
-    scenario: {
-      type: "object",
-      required: ["id", "given", "when", "then", "verified_by", "verify"],
-      additionalProperties: false,
-      properties: {
-        id: { type: "string" },
-        category: {
-          type: "string",
-          enum: ["HP", "EP", "BC", "NI", "IT"],
-          description: "Scenario coverage category: HP=Happy Path, EP=Edge/Error Path, BC=Boundary Condition, NI=Non-functional/Infrastructure, IT=Integration"
-        },
-        given: { type: "string" },
-        when: { type: "string" },
-        then: { type: "string" },
-        verified_by: {
-          type: "string",
-          enum: ["machine", "agent", "human"],
-          description: "WHO verifies: machine=automated command, agent=AI assertion, human=manual inspection"
-        },
-        execution_env: {
-          type: "string",
-          enum: ["host", "sandbox", "ci"],
-          description: "WHERE verification runs: host=local, sandbox=docker/container, ci=CI pipeline"
-        },
-        subject: {
-          type: "string",
-          enum: ["web", "server", "cli", "database"],
-          description: "WHAT is being verified: the system component under test. Required when execution_env is sandbox."
-        },
-        verify: { $ref: "#/$defs/verify" },
-        status: {
-          type: "string",
-          enum: ["pass", "fail", "pending", "skipped"],
-          default: "pending",
-          description: "Verification result for this scenario"
-        },
-        verified_by_task: {
-          oneOf: [
-            { type: "string" },
-            { type: "null" }
-          ],
-          default: null,
-          description: "The task ID that verified this scenario (e.g. 'T1' or 'T_SV1')"
-        }
-      },
-      allOf: [
-        {
-          if: {
-            properties: { verified_by: { const: "machine" } },
-            required: ["verified_by"]
-          },
-          then: {
-            properties: {
-              verify: { $ref: "#/$defs/verifyCommand" }
-            }
-          }
-        },
-        {
-          if: {
-            properties: { verified_by: { const: "agent" } },
-            required: ["verified_by"]
-          },
-          then: {
-            properties: {
-              verify: { $ref: "#/$defs/verifyAssertion" }
-            }
-          }
-        },
-        {
-          if: {
-            properties: { verified_by: { const: "human" } },
-            required: ["verified_by"]
-          },
-          then: {
-            properties: {
-              verify: { $ref: "#/$defs/verifyInstruction" }
-            }
-          }
-        },
-        {
-          if: {
-            properties: { execution_env: { const: "sandbox" } },
-            required: ["execution_env"]
-          },
-          then: {
-            required: ["subject"]
-          }
-        }
-      ]
-    },
-    meta: {
-      type: "object",
-      required: ["name", "goal"],
-      additionalProperties: false,
-      properties: {
-        name: { type: "string" },
-        goal: { type: "string" },
-        non_goals: {
-          type: "array",
-          items: { type: "string" },
-          description: "What this project is explicitly NOT trying to achieve (strategic scope exclusion)"
-        },
-        deliverables: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["path", "description"],
-            additionalProperties: false,
-            properties: {
-              path: { type: "string" },
-              description: { type: "string" }
-            }
-          }
-        },
-        mode: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            depth: {
-              type: "string",
-              enum: ["quick", "standard"]
-            },
-            interaction: {
-              type: "string",
-              enum: ["interactive", "autopilot"]
-            }
-          }
-        },
-        derived_from: { type: "string" },
-        created_at: { type: "string" },
-        updated_at: { type: "string" },
-        approved_by: { type: "string" },
-        approved_at: { type: "string" },
-        type: {
-          type: "string",
-          enum: ["dev", "plain"],
-          description: "Spec type: dev = developer task spec (default), plain = lightweight plain task spec"
-        },
-        schema_version: {
-          type: "string",
-          enum: ["v4", "v5"],
-          description: "Schema version for validation routing. Defaults to v5 if omitted."
-        }
-      }
-    },
-    context: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        request: { type: "string" },
-        confirmed_goal: {
-          type: "string",
-          description: "The confirmed goal statement from the mirror phase. Set after user confirms the mirrored interpretation."
-        },
-        interview: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["topic", "decision"],
-            additionalProperties: false,
-            properties: {
-              topic: { type: "string" },
-              decision: { type: "string" }
-            }
-          }
-        },
-        research: {
-          oneOf: [
-            { type: "string" },
-            { $ref: "#/$defs/researchFindings" }
-          ]
-        },
-        assumptions: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "belief", "if_wrong", "impact"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              belief: { type: "string" },
-              if_wrong: { type: "string" },
-              impact: {
-                type: "string",
-                enum: ["minor", "major", "critical"]
-              }
-            }
-          }
-        },
-        decisions: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "decision", "rationale"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              decision: { type: "string" },
-              rationale: { type: "string" },
-              alternatives_rejected: {
-                type: "array",
-                items: {
-                  type: "object",
-                  required: ["option", "reason"],
-                  additionalProperties: false,
-                  properties: {
-                    option: { type: "string" },
-                    reason: { type: "string" }
-                  }
-                }
-              },
-              implications: {
-                type: "array",
-                description: "Downstream behaviors/constraints this decision creates. Populated post-decision by orchestrator or L2.5 derivation step.",
-                items: {
-                  type: "object",
-                  required: ["implication", "type"],
-                  additionalProperties: false,
-                  properties: {
-                    implication: { type: "string", description: "Concrete downstream behavior or constraint" },
-                    type: { type: "string", enum: ["deterministic", "context-dependent", "intent-dependent"], description: "deterministic: always true given decision. context-dependent: true given decision + project context. intent-dependent: depends on user preference (requires confirmation)." },
-                    status: { type: "string", enum: ["confirmed", "pending", "rejected"], default: "pending", description: "confirmed: user verified. pending: agent-derived, awaiting confirmation. rejected: user overrode." },
-                    conditional_on: { type: "string", description: "Other decision ID this implication depends on (e.g., 'D2'). Omit if unconditional." }
-                  }
-                }
-              }
-            }
-          }
-        },
-        known_gaps: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["gap", "severity", "mitigation"],
-            additionalProperties: false,
-            properties: {
-              gap: { type: "string" },
-              severity: {
-                type: "string",
-                enum: ["low", "medium", "high", "critical"]
-              },
-              mitigation: { type: "string" },
-              auto_merged: {
-                type: "boolean",
-                description: "True when this gap was auto-merged (medium/low severity) without asking the user"
-              }
-            }
-          }
-        },
-        sandbox_capability: {
-          type: "object",
-          description: "Available sandbox environments for testing. Set by L3 Sandbox Capability Check.",
-          additionalProperties: false,
-          properties: {
-            docker: { type: "boolean", description: "Docker/containers available for DB/API integration tests" },
-            browser: { type: "boolean", description: "Browser automation (Playwright/Cypress/chromux) available" },
-            simulator: { type: "boolean", description: "iOS Simulator or Android Emulator available" },
-            desktop: { type: "boolean", description: "Desktop app automation (macos-automator-mcp) available" },
-            tools: {
-              type: "array",
-              items: { type: "string" },
-              description: "List of detected tool names (e.g., 'playwright', 'docker', 'xcrun simctl')"
-            },
-            confirmed_at: { type: "string", description: "ISO date when capability was confirmed" },
-            detected: { type: "boolean", description: "True if sandbox capability was auto-detected" },
-            scaffold_required: { type: "boolean", description: "True if T-sandbox-* scaffold tasks are needed (infra not yet present, T_SANDBOX will set it up)" }
-          }
-        }
-      }
-    },
-    requirement: {
-      type: "object",
-      required: ["id", "behavior", "priority", "scenarios"],
-      additionalProperties: false,
-      properties: {
-        id: { type: "string" },
-        behavior: { type: "string" },
-        priority: {
-          type: "integer",
-          minimum: 1,
-          maximum: 5
-        },
-        scenarios: {
-          type: "array",
-          items: { $ref: "#/$defs/scenario" }
-        },
-        source: {
-          type: "object",
-          required: ["type"],
-          additionalProperties: false,
-          description: "Traceability: where this requirement originated from",
-          properties: {
-            type: {
-              type: "string",
-              enum: ["goal", "decision", "gap", "implicit", "negative"],
-              description: "Category of origin: goal=from project goal, decision=from a context decision, gap=from a known gap, implicit=inferred, negative=from non-goals"
-            },
-            ref: {
-              type: "string",
-              description: "Optional reference ID (e.g. 'D3', 'G1') pointing to a specific context entry"
-            }
-          }
-        }
-      }
-    },
-    checkpoint: {
-      type: "object",
-      required: ["enabled"],
-      additionalProperties: false,
-      properties: {
-        enabled: { type: "boolean" },
-        message: { type: "string" },
-        condition: {
-          type: "string",
-          enum: ["always", "on_fulfill", "manual"]
-        }
-      }
-    },
-    derivedFrom: {
-      type: "object",
-      required: ["parent", "trigger"],
-      additionalProperties: false,
-      description: "Provenance record linking a derived task back to its planned parent",
-      properties: {
-        parent: {
-          type: "string",
-          description: "ID of the planned parent task (depth-1 only)"
-        },
-        source: {
-          type: "string",
-          description: "Source context that triggered the derivation (e.g. file path, agent name)"
-        },
-        trigger: {
-          type: "string",
-          enum: ["adapt", "retry", "code_review", "final_verify"],
-          description: "Event that caused this task to be derived"
-        },
-        reason: {
-          type: "string",
-          description: "Human-readable explanation for the derivation"
-        }
-      }
-    },
-    taskCheck: {
-      type: "object",
-      required: ["type", "run"],
-      additionalProperties: false,
-      description: "A static/build/lint/format check to run as part of task acceptance",
-      properties: {
-        type: {
-          type: "string",
-          enum: ["static", "build", "lint", "format"],
-          description: "Category of check: static=type check, build=compilation, lint=linting, format=formatting"
-        },
-        run: {
-          type: "string",
-          description: "Shell command to execute for this check"
-        }
-      }
-    },
-    taskAcceptanceCriteria: {
-      type: "object",
-      required: ["scenarios", "checks"],
-      additionalProperties: false,
-      description: "v5: AC is expressed as scenario references + automated checks. scenarios[] references requirements[].scenarios[].id. checks[] are runnable static/build/lint/format commands.",
-      properties: {
-        scenarios: {
-          type: "array",
-          description: "List of scenario IDs from requirements[].scenarios[].id that this task fulfills",
-          items: { type: "string" }
-        },
-        checks: {
-          type: "array",
-          description: "Automated checks to verify the task (static, build, lint, format)",
-          items: { $ref: "#/$defs/taskCheck" }
-        }
-      }
-    },
-    task: {
-      type: "object",
-      required: ["id", "action", "type"],
-      additionalProperties: false,
-      properties: {
-        id: { type: "string" },
-        action: { type: "string" },
-        type: {
-          type: "string",
-          enum: ["work", "verification"]
-        },
-        origin: {
-          type: "string",
-          enum: ["planned", "derived", "adapted"],
-          default: "planned",
-          description: "How this task was created: planned=authored in spec, derived=created at runtime via spec derive, adapted=manually adjusted from a derived task"
-        },
-        derived_from: {
-          $ref: "#/$defs/derivedFrom",
-          description: "Provenance record \u2014 required when origin is derived or adapted"
-        },
-        risk: {
-          type: "string",
-          enum: ["low", "medium", "high"]
-        },
-        file_scope: {
-          type: "array",
-          items: { type: "string" }
-        },
-        fulfills: {
-          type: "array",
-          items: { type: "string" }
-        },
-        depends_on: {
-          type: "array",
-          items: { type: "string" }
-        },
-        steps: {
-          type: "array",
-          description: "Task steps \u2014 either plain strings (backward compat) or structured objects with done tracking",
-          items: {
-            oneOf: [
-              { type: "string" },
-              {
-                type: "object",
-                required: ["text"],
-                additionalProperties: false,
-                properties: {
-                  text: { type: "string" },
-                  done: { type: "boolean", default: false }
-                }
-              }
-            ]
-          }
-        },
-        references: {
-          type: "array",
-          items: { $ref: "#/$defs/reference" }
-        },
-        inputs: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["from_task", "artifact"],
-            additionalProperties: false,
-            properties: {
-              from_task: { type: "string" },
-              artifact: { type: "string" }
-            }
-          }
-        },
-        outputs: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "path"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              path: { type: "string" }
-            }
-          }
-        },
-        task_constraints: {
-          type: "array",
-          items: { $ref: "#/$defs/taskConstraint" }
-        },
-        checkpoint: {
-          oneOf: [
-            { $ref: "#/$defs/checkpoint" },
-            { type: "null" }
-          ]
-        },
-        status: {
-          type: "string",
-          enum: ["pending", "in_progress", "done"],
-          default: "pending"
-        },
-        started_at: { type: "string" },
-        completed_at: { type: "string" },
-        summary: { type: "string" },
-        required_tools: {
-          type: "array",
-          items: { type: "string" }
-        },
-        must_not_do: {
-          type: "array",
-          items: { type: "string" }
-        },
-        acceptance_criteria: { $ref: "#/$defs/taskAcceptanceCriteria" },
-        tool: { type: "string" },
-        args: { type: "string" }
-      },
-      allOf: [
-        {
-          if: { properties: { origin: { enum: ["derived", "adapted"] } }, required: ["origin"] },
-          then: { required: ["derived_from"] }
-        }
-      ]
-    },
-    historyEntry: {
-      type: "object",
-      required: ["ts", "type"],
-      additionalProperties: false,
-      properties: {
-        ts: { type: "string" },
-        type: {
-          type: "string",
-          enum: ["spec_created", "task_start", "task_done", "tasks_changed", "spec_updated", "scenario_verified"]
-        },
-        task: { type: "string" },
-        scenario: { type: "string" },
-        status: { type: "string" },
-        summary: { type: "string" },
-        detail: { type: "string" }
-      }
-    },
-    verificationSummary: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        agent_items: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "criterion", "method"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              criterion: { type: "string" },
-              method: { type: "string" },
-              related_task: { type: "string" }
-            }
-          }
-        },
-        human_items: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "criterion", "reason"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              criterion: { type: "string" },
-              reason: { type: "string" },
-              review_material: { type: "string" }
-            }
-          }
-        },
-        sandbox_items: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "scenario", "agent", "method"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              scenario: { type: "string" },
-              agent: { type: "string" },
-              method: { type: "string" }
-            }
-          }
-        },
-        gaps: {
-          type: "array",
-          items: { type: "string" }
-        }
-      }
-    },
-    externalDependencies: {
-      description: "Human-only tasks that the agent cannot perform (infra setup, API keys, deployment, etc.). If automatable, put it in the Task DAG instead.",
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        pre_work: {
-          description: "Human actions that must be completed BEFORE execution starts.",
-          type: "array",
-          items: {
-            type: "object",
-            required: ["dependency", "action"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string", description: "Optional identifier (e.g., PW-1)" },
-              dependency: { type: "string" },
-              action: { type: "string", description: "What the human must do" },
-              command: { type: "string", description: "Hint command for the human (not agent-executed)" },
-              blocking: { type: "boolean", description: "If true, execution halts until human confirms completion" }
-            }
-          }
-        },
-        post_work: {
-          description: "Human actions to perform AFTER execution completes.",
-          type: "array",
-          items: {
-            type: "object",
-            required: ["dependency", "action"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string", description: "Optional identifier (e.g., POW-1)" },
-              dependency: { type: "string" },
-              action: { type: "string", description: "What the human must do" },
-              command: { type: "string", description: "Hint command for the human (not agent-executed)" }
-            }
-          }
-        }
-      }
-    },
-    researchFindings: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        summary: {
-          type: "string",
-          description: "High-level summary of exploration results"
-        },
-        patterns: {
-          type: "array",
-          description: "Existing code patterns discovered (file:line format)",
-          items: {
-            type: "object",
-            required: ["path", "description"],
-            additionalProperties: false,
-            properties: {
-              path: { type: "string" },
-              start_line: { type: "integer", minimum: 1 },
-              end_line: { type: "integer", minimum: 1 },
-              description: { type: "string" }
-            }
-          }
-        },
-        structure: {
-          type: "array",
-          description: "Key directory/file structure paths",
-          items: { type: "string" }
-        },
-        commands: {
-          type: "object",
-          description: "Project commands discovered",
-          additionalProperties: false,
-          properties: {
-            typecheck: { type: "string" },
-            lint: { type: "string" },
-            test: { type: "string" },
-            build: { type: "string" }
-          }
-        },
-        documentation: {
-          type: "array",
-          description: "Internal docs findings (ADRs, conventions, constraints)",
-          items: {
-            type: "object",
-            required: ["path", "description"],
-            additionalProperties: false,
-            properties: {
-              path: { type: "string" },
-              line: { type: "integer", minimum: 1 },
-              description: { type: "string" }
-            }
-          }
-        },
-        ux_review: {
-          type: "object",
-          description: "UX impact assessment from ux-reviewer agent",
-          additionalProperties: false,
-          properties: {
-            current_flow: { type: "string" },
-            impact: { type: "string" },
-            recommendations: {
-              type: "array",
-              items: { type: "string" }
-            },
-            must_not_do: {
-              type: "array",
-              items: { type: "string" }
-            }
-          }
-        }
-      }
-    },
-    constraint: {
-      type: "object",
-      required: ["id", "type", "rule", "verified_by", "verify"],
-      additionalProperties: false,
-      properties: {
-        id: { type: "string" },
-        type: {
-          type: "string",
-          enum: ["must_not_do", "preserve"]
-        },
-        rule: { type: "string" },
-        verified_by: {
-          type: "string",
-          enum: ["machine", "agent", "human"]
-        },
-        verify: { $ref: "#/$defs/verify" }
-      },
-      allOf: [
-        {
-          if: {
-            properties: { verified_by: { const: "machine" } },
-            required: ["verified_by"]
-          },
-          then: {
-            properties: {
-              verify: { $ref: "#/$defs/verifyCommand" }
-            }
-          }
-        },
-        {
-          if: {
-            properties: { verified_by: { const: "agent" } },
-            required: ["verified_by"]
-          },
-          then: {
-            properties: {
-              verify: { $ref: "#/$defs/verifyAssertion" }
-            }
-          }
-        },
-        {
-          if: {
-            properties: { verified_by: { const: "human" } },
-            required: ["verified_by"]
-          },
-          then: {
-            properties: {
-              verify: { $ref: "#/$defs/verifyInstruction" }
-            }
-          }
-        }
-      ]
-    }
-  }
-};
-
 // schemas/dev-spec-v6.schema.json
 var dev_spec_v6_schema_default = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -9962,7 +8366,7 @@ Usage:
   hoyeon-cli spec merge <path> --json '{...}'       Deep-merge a JSON fragment into spec.json
                                                     --append: concatenate arrays
                                                     --patch:  ID-based merge (match by id, update in place)
-  hoyeon-cli spec validate <path> [--layer decisions|requirements|scenarios|tasks] [--json]  Schema validation + coverage checks
+  hoyeon-cli spec validate <path> [--layer decisions|requirements|tasks] [--json]  Schema validation + coverage checks
   hoyeon-cli spec plan <path> [--format text|mermaid|json]  Show execution plan with parallel groups
   hoyeon-cli spec task <task-id> --status <status> [--summary "..."] <path>  Update task status
   hoyeon-cli spec task <task-id> --get <path>                               Get task details as JSON
@@ -10003,14 +8407,8 @@ Examples:
   hoyeon-cli spec requirement R1-S1 --status pass --task T1 ./spec.json
   hoyeon-cli spec sandbox-tasks ./spec.json
 `;
-function loadSchema(specData) {
-  if (specData?.meta?.schema_version === "v4") {
-    return dev_spec_v4_schema_default;
-  }
-  if (specData?.meta?.schema_version === "v6") {
-    return dev_spec_v6_schema_default;
-  }
-  return dev_spec_v5_schema_default;
+function loadSchema() {
+  return dev_spec_v6_schema_default;
 }
 function printGuideHints(errors) {
   const sections = /* @__PURE__ */ new Set();
@@ -10250,7 +8648,7 @@ async function handleValidate(args) {
   const filePath = parsed._[0];
   if (!filePath) {
     process.stderr.write("Error: missing <path> argument\n");
-    process.stderr.write("Usage: hoyeon-cli spec validate <path> [--layer decisions|requirements|scenarios|tasks] [--json]\n");
+    process.stderr.write("Usage: hoyeon-cli spec validate <path> [--layer decisions|requirements|tasks] [--json]\n");
     process.exit(1);
   }
   const layer = parsed.layer;
@@ -10353,68 +8751,33 @@ function loadSpec(filePath) {
 }
 function buildVerifyPlan(task, spec2) {
   const reqIds = task.fulfills || [];
-  if (reqIds.length > 0) {
-    const entries = [];
-    for (const reqId of reqIds) {
-      const req = (spec2.requirements || []).find((r) => r.id === reqId);
-      if (!req) continue;
-      for (const sr of req.sub || []) {
-        const method = sr.verify?.type;
-        const entry = {
-          sub_requirement: sr.id,
-          behavior: sr.behavior,
-          method: method || "unknown"
-        };
-        if (method === "command" && sr.verify) {
-          entry.run = sr.verify.run;
-          if (sr.verify.expect !== void 0) entry.expect = sr.verify.expect;
-        }
-        if (method === "assertion" && sr.verify) {
-          entry.checks = sr.verify.checks;
-        }
-        if (method === "instruction") {
-          entry.action = "skip";
-          if (sr.verify?.ask) entry.ask = sr.verify.ask;
-        }
-        entries.push(entry);
+  if (reqIds.length === 0) return [];
+  const entries = [];
+  for (const reqId of reqIds) {
+    const req = (spec2.requirements || []).find((r) => r.id === reqId);
+    if (!req) continue;
+    for (const sr of req.sub || []) {
+      const method = sr.verify?.type;
+      const entry = {
+        sub_requirement: sr.id,
+        behavior: sr.behavior,
+        method: method || "unknown"
+      };
+      if (method === "command" && sr.verify) {
+        entry.run = sr.verify.run;
+        if (sr.verify.expect !== void 0) entry.expect = sr.verify.expect;
       }
+      if (method === "assertion" && sr.verify) {
+        entry.checks = sr.verify.checks;
+      }
+      if (method === "instruction") {
+        entry.action = "skip";
+        if (sr.verify?.ask) entry.ask = sr.verify.ask;
+      }
+      entries.push(entry);
     }
-    return entries;
   }
-  const scenarioIds = task.acceptance_criteria && task.acceptance_criteria.scenarios || [];
-  if (scenarioIds.length === 0) return [];
-  const scenarioMap = /* @__PURE__ */ new Map();
-  for (const req of spec2.requirements || []) {
-    for (const s of req.scenarios || []) {
-      scenarioMap.set(s.id, s);
-    }
-  }
-  return scenarioIds.map((sid) => {
-    const s = scenarioMap.get(sid);
-    if (!s) return { scenario: sid, method: "unknown", env: "host" };
-    const env = s.execution_env || "host";
-    const method = s.verified_by;
-    const entry = {
-      scenario: s.id,
-      method,
-      env
-    };
-    if (method === "machine" && s.verify) {
-      entry.run = s.verify.run;
-      if (s.verify.expect !== void 0) entry.expect = s.verify.expect;
-    }
-    if (method === "agent" && env !== "sandbox" && s.verify) {
-      entry.checks = s.verify.checks;
-    }
-    if (env === "sandbox") {
-      entry.subject = s.subject;
-      entry.recipe = `${s.subject}.md`;
-    }
-    if (method === "human") {
-      entry.action = "skip";
-    }
-    return entry;
-  });
+  return entries;
 }
 function buildPlan(tasks) {
   const taskMap = /* @__PURE__ */ new Map();
@@ -10884,42 +9247,27 @@ async function handleMeta(args) {
   process.stdout.write(JSON.stringify(meta, null, 2) + "\n");
   process.exit(0);
 }
-function collectScenarioSets(specData) {
-  const isV6 = specData?.meta?.schema_version === "v6";
-  const allScenarioIds = /* @__PURE__ */ new Set();
+function collectRequirementSets(specData) {
+  const allReqIds = /* @__PURE__ */ new Set();
   for (const req of specData.requirements || []) {
-    if (isV6) {
-      if (req.id) allScenarioIds.add(req.id);
-    } else {
-      for (const sc of req.scenarios || []) {
-        if (sc.id) allScenarioIds.add(sc.id);
-      }
-    }
+    if (req.id) allReqIds.add(req.id);
   }
-  const referencedScenarioIds = /* @__PURE__ */ new Set();
+  const referencedReqIds = /* @__PURE__ */ new Set();
   for (const task of specData.tasks || []) {
-    if (isV6) {
-      for (const reqRef of task.fulfills || []) {
-        if (reqRef) referencedScenarioIds.add(reqRef);
-      }
-    } else {
-      for (const scenarioRef of task.acceptance_criteria?.scenarios || []) {
-        if (scenarioRef) referencedScenarioIds.add(scenarioRef);
-      }
+    for (const reqRef of task.fulfills || []) {
+      if (reqRef) referencedReqIds.add(reqRef);
     }
   }
-  return { allScenarioIds, referencedScenarioIds };
+  return { allReqIds, referencedReqIds };
 }
-var VALID_COVERAGE_LAYERS = ["decisions", "requirements", "scenarios", "tasks"];
+var VALID_COVERAGE_LAYERS = ["decisions", "requirements", "tasks"];
 function runCoverageChecks(specData, layer) {
   const gaps = [];
   const decisions = specData.context?.decisions || specData.decisions || [];
   const requirements = specData.requirements || [];
   const decisionIds = new Set(decisions.map((d) => d.id).filter(Boolean));
-  const isV6 = specData?.meta?.schema_version === "v6";
   const runDecisions = !layer || layer === "decisions";
   const runRequirements = !layer || layer === "requirements";
-  const runScenarios = !layer || layer === "scenarios";
   const runTasks = !layer || layer === "tasks";
   if (runDecisions && decisionIds.size > 0) {
     for (const req of requirements) {
@@ -10956,58 +9304,26 @@ function runCoverageChecks(specData, layer) {
     }
   }
   if (runRequirements) {
-    if (isV6) {
-      for (const req of requirements) {
-        const subs = req.sub || [];
-        if (subs.length < 1) {
-          gaps.push({
-            layer: "requirements",
-            check: "sub-requirement-coverage",
-            message: `requirement '${req.id}' has no sub-requirements (sub[] must have at least 1 entry)`
-          });
-        }
-      }
-    } else {
-      for (const req of requirements) {
-        const scenarios = req.scenarios || [];
-        const anyHasCategory = scenarios.some((sc) => sc.category !== void 0);
-        if (anyHasCategory) {
-          const categories = new Set(scenarios.map((sc) => sc.category).filter(Boolean));
-          const missing = [];
-          if (!categories.has("HP")) missing.push("HP");
-          if (!categories.has("EP")) missing.push("EP");
-          if (!categories.has("BC")) missing.push("BC");
-          if (missing.length > 0) {
-            gaps.push({
-              layer: "requirements",
-              check: "scenario-min-count",
-              message: `requirement '${req.id}' is missing scenario categories: ${missing.join(", ")}`
-            });
-          }
-        } else {
-          if (scenarios.length < 3) {
-            gaps.push({
-              layer: "requirements",
-              check: "scenario-min-count",
-              message: `requirement '${req.id}' has ${scenarios.length} scenario(s) but needs at least 3 (count-only mode \u2014 no category field present)`
-            });
-          }
-        }
+    for (const req of requirements) {
+      const subs = req.sub || [];
+      if (subs.length < 1) {
+        gaps.push({
+          layer: "requirements",
+          check: "sub-requirement-coverage",
+          message: `requirement '${req.id}' has no sub-requirements (sub[] must have at least 1 entry)`
+        });
       }
     }
   }
-  const orphanLayer = isV6 ? "requirements" : "scenarios";
-  const orphanCheck = isV6 ? "orphan-requirement" : "orphan-scenario";
-  const runOrphanCheck = isV6 ? runRequirements && runTasks : runScenarios && runTasks;
-  if (runOrphanCheck) {
-    const { allScenarioIds, referencedScenarioIds } = collectScenarioSets(specData);
-    const tasksWithFulfills = isV6 ? (specData.tasks || []).filter((t) => t.fulfills && t.fulfills.length > 0) : (specData.tasks || []).filter((t) => t.acceptance_criteria?.scenarios);
-    if (allScenarioIds.size > 0 && tasksWithFulfills.length > 0) {
-      for (const id of allScenarioIds) {
-        if (!referencedScenarioIds.has(id)) {
+  if (runRequirements && runTasks) {
+    const { allReqIds, referencedReqIds } = collectRequirementSets(specData);
+    const tasksWithFulfills = (specData.tasks || []).filter((t) => t.fulfills && t.fulfills.length > 0);
+    if (allReqIds.size > 0 && tasksWithFulfills.length > 0) {
+      for (const id of allReqIds) {
+        if (!referencedReqIds.has(id)) {
           gaps.push({
-            layer: orphanLayer,
-            check: orphanCheck,
+            layer: "requirements",
+            check: "orphan-requirement",
             message: `'${id}' is defined but not referenced by any task fulfills[]`
           });
         }
@@ -11021,7 +9337,7 @@ async function handleCoverage(args) {
   const filePath = parsed._[0];
   if (!filePath) {
     process.stderr.write("Error: missing <path> argument\n");
-    process.stderr.write("Usage: hoyeon-cli spec validate <path> [--layer decisions|requirements|scenarios|tasks] [--json]\n");
+    process.stderr.write("Usage: hoyeon-cli spec validate <path> [--layer decisions|requirements|tasks] [--json]\n");
     process.stderr.write('Note: "spec coverage" is deprecated \u2014 use "spec validate" instead.\n');
     process.exit(1);
   }
@@ -11062,7 +9378,6 @@ async function handleCheck(args) {
   }
   const specData = loadSpec(resolve(filePath));
   const issues = [];
-  const isV6 = specData?.meta?.schema_version === "v6";
   const taskIds = new Set(specData.tasks.map((t) => t.id));
   if (taskIds.size !== specData.tasks.length) {
     issues.push("duplicate task IDs detected");
@@ -11098,22 +9413,11 @@ async function handleCheck(args) {
       }
     }
   }
-  const { allScenarioIds, referencedScenarioIds } = collectScenarioSets(specData);
-  if (isV6) {
-    const reqIds = new Set((specData.requirements || []).map((r) => r.id).filter(Boolean));
-    for (const task of specData.tasks) {
-      for (const reqRef of task.fulfills || []) {
-        if (!reqIds.has(reqRef)) {
-          issues.push(`task '${task.id}' fulfills[] references unknown requirement '${reqRef}'`);
-        }
-      }
-    }
-  } else {
-    for (const task of specData.tasks) {
-      for (const scenarioRef of task.acceptance_criteria?.scenarios || []) {
-        if (!allScenarioIds.has(scenarioRef)) {
-          issues.push(`task '${task.id}' acceptance_criteria.scenarios references unknown scenario '${scenarioRef}'`);
-        }
+  const reqIds = new Set((specData.requirements || []).map((r) => r.id).filter(Boolean));
+  for (const task of specData.tasks) {
+    for (const reqRef of task.fulfills || []) {
+      if (!reqIds.has(reqRef)) {
+        issues.push(`task '${task.id}' fulfills[] references unknown requirement '${reqRef}'`);
       }
     }
   }
@@ -11127,12 +9431,12 @@ async function handleCheck(args) {
     }
   }
   {
-    const tasksWithRefs = isV6 ? (specData.tasks || []).filter((t) => t.fulfills && t.fulfills.length > 0) : (specData.tasks || []).filter((t) => t.acceptance_criteria?.scenarios);
-    if (allScenarioIds.size > 0 && tasksWithRefs.length > 0) {
-      for (const id of allScenarioIds) {
-        if (!referencedScenarioIds.has(id)) {
-          const label = isV6 ? "requirement" : "scenario";
-          issues.push(`${label} '${id}' is defined but not referenced by any task fulfills[]`);
+    const tasksWithRefs = (specData.tasks || []).filter((t) => t.fulfills && t.fulfills.length > 0);
+    if (reqIds.size > 0 && tasksWithRefs.length > 0) {
+      for (const id of reqIds) {
+        const referenced = tasksWithRefs.some((t) => t.fulfills.includes(id));
+        if (!referenced) {
+          issues.push(`requirement '${id}' is defined but not referenced by any task fulfills[]`);
         }
       }
     }
@@ -11187,15 +9491,14 @@ function generateGuide(section) {
     meta: { ref: "meta", desc: "Spec metadata (name, goal, mode, etc.)" },
     context: { ref: "context", desc: "Request context, interview decisions, research, assumptions" },
     tasks: { ref: "task", desc: "Task DAG (work items + verification)", isArray: true },
-    requirements: { ref: "requirement", desc: "Requirements with sub[] (v6) or scenarios[] (v5)", isArray: true },
+    requirements: { ref: "requirement", desc: "Requirements with sub-requirements (sub[])", isArray: true },
     constraints: { ref: "constraint", desc: "Must-not-do / preserve constraints", isArray: true },
     history: { ref: "historyEntry", desc: "Spec change history entries", isArray: true },
     external: { ref: "externalDependencies", desc: "Human-only pre/post-work dependencies" },
-    sub: { ref: "scenario", desc: "v6 sub-requirement (behavior + verify)" },
-    scenario: { ref: "scenario", desc: "v5 requirement scenario (given/when/then + verify)" },
+    sub: { ref: "subRequirement", desc: "Sub-requirement (behavior + verify)" },
     verify: { ref: null, desc: "Verify types: command, assertion, instruction", custom: "verify" },
     merge: { ref: null, desc: "Merge modes: replace (default), --append, --patch", custom: "merge" },
-    "acceptance-criteria": { ref: null, desc: "v6 AC structure: checks[] only \u2014 behavior coverage via fulfills[] (v5: scenarios[])", custom: "acceptance-criteria" }
+    "acceptance-criteria": { ref: null, desc: "AC structure: checks[] only \u2014 behavior coverage via fulfills[]", custom: "acceptance-criteria" }
   };
   if (!section || section === "list") {
     const lines = ["Available guide sections:"];
@@ -11240,14 +9543,7 @@ function generateGuide(section) {
   if (!def) {
     return `Error: schema definition '${info.ref}' not found.`;
   }
-  let output = formatDef(section, def, defs, info.isArray);
-  if (section === "scenario") {
-    output += "\n";
-    output += "\n  notes:";
-    output += "\n    subject: conditionally required when execution_env is sandbox";
-    output += "\n             enum(web|server|cli|database) \u2014 identifies which system under test";
-  }
-  return output;
+  return formatDef(section, def, defs, info.isArray);
 }
 function formatRoot(schema) {
   const lines = ["spec.json top-level structure:"];
@@ -11419,19 +9715,14 @@ function formatMergeGuide() {
 }
 function formatAcceptanceCriteriaGuide() {
   const lines = [
-    "acceptance_criteria (v6): checks[] only",
-    "  (v5 compat: scenarios[] + checks[])",
+    "acceptance_criteria: checks[] only",
     "",
-    "  Note (v6): behavior verification coverage is declared via task.fulfills[]",
+    "  Behavior verification coverage is declared via task.fulfills[]",
     "    fulfills: string[]  (top-level task field)",
     "    List of requirement IDs (requirements[].id) that this task fulfills.",
     "    spec check validates that each ID exists in requirements[].",
     "    verify_plan is built by collecting sub[] entries from those requirements.",
     '    example: ["R1", "R2"]',
-    "",
-    "  scenarios: string[]  (v5 \u2014 backward compat)",
-    "    List of scenario IDs from requirements[].scenarios[].id that this task fulfills.",
-    '    example: ["R1-S1", "R1-S2", "R2-S1"]',
     "",
     "  checks: taskCheck[]",
     "    Automated checks to run when verifying the task.",
@@ -11440,19 +9731,18 @@ function formatAcceptanceCriteriaGuide() {
     "      * run: string (shell command)",
     '    example: [{"type":"build","run":"cd cli && node build.mjs"},{"type":"static","run":"tsc --noEmit"}]',
     "",
-    "  example acceptance_criteria (v6):",
+    "  example acceptance_criteria:",
     "    {",
     '      "checks": [',
     '        {"type": "build", "run": "cd cli && node build.mjs"},',
     '        {"type": "lint", "run": "eslint src/"}',
     "      ]",
     "    }",
-    "  example task.fulfills (v6):",
+    "  example task.fulfills:",
     '    "fulfills": ["R1", "R2"]',
     "",
     "  Note: spec check validates referential integrity.",
-    "    v6: task.fulfills[] IDs must exist in requirements[].id.",
-    "    v5: AC.scenarios IDs must exist in requirements[].scenarios[].id.",
+    "    task.fulfills[] IDs must exist in requirements[].id.",
     "    Run: hoyeon-cli spec check <path>"
   ];
   return lines.join("\n");
@@ -11603,58 +9893,49 @@ async function handleDrift(args) {
   process.stdout.write(JSON.stringify(result) + "\n");
   process.exit(0);
 }
-async function handleScenario(args) {
-  const scenarioId = args[0];
-  if (!scenarioId || scenarioId.startsWith("--")) {
-    process.stderr.write("Error: <scenario-id> is required\n");
-    process.stderr.write("Usage: hoyeon-cli spec scenario <scenario-id> --get <path>\n");
+async function handleSub(args) {
+  const subId = args[0];
+  if (!subId || subId.startsWith("--")) {
+    process.stderr.write("Error: <sub-id> is required\n");
+    process.stderr.write("Usage: hoyeon-cli spec sub <sub-id> --get <path>\n");
     process.exit(1);
   }
   const parsed = parseArgs(args.slice(1));
   if (parsed.get === void 0) {
     process.stderr.write("Error: --get <path> is required\n");
-    process.stderr.write("Usage: hoyeon-cli spec scenario <scenario-id> --get <path>\n");
+    process.stderr.write("Usage: hoyeon-cli spec sub <sub-id> --get <path>\n");
     process.exit(1);
   }
   if (typeof parsed.get !== "string") {
     process.stderr.write("Error: --get requires <path> argument\n");
-    process.stderr.write("Usage: hoyeon-cli spec scenario <scenario-id> --get <path>\n");
+    process.stderr.write("Usage: hoyeon-cli spec sub <sub-id> --get <path>\n");
     process.exit(1);
   }
   const filePath = parsed.get;
   const specData = loadSpec(resolve(filePath));
   let found = null;
   for (const req of specData.requirements || []) {
-    for (const scenario of req.scenarios || []) {
-      if (scenario.id === scenarioId) {
-        found = scenario;
+    for (const sr of req.sub || []) {
+      if (sr.id === subId) {
+        found = sr;
         break;
       }
     }
     if (found) break;
   }
   if (!found) {
-    process.stderr.write(`Error: scenario '${scenarioId}' not found in spec
+    process.stderr.write(`Error: sub-requirement '${subId}' not found in spec
 `);
     process.exit(1);
   }
   process.stdout.write(JSON.stringify(found, null, 2) + "\n");
   process.exit(0);
 }
-function findScenarioById(specData, scenarioId) {
-  const isV6 = specData?.meta?.schema_version === "v6";
+function findSubById(specData, subId) {
   for (const req of specData.requirements || []) {
-    if (isV6) {
-      for (const sr of req.sub || []) {
-        if (sr.id === scenarioId) {
-          return { scenario: sr, requirement: req };
-        }
-      }
-    } else {
-      for (const scenario of req.scenarios || []) {
-        if (scenario.id === scenarioId) {
-          return { scenario, requirement: req };
-        }
+    for (const sr of req.sub || []) {
+      if (sr.id === subId) {
+        return { sub: sr, requirement: req };
       }
     }
   }
@@ -11686,9 +9967,9 @@ async function handleRequirement(args) {
     const useJson = parsed.json === true;
     return handleRequirementStatusView(specData, useJson);
   }
-  const scenarioId = firstPositional;
-  if (!scenarioId) {
-    process.stderr.write("Error: <scenario-id> or --status flag is required\n");
+  const subId = firstPositional;
+  if (!subId) {
+    process.stderr.write("Error: <sub-id> or --status flag is required\n");
     process.stderr.write("Usage: hoyeon-cli spec requirement --status <path>\n");
     process.stderr.write("       hoyeon-cli spec requirement <id> --get <path>\n");
     process.stderr.write("       hoyeon-cli spec requirement <id> --status pass|fail|skipped --task <task_id> <path>\n");
@@ -11700,13 +9981,13 @@ async function handleRequirement(args) {
       process.exit(1);
     }
     const specData = loadSpec(resolve(parsed.get));
-    const found = findScenarioById(specData, scenarioId);
+    const found = findSubById(specData, subId);
     if (!found) {
-      process.stderr.write(`Error: scenario '${scenarioId}' not found in spec
+      process.stderr.write(`Error: sub-requirement '${subId}' not found in spec
 `);
       process.exit(1);
     }
-    process.stdout.write(JSON.stringify(found.scenario, null, 2) + "\n");
+    process.stdout.write(JSON.stringify(found.sub, null, 2) + "\n");
     process.exit(0);
   }
   const statusValue = typeof parsed.status === "string" ? parsed.status : null;
@@ -11718,7 +9999,7 @@ async function handleRequirement(args) {
       process.exit(1);
     }
     if (!parsed.task) {
-      process.stderr.write("Error: --task <task_id> is required when updating scenario status\n");
+      process.stderr.write("Error: --task <task_id> is required when updating sub-requirement status\n");
       process.exit(1);
     }
     const filePath = parsed._[1];
@@ -11728,28 +10009,28 @@ async function handleRequirement(args) {
     }
     const specPath = resolve(filePath);
     const specData = loadSpec(specPath);
-    const found = findScenarioById(specData, scenarioId);
+    const found = findSubById(specData, subId);
     if (!found) {
-      process.stderr.write(`Error: scenario '${scenarioId}' not found in spec
+      process.stderr.write(`Error: sub-requirement '${subId}' not found in spec
 `);
       process.exit(1);
     }
-    found.scenario.status = statusValue;
-    found.scenario.verified_by_task = parsed.task;
+    found.sub.status = statusValue;
+    found.sub.verified_by_task = parsed.task;
     if (parsed.reason) {
-      found.scenario.verification_reason = parsed.reason;
+      found.sub.verification_reason = parsed.reason;
     }
     const now = (/* @__PURE__ */ new Date()).toISOString();
     if (specData.meta) specData.meta.updated_at = now;
     writeState(specPath, specData);
     appendHistory(specPath, {
       ts: now,
-      type: "scenario_verified",
-      scenario: scenarioId,
+      type: "sub_verified",
+      sub: subId,
       status: statusValue,
       task: parsed.task
     });
-    process.stdout.write(`Updated scenario '${scenarioId}': status=${statusValue}, verified_by_task=${parsed.task}
+    process.stdout.write(`Updated sub-requirement '${subId}': status=${statusValue}, verified_by_task=${parsed.task}
 `);
     process.exit(0);
   }
@@ -11758,10 +10039,9 @@ async function handleRequirement(args) {
 }
 function handleRequirementStatusView(specData, useJson) {
   const requirements = specData.requirements || [];
-  const isV6 = specData?.meta?.schema_version === "v6";
   const requirementRows = requirements.map((req) => {
-    const items = isV6 ? req.sub || [] : req.scenarios || [];
-    const scenarios = items.map((sc) => {
+    const items = req.sub || [];
+    const subs = items.map((sc) => {
       const verifiedBy = sc.verified_by || "unknown";
       const status = sc.status || "pending";
       const verifiedByTask = sc.verified_by_task || null;
@@ -11776,7 +10056,7 @@ function handleRequirementStatusView(specData, useJson) {
     return {
       id: req.id,
       behavior: req.behavior,
-      scenarios
+      subs
     };
   });
   let passCount = 0;
@@ -11784,7 +10064,7 @@ function handleRequirementStatusView(specData, useJson) {
   let pendingCount = 0;
   let skippedCount = 0;
   for (const req of requirementRows) {
-    for (const sc of req.scenarios) {
+    for (const sc of req.subs) {
       if (sc.status === "pass") passCount++;
       else if (sc.status === "fail") failCount++;
       else if (sc.status === "skipped") skippedCount++;
@@ -11798,9 +10078,9 @@ function handleRequirementStatusView(specData, useJson) {
   }
   const lines = [];
   for (const req of requirementRows) {
-    const scCount = req.scenarios.length;
-    lines.push(`${req.id}: ${req.behavior} (${scCount} scenario${scCount !== 1 ? "s" : ""})`);
-    for (const sc of req.scenarios) {
+    const scCount = req.subs.length;
+    lines.push(`${req.id}: ${req.behavior} (${scCount} sub${scCount !== 1 ? "s" : ""})`);
+    for (const sc of req.subs) {
       const verifiedByLabel = sc.verified_by === "human" ? "Manual" : sc.verified_by === "agent" ? `Agent ${sc.execution_env ? `[${sc.execution_env}]` : ""}`.trim() : sc.verified_by === "machine" ? `Auto ${sc.execution_env ? `[${sc.execution_env}]` : ""}`.trim() : sc.verified_by;
       const taskLabel = sc.verified_by_task ? ` (${sc.verified_by_task})` : "";
       lines.push(`  ${sc.id}: ${verifiedByLabel.padEnd(16)} ${sc.status}${taskLabel}`);
@@ -11812,7 +10092,7 @@ function handleRequirementStatusView(specData, useJson) {
   if (failCount > 0) summaryParts.push(`${failCount} fail`);
   if (pendingCount > 0) summaryParts.push(`${pendingCount} pending`);
   if (skippedCount > 0) summaryParts.push(`${skippedCount} skipped`);
-  lines.push(`Summary: ${summaryParts.join(", ") || "no scenarios"}`);
+  lines.push(`Summary: ${summaryParts.join(", ") || "no sub-requirements"}`);
   process.stdout.write(lines.join("\n") + "\n");
   process.exit(0);
 }
@@ -11827,36 +10107,34 @@ async function handleSandboxTasks(args) {
   const specPath = resolve(filePath);
   const specData = loadSpec(specPath);
   const useJson = parsed.json === true;
-  const isV6 = specData?.meta?.schema_version === "v6";
-  const sandboxScenarios = [];
+  const sandboxSubs = [];
   for (const req of specData.requirements || []) {
-    const items = isV6 ? req.sub || [] : req.scenarios || [];
+    const items = req.sub || [];
     for (const sc of items) {
       if (sc.execution_env === "sandbox") {
-        sandboxScenarios.push({ ...sc, requirement_id: req.id });
+        sandboxSubs.push({ ...sc, requirement_id: req.id });
       }
     }
   }
-  if (sandboxScenarios.length === 0) {
+  if (sandboxSubs.length === 0) {
     if (useJson) {
-      process.stdout.write(JSON.stringify({ sandbox_scenarios: [], created_tasks: [] }, null, 2) + "\n");
+      process.stdout.write(JSON.stringify({ sandbox_subs: [], created_tasks: [] }, null, 2) + "\n");
     } else {
-      process.stdout.write("No sandbox scenarios found. Nothing to do.\n");
+      process.stdout.write("No sandbox sub-requirements found. Nothing to do.\n");
     }
     process.exit(0);
   }
   const existingTasks = specData.tasks || [];
   const existingTaskIds = new Set(existingTasks.map((t) => t.id));
-  const sandboxScenarioIds = new Set(sandboxScenarios.map((sc) => sc.id));
+  const sandboxSubIds = new Set(sandboxSubs.map((sc) => sc.id));
   const workTasksReferencingSandbox = existingTasks.filter((t) => {
-    const acRefs = isV6 ? t.fulfills || [] : t.acceptance_criteria?.scenarios || [];
-    return acRefs.some((sid) => sandboxScenarioIds.has(sid));
+    return (t.fulfills || []).some((sid) => sandboxSubIds.has(sid));
   });
   const createdTasks = [];
   if (!existingTaskIds.has("T_SANDBOX")) {
     const sandboxInfraTask = {
       id: "T_SANDBOX",
-      action: "Prepare sandbox environment for scenario verification",
+      action: "Prepare sandbox environment for sub-requirement verification",
       type: "work",
       status: "pending",
       depends_on: workTasksReferencingSandbox.map((t) => t.id)
@@ -11874,12 +10152,12 @@ async function handleSandboxTasks(args) {
     }
   }
   const newSvTasks = [];
-  for (const sc of sandboxScenarios) {
+  for (const sc of sandboxSubs) {
     const svId = `T_SV${svCounter++}`;
     if (!existingTaskIds.has(svId)) {
       const svTask = {
         id: svId,
-        action: `Verify ${sc.id}: ${isV6 ? sc.behavior : sc.then}`,
+        action: `Verify ${sc.id}: ${sc.behavior}`,
         type: "work",
         status: "pending",
         depends_on: ["T_SANDBOX"]
@@ -11901,7 +10179,7 @@ async function handleSandboxTasks(args) {
   });
   if (useJson) {
     process.stdout.write(JSON.stringify({
-      sandbox_scenarios: sandboxScenarios.map((sc) => sc.id),
+      sandbox_subs: sandboxSubs.map((sc) => sc.id),
       created_tasks: createdTasks.map((t) => t.id)
     }, null, 2) + "\n");
   } else {
@@ -11966,21 +10244,7 @@ async function handleLearning(args) {
 `);
     process.exit(1);
   }
-  const requirementIds = [];
-  if (task.fulfills && task.fulfills.length > 0) {
-    for (const reqId of task.fulfills) {
-      if (!requirementIds.includes(reqId)) {
-        requirementIds.push(reqId);
-      }
-    }
-  } else if (task.acceptance_criteria?.scenarios) {
-    for (const scenarioId of task.acceptance_criteria.scenarios) {
-      const reqId = scenarioId.replace(/-S\d+$/, "");
-      if (!requirementIds.includes(reqId)) {
-        requirementIds.push(reqId);
-      }
-    }
-  }
+  const requirementIds = [...new Set(task.fulfills || [])];
   const contextDir = resolve(dirname(specPath), "context");
   const learningsPath = resolve(contextDir, "learnings.json");
   let learnings = [];
@@ -12127,43 +10391,24 @@ async function handleSearch(args) {
     } catch {
       continue;
     }
-    const specIsV6Search = specData?.meta?.schema_version === "v6";
     const reqsByTask = {};
     for (const task of specData.tasks || []) {
-      if (specIsV6Search) {
-        const fulfills = task.fulfills || [];
-        if (fulfills.length > 0) {
-          reqsByTask[task.id] = [...fulfills];
-        }
-      } else {
-        const acRefs = task.acceptance_criteria?.scenarios || [];
-        if (acRefs.length > 0) {
-          const reqs = /* @__PURE__ */ new Set();
-          for (const sid of acRefs) {
-            reqs.add(sid.replace(/-S\d+$/, ""));
-          }
-          reqsByTask[task.id] = [...reqs];
-        }
+      const fulfills = task.fulfills || [];
+      if (fulfills.length > 0) {
+        reqsByTask[task.id] = [...fulfills];
       }
     }
-    const specIsV6 = specData?.meta?.schema_version === "v6";
     for (const req of specData.requirements || []) {
       let text = req.behavior || "";
-      if (specIsV6) {
-        for (const sr of req.sub || []) {
-          text += " " + (sr.behavior || "");
-        }
-      } else {
-        for (const s of req.scenarios || []) {
-          text += " " + [s.given, s.when, s.then].filter(Boolean).join(" ");
-        }
+      for (const sr of req.sub || []) {
+        text += " " + (sr.behavior || "");
       }
       docs.push({
         type: "requirement",
         spec: specName,
         id: req.id,
         behavior: req.behavior,
-        scenarios: specIsV6 ? (req.sub || []).map((sr) => ({ id: sr.id, behavior: sr.behavior })) : (req.scenarios || []).map((s) => ({ id: s.id, given: s.given, when: s.when, then: s.then })),
+        subs: (req.sub || []).map((sr) => ({ id: sr.id, behavior: sr.behavior })),
         text,
         tasks: Object.entries(reqsByTask).filter(([, reqs]) => reqs.includes(req.id)).map(([tid]) => tid)
       });
@@ -12257,12 +10502,12 @@ async function handleSearch(args) {
       if (r.type === "requirement") {
         process.stdout.write(`  behavior: ${r.behavior}
 `);
-        for (const s of (r.scenarios || []).slice(0, 3)) {
-          process.stdout.write(`  ${s.id}: given "${s.given}" when "${s.when}" then "${s.then}"
+        for (const s of (r.subs || []).slice(0, 3)) {
+          process.stdout.write(`  ${s.id}: ${s.behavior}
 `);
         }
-        if (r.scenarios?.length > 3) {
-          process.stdout.write(`  ... and ${r.scenarios.length - 3} more scenarios
+        if (r.subs?.length > 3) {
+          process.stdout.write(`  ... and ${r.subs.length - 3} more sub-requirements
 `);
         }
       } else if (r.type === "learning") {
@@ -12309,8 +10554,8 @@ async function spec(args) {
     await handleAmend(args.slice(1));
   } else if (subcommand === "guide") {
     await handleGuide(args.slice(1));
-  } else if (subcommand === "scenario") {
-    await handleScenario(args.slice(1));
+  } else if (subcommand === "scenario" || subcommand === "sub") {
+    await handleSub(args.slice(1));
   } else if (subcommand === "derive") {
     await handleDerive(args.slice(1));
   } else if (subcommand === "drift") {
@@ -13331,7 +11576,7 @@ async function main() {
     process.exit(0);
   }
   if (args[0] === "--version") {
-    const version = true ? "1.2.1" : "dev";
+    const version = true ? "1.3.1" : "dev";
     process.stdout.write(`hoyeon-cli v${version}
 `);
     process.exit(0);

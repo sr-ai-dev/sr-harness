@@ -23,10 +23,6 @@
       "type": "array",
       "items": { "$ref": "#/$defs/constraint" }
     },
-    "verification_summary": {
-      "$ref": "#/$defs/verificationSummary",
-      "description": "Derived from requirements — A/H/S classification. Do not author independently."
-    },
     "external_dependencies": { "$ref": "#/$defs/externalDependencies" }
   },
   "$defs": {
@@ -108,7 +104,7 @@
     },
     "subRequirement": {
       "type": "object",
-      "required": ["id", "behavior"],
+      "required": ["id", "behavior", "verify"],
       "additionalProperties": false,
       "properties": {
         "id": { "type": "string" },
@@ -532,58 +528,6 @@
         "status": { "type": "string" },
         "summary": { "type": "string" },
         "detail": { "type": "string" }
-      }
-    },
-    "verificationSummary": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "agent_items": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["id", "criterion", "method"],
-            "additionalProperties": false,
-            "properties": {
-              "id": { "type": "string" },
-              "criterion": { "type": "string" },
-              "method": { "type": "string" },
-              "related_task": { "type": "string" }
-            }
-          }
-        },
-        "human_items": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["id", "criterion", "reason"],
-            "additionalProperties": false,
-            "properties": {
-              "id": { "type": "string" },
-              "criterion": { "type": "string" },
-              "reason": { "type": "string" },
-              "review_material": { "type": "string" }
-            }
-          }
-        },
-        "sandbox_items": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["id", "sub_requirement", "agent", "method"],
-            "additionalProperties": false,
-            "properties": {
-              "id": { "type": "string" },
-              "sub_requirement": { "type": "string" },
-              "agent": { "type": "string" },
-              "method": { "type": "string" }
-            }
-          }
-        },
-        "gaps": {
-          "type": "array",
-          "items": { "type": "string" }
-        }
       }
     },
     "externalDependencies": {

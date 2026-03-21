@@ -9246,10 +9246,6 @@ var dev_spec_v6_schema_default = {
       type: "array",
       items: { $ref: "#/$defs/constraint" }
     },
-    verification_summary: {
-      $ref: "#/$defs/verificationSummary",
-      description: "Derived from requirements \u2014 A/H/S classification. Do not author independently."
-    },
     external_dependencies: { $ref: "#/$defs/externalDependencies" }
   },
   $defs: {
@@ -9331,7 +9327,7 @@ var dev_spec_v6_schema_default = {
     },
     subRequirement: {
       type: "object",
-      required: ["id", "behavior"],
+      required: ["id", "behavior", "verify"],
       additionalProperties: false,
       properties: {
         id: { type: "string" },
@@ -9755,58 +9751,6 @@ var dev_spec_v6_schema_default = {
         status: { type: "string" },
         summary: { type: "string" },
         detail: { type: "string" }
-      }
-    },
-    verificationSummary: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        agent_items: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "criterion", "method"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              criterion: { type: "string" },
-              method: { type: "string" },
-              related_task: { type: "string" }
-            }
-          }
-        },
-        human_items: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "criterion", "reason"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              criterion: { type: "string" },
-              reason: { type: "string" },
-              review_material: { type: "string" }
-            }
-          }
-        },
-        sandbox_items: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "sub_requirement", "agent", "method"],
-            additionalProperties: false,
-            properties: {
-              id: { type: "string" },
-              sub_requirement: { type: "string" },
-              agent: { type: "string" },
-              method: { type: "string" }
-            }
-          }
-        },
-        gaps: {
-          type: "array",
-          items: { type: "string" }
-        }
       }
     },
     externalDependencies: {
@@ -10384,7 +10328,6 @@ function buildVerifyPlan(task, spec2) {
       const req = (spec2.requirements || []).find((r) => r.id === reqId);
       if (!req) continue;
       for (const sr of req.sub || []) {
-        if (!sr.verify) continue;
         const env = sr.execution_env || "host";
         const method = sr.verified_by;
         const entry = {
@@ -11216,7 +11159,6 @@ function generateGuide(section) {
     requirements: { ref: "requirement", desc: "Requirements with sub[] (v6) or scenarios[] (v5)", isArray: true },
     constraints: { ref: "constraint", desc: "Must-not-do / preserve constraints", isArray: true },
     history: { ref: "historyEntry", desc: "Spec change history entries", isArray: true },
-    verification: { ref: "verificationSummary", desc: "A/H/S verification classification summary" },
     external: { ref: "externalDependencies", desc: "Human-only pre/post-work dependencies" },
     sub: { ref: "scenario", desc: "v6 sub-requirement (behavior + verify)" },
     scenario: { ref: "scenario", desc: "v5 requirement scenario (given/when/then + verify)" },
@@ -11857,7 +11799,7 @@ async function handleSandboxTasks(args) {
   const isV6 = specData?.meta?.schema_version === "v6";
   const sandboxScenarios = [];
   for (const req of specData.requirements || []) {
-    const items = isV6 ? (req.sub || []).filter((sr) => sr.verify) : req.scenarios || [];
+    const items = isV6 ? req.sub || [] : req.scenarios || [];
     for (const sc of items) {
       if (sc.execution_env === "sandbox") {
         sandboxScenarios.push({ ...sc, requirement_id: req.id });

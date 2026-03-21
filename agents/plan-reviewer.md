@@ -131,7 +131,6 @@ Read `tasks[]`.
 - [ ] Count total tasks — for a simple goal (<3 requirements), >6 tasks is suspicious
 
 #### 4c. Verification Strategy
-- [ ] `verification_summary` (if present) has reasonable Machine/Agent/Manual distribution
 - [ ] Flag if >50% of sub-requirements lack any verification path (no `verify` field AND behavior too vague for agent assertion)
 - [ ] Flag if sub-requirements with `verify.run` commands don't look executable
 

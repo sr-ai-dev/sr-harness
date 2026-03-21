@@ -432,9 +432,6 @@ function buildVerifyPlan(task, spec) {
       const req = (spec.requirements || []).find(r => r.id === reqId);
       if (!req) continue;
       for (const sr of (req.sub || [])) {
-        // Only build verify entries for sub-requirements that have a verify field
-        if (!sr.verify) continue;
-
         const env = sr.execution_env || 'host';
         const method = sr.verified_by;
 
@@ -1465,7 +1462,6 @@ function generateGuide(section) {
     requirements: { ref: 'requirement', desc: 'Requirements with sub[] (v6) or scenarios[] (v5)', isArray: true },
     constraints: { ref: 'constraint', desc: 'Must-not-do / preserve constraints', isArray: true },
     history: { ref: 'historyEntry', desc: 'Spec change history entries', isArray: true },
-    verification: { ref: 'verificationSummary', desc: 'A/H/S verification classification summary' },
     external: { ref: 'externalDependencies', desc: 'Human-only pre/post-work dependencies' },
     sub: { ref: 'scenario', desc: 'v6 sub-requirement (behavior + verify)' },
     scenario: { ref: 'scenario', desc: 'v5 requirement scenario (given/when/then + verify)' },
@@ -2260,8 +2256,8 @@ async function handleSandboxTasks(args) {
   // Find all sandbox scenarios/sub-requirements
   const sandboxScenarios = [];
   for (const req of (specData.requirements || [])) {
-    // v6: use sub[] (only entries with verify field), v5: use scenarios[]
-    const items = isV6 ? (req.sub || []).filter(sr => sr.verify) : (req.scenarios || []);
+    // v6: use sub[], v5: use scenarios[]
+    const items = isV6 ? (req.sub || []) : (req.scenarios || []);
     for (const sc of items) {
       if (sc.execution_env === 'sandbox') {
         sandboxScenarios.push({ ...sc, requirement_id: req.id });

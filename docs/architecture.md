@@ -129,7 +129,6 @@ The plugin also ships standalone skills (council, bugfix, ralph, scope, etc.) th
 | `code-reviewer` | Multi-model code reviewer (Gemini, Codex, Claude in parallel) |
 | `debugger` | Root cause analysis specialist; traces bugs backward through call stacks |
 | `git-master` | Git commit specialist; enforces atomic commits and detects project style |
-| `plan-reviewer` | Evaluates spec.json for goal-task alignment, requirement coverage, scenario quality, and simplicity |
 | `verification-planner` | Builds verification strategy with A-items (Agent), H-items (Human), S-items (Sandbox) |
 | `gap-analyzer` | Identifies missing requirements and potential pitfalls before plan generation |
 | `interviewer` | Socratic interviewer; questions only, no code |

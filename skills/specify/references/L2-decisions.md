@@ -392,7 +392,7 @@ hoyeon-cli spec validate .dev/specs/{name}/spec.json
 
 If merge fails → follow Merge Failure Recovery (SKILL.md).
 
-> If no constraints are derivable (rare for standard mode), merge `"constraints": []` explicitly and note in the L5 summary. An empty constraints section is better than a missing one.
+> If no constraints are derivable (rare for standard mode), merge `"constraints": []` explicitly and note in the Plan Approval Summary. An empty constraints section is better than a missing one.
 
 ### L2 User Approval (mandatory before gate)
 

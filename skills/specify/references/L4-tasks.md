@@ -203,4 +203,156 @@ Review the following tasks for L4 gate.
 ```
 
 **Quick**: No gate. Auto-advance after tasks merge.
-**Standard**: Run coverage check + gate-keeper SendMessage. PASS → advance to L5.
+**Standard**: Run coverage check + gate-keeper SendMessage. PASS → advance to Plan Approval.
+
+---
+
+### Plan Approval Summary
+
+After L4 gate passes, present the Plan Approval Summary. This is the user's last chance to review the full spec before execution.
+
+> **Mode Gate**:
+> - **Interactive**: Print summary + `AskUserQuestion`
+> - **Autopilot**: Print summary and spec path, then stop (no `AskUserQuestion`)
+
+Run `hoyeon-cli spec plan` to get the DAG visualization.
+
+The summary follows a logical derivation order: Goal → Scope → Decisions → Requirements → Gaps → Tasks → Human work.
+
+```
+spec.json ready! .dev/specs/{name}/spec.json
+Mode: {interaction}
+
+Goal
+────────────────────────────────────────
+{context.confirmed_goal}
+────────────────────────────────────────
+
+Non-goals (explicitly out of scope)
+────────────────────────────────────────
+  - {non_goal_1}
+  - {non_goal_2}
+────────────────────────────────────────
+
+Key Decisions ({n} total)
+────────────────────────────────────────
+  D1: {decision} — {rationale (1-line)}
+  D2: {decision} — {rationale (1-line)}
+  ...
+────────────────────────────────────────
+
+Requirements ({n} total, {m} sub-requirements)
+────────────────────────────────────────
+  R1: {behavior} [priority:{1|2|3}] ← {source.type}:{source.ref}
+    Sub-requirements: {sub_count} ({R1.1}, {R1.2}, ...)
+  R2: {behavior} [priority:{1|2|3}] ← {source.type}:{source.ref}
+    Sub-requirements: {sub_count} ({R2.1}, ...)
+  ...
+────────────────────────────────────────
+
+Known Gaps
+────────────────────────────────────────
+  {IF known_gaps exist:}
+  - [{severity}] {gap} → mitigation: {mitigation} {IF auto_merged: "(auto-merged)"}
+  {ELSE:}
+  (none)
+────────────────────────────────────────
+
+Pre-work (human actions — must complete before /execute)
+────────────────────────────────────────
+{pre_work items or "(none)"}
+────────────────────────────────────────
+
+Breaking Changes
+────────────────────────────────────────
+{Scan tasks and decisions for breaking change signals. For each match, show:
+  [category] description ← T{id} or D{id}
+
+Categories and detection heuristics:
+  [DB]    — file_scope matches **/migrations/**, **/schema/**, prisma/schema.prisma,
+             or action contains: migration, schema change, alter table, add column, drop, rename table
+  [ENV]   — file_scope matches .env*, or action contains: environment variable, env var, new secret
+  [API]   — action contains: breaking change, remove endpoint, rename route, change response format,
+             API version, deprecate
+  [INFRA] — file_scope matches docker-compose*, Dockerfile, terraform/**, k8s/**, .github/workflows/**,
+             or action contains: infrastructure, deploy, container, CI/CD, pipeline
+  [DEPS]  — action contains: upgrade major, replace library, remove dependency, migrate from X to Y
+
+If no signals detected: "(none detected)"
+If signals found, also append: "Review these before /execute — they may require coordination, backups, or rollback plans."
+}
+────────────────────────────────────────
+
+Task Overview
+────────────────────────────────────────
+T1: {action}                             [work|{risk}] — pending
+T2: {action}                             [work|{risk}] — pending
+  depends on: T1
+TF: Full verification                    [verification] — pending
+────────────────────────────────────────
+
+DAG: {output from hoyeon-cli spec plan}
+
+Post-work (human actions after completion)
+────────────────────────────────────────
+{post_work items or "(none)"}
+────────────────────────────────────────
+
+Constraints: {n} items
+Sub-requirements: {total_sub_count} total across {n} requirements
+```
+
+Then ask (interactive only):
+
+```
+AskUserQuestion(
+  question: "Review the plan above. Select the next step.",
+  options: [
+    { label: "/execute", description: "Start implementation immediately" },
+    { label: "Revise requirements (L3)", description: "Go back to refine requirements and sub-requirements" },
+    { label: "Revise tasks (L4)", description: "Go back to refine task breakdown" }
+  ]
+)
+```
+
+**On user rejection or selecting revision:**
+- "Revise requirements (L3)" → route back to L3 Round 1 (with current decisions preserved)
+- "Revise tasks (L4)" → route back to L4 with reason
+
+**On approval or `/execute`:**
+
+Follow the Mandatory Merge Protocol (SKILL.md):
+
+```bash
+# STEP 1: GUIDE (MANDATORY)
+hoyeon-cli spec guide meta
+
+# STEP 2+3: CONSTRUCT + WRITE
+cat > /tmp/spec-merge.json << 'EOF'
+{
+  "approved_by": "user",
+  "approved_at": "{ISO_TIMESTAMP}"
+}
+EOF
+
+# STEP 4: MERGE
+hoyeon-cli spec merge .dev/specs/{name}/spec.json meta --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
+
+# STEP 5: VERIFY
+hoyeon-cli spec validate .dev/specs/{name}/spec.json
+```
+
+If merge fails → follow Merge Failure Recovery (SKILL.md).
+
+Shut down the Team:
+
+```
+SendMessage(to="gate-keeper", message={type: "shutdown_request", reason: "Specify session complete"})
+TeamDelete()
+```
+
+If user selected `/execute`:
+
+```
+Skill("execute", args="{name}")
+```

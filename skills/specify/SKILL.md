@@ -1,8 +1,8 @@
 ---
 name: specify
 description: |
-  Layer-based spec generator (L0-L5 derivation chain) outputting unified spec.json v5 via cli.
-  Layer sequence: Goal→Context→Decisions→Requirements+Sub-requirements→Tasks→Review.
+  Layer-based spec generator (L0-L4 derivation chain) outputting unified spec.json v5 via cli.
+  Layer sequence: Goal→Context→Decisions→Requirements+Sub-requirements→Tasks+Approval.
   Each layer has a merge checkpoint and a gate (spec coverage + step-back gate-keeper).
   Mode support: interactive/autopilot. Optional: --workshop for 3-agent L3 workshop.
   Use when: "/specify", "specify", "plan this", "계획 짜줘", "스펙 만들어줘"
@@ -21,7 +21,7 @@ validate_prompt: |
   spec.json must include: meta.mode, context.research (per spec guide context), tasks with acceptance_criteria,
   requirements with sub-requirements, context.confirmed_goal.
   Must include: constraints, external_dependencies, meta.non_goals.
-  SKILL.md must have exactly 6 sections starting with "## L0:" through "## L5:".
+  SKILL.md must have exactly 5 sections starting with "## L0:" through "## L4:".
   Output files must be in .dev/specs/{name}/ directory.
 ---
 
@@ -199,20 +199,20 @@ TeamCreate("specify-session")
 | **L3-devil's-advocate** | Adversarial completeness tester | L3 (--workshop only) | Attack requirements: find missing paths, contradictions, impossible assumptions. Return PASS or GAPS with specific issues. | `--workshop` only |
 
 > All teammates are general-purpose agents. Specialization is defined entirely through spawn prompts.
-> L3 agents (when spawned) are idle during L0~L2 and L4~L5. Pre-spawned because TeamCreate can only be called once.
+> L3 agents (when spawned) are idle during L0~L2 and L4. Pre-spawned because TeamCreate can only be called once.
 
 **Teammate lifecycle (without --workshop — default):**
 - L0~L1: gate-keeper idle (L0 uses mirror confirmation, L1 auto-advances after merge)
 - L2: gate-keeper active
 - L3: gate-keeper active; orchestrator derives sub-requirements directly (no L3 agents)
-- L4~L5: gate-keeper only
+- L4: gate-keeper only
 
 **Teammate lifecycle (with --workshop):**
 - L0~L1: all teammates idle (L0 uses mirror confirmation, L1 auto-advances after merge)
 - L2: gate-keeper active, L3 agents idle
 - L3: all 4 active
 - L3 complete → shutdown L3 agents via `SendMessage(to="L3-user-advocate", message={type: "shutdown_request"})` (repeat for L3-requirement-writer and L3-devil's-advocate). Gate-keeper excluded.
-- L4~L5: gate-keeper only
+- L4: gate-keeper only
 
 **gate-keeper return contract:**
 - `PASS` — layer transition proceeds
@@ -316,7 +316,6 @@ Execute layers sequentially. Read each layer's reference file just-in-time.
 | L2 | After L1 completes | `Read: ${baseDir}/references/L2-decisions.md` |
 | L3 | After L2 gate passes | `Read: ${baseDir}/references/L3-workshop.md` |
 | L4 | After L3 gate passes | `Read: ${baseDir}/references/L4-tasks.md` |
-| L5 | After L4 gate passes | `Read: ${baseDir}/references/L5-review.md` |
 
 At each layer:
 1. Read the reference file
@@ -380,7 +379,6 @@ At each layer:
 - [ ] `context.decisions[]` populated from interview
 - [ ] `constraints` populated (L2.7 — merge empty array explicitly if none apply)
 - [ ] `external_dependencies` populated (L4.5 — merge empty pre_work/post_work explicitly if none apply)
-- [ ] plan-reviewer returned OKAY
 - [ ] `spec coverage` passes (full chain + per-layer at each transition)
 
 ### With --workshop flag (additional)
@@ -390,7 +388,7 @@ At each layer:
 
 ### Interactive mode (additional)
 - [ ] User explicitly triggered plan generation ("proceed to planning") — not auto-transitioned
-- [ ] Plan Approval Summary presented (L5 Step 6)
+- [ ] Plan Approval Summary presented (L4 post-gate)
 - [ ] All HIGH risk decision_points resolved with user
 
 ### Autopilot mode (overrides)

@@ -163,7 +163,7 @@ You:  /execute
 ```
 /specify → Interview exposed hidden assumptions
            → Agents researched codebase in parallel
-           → Layer-by-layer derivation: L0→L1→L2→L3→L4→L5
+           → Layer-by-layer derivation: L0→L1→L2→L3→L4
            → Each layer gated by CLI validation + agent review
 
 /execute → Orchestrator read spec.json, dispatched parallel workers
@@ -194,7 +194,7 @@ Six layers. Each derived from the one before it. Each gated before the next begi
    ↓  ◇ gate         are requirements complete?
   L4: Tasks          T1: "Add toggle component" → file_scope, AC
    ↓  ◇ gate         do tasks cover all requirements?
-  L5: Review         plan-reviewer + step-back gate-keeper
+  Plan Approval      summary + user confirmation → /execute
 ```
 
 Each gate has two checks:
@@ -321,7 +321,7 @@ Twenty-one agents, each a different mode of thinking. You never interact with th
 | **Worker** | Implements with spec precision | *"Does this match the requirement?"* |
 | **Verifier** | Independent scenario verification per task | *"Does the code match every scenario?"* |
 | **Ralph Verifier** | Independent, context-isolated DoD check | *"Is it actually done?"* |
-| **Plan Reviewer** | Validates spec completeness and quality | *"Does the plan cover the goal?"* |
+| **Gate-Keeper** | Validates layer transitions for drift, gaps, and conflicts | *"Is this layer ready to advance?"* |
 | **External Researcher** | Investigates libraries and best practices | *"What evidence do we actually have?"* |
 
 <details>
@@ -338,7 +338,6 @@ Twenty-one agents, each a different mode of thinking. You never interact with th
 | Worker | Task implementation with spec-driven self-verification |
 | Verifier | Independent scenario verification using verify_plan (mechanical, no bypass) |
 | Ralph Verifier | Independent DoD verification in isolated context |
-| Plan Reviewer | Spec quality review: goal alignment, coverage, granularity |
 | External Researcher | Library research and best practice investigation via web |
 | Docs Researcher | Internal documentation and architecture decision search |
 | Code Explorer | Fast read-only codebase search and pattern finding |
@@ -371,7 +370,7 @@ Twenty-one agents, each a different mode of thinking. You never interact with th
 
 | Command | What It Does |
 |---------|--------------|
-| `/specify` | Layer-based interview → spec.json derivation (L0→L5) with gate-keepers |
+| `/specify` | Layer-based interview → spec.json derivation (L0→L4) with gate-keepers |
 | `/execute` | Spec-driven parallel agent dispatch + multi-model review + Final Verify |
 | `/ultrawork` | Full pipeline: specify → execute in one command |
 | `/bugfix` | Root cause diagnosis → auto-generated spec → execute (adaptive routing) |
@@ -393,7 +392,7 @@ Twenty-one agents, each a different mode of thinking. You never interact with th
 ```
 .claude/
 ├── skills/
-│   ├── specify/       Layer-based spec derivation (L0→L5)
+│   ├── specify/       Layer-based spec derivation (L0→L4)
 │   ├── execute/       Spec-driven parallel orchestration
 │   ├── bugfix/        Root cause → spec → execute pipeline
 │   ├── council/       Multi-perspective deliberation
@@ -415,7 +414,7 @@ Twenty-one agents, each a different mode of thinking. You never interact with th
 
 **Key internals:**
 
-- **Derivation Chain** — L0→L5 with merge checkpoints + gate-keeper teams at each transition
+- **Derivation Chain** — L0→L4 with merge checkpoints + gate-keeper teams at each transition
 - **Multi-Model Review** — Codex + Gemini + Claude run independent reviews, synthesize SHIP/NEEDS_FIXES verdict
 - **Hook System** — 18 hooks automate pipeline transitions, guard writes, enforce gates, recover from failures
 - **Verify Pipeline** — CLI builds verify_plan per task; dedicated Verifier agents execute scenarios with inlined sandbox recipes

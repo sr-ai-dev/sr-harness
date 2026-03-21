@@ -94,9 +94,7 @@ After each round, the orchestrator evaluates the interview state across **5 clar
 
 | Composite Score | Meaning | Action |
 |----------------|---------|--------|
-| < 0.4 | High ambiguity | Must continue. Do not offer "proceed" option |
-| 0.4 ~ 0.6 | Moderate | Continue. Offer "proceed" but recommend against it |
-| 0.6 ~ 0.8 | Mostly clear | Offer "proceed" as viable option |
+| < 0.8 | Insufficient | Must continue. Do not offer "proceed" option |
 | >= 0.8 | Ready | Auto-suggest "proceed to planning" |
 
 **Question targeting:** Each round, generate scenario questions for the **lowest-scoring dimension first**. If multiple dimensions tie, prioritize by weight (Core Behavior > Scope > Implementation > Error > Data).
@@ -283,23 +281,12 @@ After each round, show mini-mirror with **all decisions and implications visible
 Then ask (options vary by clarity score):
 
 ```
-# When clarity < 0.4 (high ambiguity — no "proceed" option)
+# When clarity < 0.8 (insufficient — no "proceed" option)
 AskUserQuestion(
   question: "Clarity score is {score} — key gaps remain in {lowest dimensions}. Let's continue.",
   header: "Interview Progress — Round N",
   options: [
     { label: "Continue interviewing", description: "Cover the gaps above" },
-    { label: "Abort", description: "Stop specification process" }
-  ]
-)
-
-# When clarity 0.4 ~ 0.8 (moderate — "proceed" available but not recommended)
-AskUserQuestion(
-  question: "Clarity score is {score}. {unknown_unknowns_count} unknown unknowns detected. How should we proceed?",
-  header: "Interview Progress — Round N",
-  options: [
-    { label: "Continue interviewing", description: "Cover the gaps and unknown unknowns above" },
-    { label: "Enough, proceed to planning", description: "Use agent judgment for remaining gaps (clarity: {score})" },
     { label: "Abort", description: "Stop specification process" }
   ]
 )

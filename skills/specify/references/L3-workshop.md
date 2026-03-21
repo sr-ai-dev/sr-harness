@@ -13,7 +13,51 @@ Orchestrator derives requirements and sub-requirements directly from goal + deci
 
 For each confirmed decision and implication:
 1. Identify observable behaviors (requirements)
-2. For each requirement, derive at least 1 sub-requirement describing a concrete, testable behavior
+2. For each requirement, apply the **Adaptive Decomposition Heuristic** below to derive sub-requirements
+
+#### Adaptive Decomposition Heuristic
+
+For each requirement, first classify:
+
+**ATOMIC** (all true → 1 sub-requirement that mirrors parent behavior):
+- Single trigger, single outcome
+- Touches 1-2 files at most
+- No "and" joining distinct actions in the behavior text
+
+**COMPOUND** (any true → decompose using checklist):
+- Behavior contains "and" joining distinct actions
+- Multiple input types produce different outcomes
+- Both success and failure paths are non-trivial
+
+#### Decomposition Checklist (for COMPOUND requirements)
+
+Derive sub-requirements from **applicable axes only** (not all will apply):
+1. **Happy path** — normal input → expected outcome
+2. **Error/failure** — invalid input → specific error response
+3. **Boundary** — empty state, max capacity, first-time vs returning
+4. **State variation** — does behavior change based on auth/data/device state?
+
+#### Behavior Quality Rules
+
+Each sub-requirement's `behavior` text MUST:
+- Name the **trigger** (who/what initiates) and the **observable outcome**
+- NOT contain: "correctly", "properly", "works", "as expected", "handles" (without specifying what)
+
+```
+BAD:  "Login works correctly"
+GOOD: "POST /login with valid credentials → 200 + JWT token in response body"
+
+BAD:  "System handles errors properly"
+GOOD: "POST /login with empty password → 400 + body contains 'password is required'"
+
+BAD:  "Config changes are applied"
+GOOD: "After config.yaml timeout changed from 30→60, GET /config returns timeout=60 without restart"
+```
+
+#### Verify Writer Heuristic
+
+- If behavior describes an **observable output** (API response, CLI exit code, file existence) → include `verify` field
+- If behavior requires **subjective judgment** (UI appearance, UX feel) → behavior text only, no verify
 
 Skip to "Merge requirements" after deriving. No SendMessage to L3 agents, no workshop.
 
@@ -131,12 +175,38 @@ For EACH requirement:
 
 Each requirement MUST have at least 1 sub-requirement. Sub-requirements describe concrete, testable behaviors that together fulfill the parent requirement.
 
+### Adaptive Decomposition
+
+First classify each requirement:
+- **ATOMIC** (single trigger, single outcome, no 'and' joining actions) → exactly 1 sub-req mirroring parent behavior
+- **COMPOUND** (multiple actions, input variations, or success+failure paths) → decompose using checklist:
+  1. Happy path behavior
+  2. Error/failure behavior
+  3. Boundary conditions (empty, max, first-time)
+  4. State variations (auth state, data state)
+
+### Behavior Quality Rules
+
+BANNED in behavior text: 'correctly', 'properly', 'works', 'as expected', 'handles' (without specifying what).
+REQUIRED: trigger (who/what) + observable outcome.
+
+Examples — BAD vs GOOD:
+- BAD: 'Login works correctly' → GOOD: 'POST /login with valid credentials → 200 + JWT in body'
+- BAD: 'System handles errors' → GOOD: 'POST /login with empty password → 400 + error message'
+- BAD: 'Config is applied' → GOOD: 'After timeout changed 30→60, GET /config returns timeout=60 without restart'
+
 ### Sub-requirement Fields
 
 Each sub-requirement MUST include:
 - id: {req_id}.{n} (e.g., R1.1, R1.2)
-- behavior: concrete, observable behavior statement
+- behavior: concrete, observable behavior statement (must pass quality rules above)
 - verify: (optional) object describing how to verify — `{type: 'command'|'assertion'|'manual', run?: '...', checks?: [...], ask?: '...'}`
+
+### Verify Writer Heuristic
+
+When to include verify:
+- Behavior describes observable output (API response, CLI exit code, file) → INCLUDE verify
+- Behavior requires subjective judgment (UI feel, UX flow) → behavior only, NO verify
 
 ### verify Abstraction Rules (MANDATORY)
 
@@ -209,12 +279,18 @@ IMPORTANT: Communication protocol:
 - Every requirement has at least 1 sub-requirement
 - Sub-requirements together cover the full behavior of the parent requirement
 - No sub-requirement is duplicated across requirements
+- Atomic requirements (single trigger, single outcome) should have exactly 1 sub-req — do not force-decompose
 
 **Sub-requirement quality:**
 - verify fields (when present) are at behavior level — not coupled to implementation
 - verify.run (if present): executable shell command with concrete expected value
 - verify.checks (if present): falsifiable assertions (can be proven wrong)
 - verify.ask (if present): actionable step-by-step instructions
+
+**Behavior text quality (BLOCKING):**
+- IF behavior contains: 'correctly', 'properly', 'works', 'as expected', 'handles' (without specifying what) → REJECT ('behavior not falsifiable: {word}')
+- IF behavior lacks a trigger (who/what initiates) OR observable outcome → REJECT ('behavior missing trigger or outcome')
+- Worker Legibility check: 'Can a developer who has never seen this codebase know what code to write from this behavior text alone?' No → REJECT
 
 **verify abstraction level (BLOCKING):**
 - IF verify.run or verify.checks reference specific file paths → REJECT ('verify coupled to implementation: {path}')

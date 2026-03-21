@@ -21,6 +21,7 @@
   - Rollback steps (e.g., "Rollback: DROP COLUMN IF EXISTS embedding")
   - `risk: "medium"` or `"high"` (never "low" for schema changes)
   - Corresponding rollback constraint from L2.7 must be referenced
+- **Sub-req load guideline**: If a task's `fulfills[]` references requirements with >10 total sub-requirements combined, consider splitting the task. Workers must report on each sub-req individually — excessive load increases reporting overhead and verification time.
 - Map `research.patterns` → `tasks[].references`
 - Map `research.commands` → `TF.acceptance_criteria.checks` (type: build/lint/static)
 - TF checks MUST always include at minimum: `{type: "build", run: "<build command>"}`. Typecheck and lint are also expected when available.

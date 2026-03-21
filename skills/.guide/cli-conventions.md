@@ -88,9 +88,9 @@ These commands have stable interfaces and can be referenced directly:
 | Command | Purpose | Safe to inline? |
 |---------|---------|-----------------|
 | `spec init` | Create initial spec.json | Yes — flags are stable |
-| `spec validate` | Full schema validation | Yes |
+| `spec validate` | Schema validation + coverage checks | Yes |
+| `spec validate --layer <layer>` | Schema + per-layer coverage | Yes |
 | `spec check` | Source.ref integrity + orphan check | Yes |
-| `spec coverage --layer <layer>` | Per-layer completeness | Yes |
 | `spec plan` | DAG visualization | Yes |
 | `spec sandbox-tasks` | Auto-generate sandbox tasks | Yes |
 | `session set --sid` | Set session state | Yes |

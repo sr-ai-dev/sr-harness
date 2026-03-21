@@ -92,23 +92,28 @@ hoyeon-cli spec merge ./spec.json --json '{"tasks":[{"id":"T2","action":"test","
 
 #### spec validate
 
-Validate a spec.json file against the dev-spec v5 JSON schema (falls back to v4 if `meta.schema_version` is `"v4"`).
+Schema validation + coverage checks in one command. Validates against the JSON schema first (v6/v5/v4), then runs coverage checks (source.ref integrity, decision coverage, sub-requirement coverage, orphan detection).
 
 ```
-hoyeon-cli spec validate <path>
+hoyeon-cli spec validate <path> [--layer decisions|requirements|scenarios|tasks] [--json]
 ```
 
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `<path>` | Yes | Path to spec.json to validate |
+| `--layer` | No | Run coverage checks for a specific layer only |
+| `--json` | No | Output unified JSON: `{valid, errors, coverage, gaps}` |
 
-Outputs JSON to stdout: `{"valid": true, "errors": []}` on success, or `{"valid": false, "errors": [...]}` on failure. Exits with code 0 on valid, 1 on invalid.
+Without `--json`: prints human-readable text. With `--json`: outputs `{"valid": true, "errors": [], "coverage": "pass", "gaps": []}` on success. Schema failure sets `coverage: null`. Exits 0 on full pass, 1 on any failure.
 
 **Example:**
 
 ```bash
 hoyeon-cli spec validate ./spec.json
+hoyeon-cli spec validate ./spec.json --layer decisions --json
 ```
+
+> **Note**: `spec coverage` is deprecated — use `spec validate` instead.
 
 ---
 

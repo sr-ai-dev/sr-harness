@@ -1,10 +1,13 @@
 ---
 name: specify
 description: |
-  Layer-based spec generator (L0-L4 derivation chain) outputting unified spec.json v5 via cli.
-  Layer sequence: Goal→Context→Decisions→Requirements+Sub-requirements→Tasks+Approval.
-  Each layer has a merge checkpoint and a gate (spec coverage + step-back gate-keeper).
-  Mode support: interactive/autopilot. Optional: --workshop for 3-agent L3 workshop.
+  Turn a goal into a complete, validated implementation plan (spec.json).
+  Interviews the user, derives decisions, requirements, and tasks through a structured
+  layer chain (L0:Goal → L1:Context → L2:Decisions → L3:Requirements → L4:Tasks+Approval).
+  Each layer is validated by CLI (schema + coverage) and a gate-keeper agent (drift/gap detection).
+  Output: a machine-executable spec.json ready for /execute.
+  Modes: interactive (default, asks user at each gate) or --autopilot (autonomous).
+  Workshop mode (3-agent L3) is on by default; auto-skipped for small scope (≤2 decisions) or via --no-workshop.
   Use when: "/specify", "specify", "plan this", "계획 짜줘", "스펙 만들어줘"
 allowed-tools:
   - Read
@@ -17,7 +20,7 @@ allowed-tools:
   - SendMessage
   - TeamCreate
 validate_prompt: |
-  Must produce a valid spec.json that passes both hoyeon-cli spec validate and hoyeon-cli spec check.
+  Must produce a valid spec.json that passes both hoyeon-cli spec validate (schema + coverage) and hoyeon-cli spec check.
   spec.json must include: meta.mode, context.research (per spec guide context), tasks with acceptance_criteria,
   requirements with sub-requirements, context.confirmed_goal.
   Must include: constraints, external_dependencies, meta.non_goals.
@@ -41,7 +44,7 @@ Each layer builds on the previous — no skipping, no out-of-order merges.
 2. **Validate on every write** — `spec merge` auto-validates. Errors caught immediately
 3. **Mode-aware** — Depth and interaction control agent count and user involvement
 4. **Incremental build** — spec.json evolves from v0 (meta only) to final (all sections)
-5. **Layers gate progress** — L2~L4 have spec coverage check + step-back gate-keeper review. L0 uses mirror confirmation, L1 auto-advances after merge.
+5. **Layers gate progress** — L2~L4 have spec validate (with `--layer`) + step-back gate-keeper review. L0 uses mirror confirmation, L1 auto-advances after merge.
 6. **No intermediate files** — No DRAFT.md. spec.json IS the draft until finalized
 
 ### Architectural
@@ -56,7 +59,7 @@ These principles guide reference file design. They do NOT override the core laye
 
 | Flag | Effect | Default |
 |------|--------|---------|
-| `--workshop` | Enable 3-agent L3 workshop (L3-user-advocate, L3-requirement-writer, L3-devil's-advocate) | Off (orchestrator derives sub-requirements directly) |
+| `--no-workshop` | Disable 3-agent L3 workshop, orchestrator derives sub-requirements directly | On by default (auto-skipped if ≤2 L2 decisions) |
 | `--autopilot` | `{interaction}` = autopilot | `{interaction}` = interactive |
 | `--interactive` | `{interaction}` = interactive | (default) |
 
@@ -104,18 +107,19 @@ STEP 5: VERIFY — Run `hoyeon-cli spec validate .dev/specs/{name}/spec.json` to
 
 ### Sequential CLI Validation
 
-**Never run `spec validate`, `spec check`, `spec coverage`, or `spec plan` in parallel.** When one fails, parallel siblings are auto-cancelled — inflating failure count and losing error details.
+**Never run `spec validate` and `spec check` in parallel.** When one fails, parallel siblings are auto-cancelled — inflating failure count and losing error details.
 
 Always chain validation commands sequentially:
 ```bash
 # CORRECT: sequential chain — each command runs only if previous succeeds
 hoyeon-cli spec validate .dev/specs/{name}/spec.json && \
-hoyeon-cli spec check .dev/specs/{name}/spec.json && \
-hoyeon-cli spec coverage .dev/specs/{name}/spec.json
+hoyeon-cli spec check .dev/specs/{name}/spec.json
 
-# WRONG: parallel calls — if validate fails, check and coverage are cancelled with no output
-# (three separate Bash tool calls for validate, check, coverage)
+# WRONG: parallel calls — if validate fails, check is cancelled with no output
+# (two separate Bash tool calls for validate and check)
 ```
+
+> **Note**: `spec validate` now runs both schema validation AND coverage checks in one command. The separate `spec coverage` command is deprecated.
 
 ### Merge Failure Recovery
 
@@ -194,20 +198,20 @@ TeamCreate("specify-session")
 | Name | Role | Active During | Spawn Prompt Focus | Required |
 |------|------|---------------|--------------------|----------|
 | **gate-keeper** | Layer-transition reviewer | L2~L4 gate | Check for DRIFT, GAP, CONFLICT, BACKTRACK + information sufficiency (EXTERNAL_REF_UNVERIFIED, CODEBASE_CLAIM_UNVERIFIED, ASSUMPTION_LOAD). Return PASS or REVIEW_NEEDED with numbered items. Read-only: use Read, Grep, Glob only. Do NOT write files, run Bash, or create Tasks. | Always |
-| **L3-user-advocate** | User journey mapper + priority judge | L3 (--workshop only) | From decisions, derive user personas and their journeys. For every screen/feature, enumerate ALL reachability paths. Judge gap severity from user perspective. | `--workshop` only |
-| **L3-requirement-writer** | Requirements + sub-requirements author | L3 (--workshop only) | Receive user journeys from L3-user-advocate. Structure into formal Requirements + Sub-requirements. Output structured JSON with requirements[] and sub[]. | `--workshop` only |
-| **L3-devil's-advocate** | Adversarial completeness tester | L3 (--workshop only) | Attack requirements: find missing paths, contradictions, impossible assumptions. Return PASS or GAPS with specific issues. | `--workshop` only |
+| **L3-user-advocate** | User journey mapper + priority judge | L3 (workshop) | From decisions, derive user personas and their journeys. For every screen/feature, enumerate ALL reachability paths. Judge gap severity from user perspective. | Default on (skipped if ≤2 decisions or --no-workshop) |
+| **L3-requirement-writer** | Requirements + sub-requirements author | L3 (workshop) | Receive user journeys from L3-user-advocate. Structure into formal Requirements + Sub-requirements. Output structured JSON with requirements[] and sub[]. | Default on (skipped if ≤2 decisions or --no-workshop) |
+| **L3-devil's-advocate** | Adversarial completeness tester | L3 (workshop) | Attack requirements: find missing paths, contradictions, impossible assumptions. Return PASS or GAPS with specific issues. | Default on (skipped if ≤2 decisions or --no-workshop) |
 
 > All teammates are general-purpose agents. Specialization is defined entirely through spawn prompts.
-> L3 agents (when spawned) are idle during L0~L2 and L4. Pre-spawned because TeamCreate can only be called once.
+> L3 agents are idle during L0~L2 and L4. Pre-spawned because TeamCreate can only be called once. If workshop is skipped (≤2 decisions or --no-workshop), only gate-keeper is spawned.
 
-**Teammate lifecycle (without --workshop — default):**
+**Teammate lifecycle (without workshop — when ≤2 decisions or --no-workshop):**
 - L0~L1: gate-keeper idle (L0 uses mirror confirmation, L1 auto-advances after merge)
 - L2: gate-keeper active
 - L3: gate-keeper active; orchestrator derives sub-requirements directly (no L3 agents)
 - L4: gate-keeper only
 
-**Teammate lifecycle (with --workshop):**
+**Teammate lifecycle (with workshop — default for 3+ decisions):**
 - L0~L1: all teammates idle (L0 uses mirror confirmation, L1 auto-advances after merge)
 - L2: gate-keeper active, L3 agents idle
 - L3: all 4 active
@@ -248,7 +252,7 @@ Each layer ends with a gate before advancing to the next layer.
 
 ### Gate Steps (standard mode)
 
-1. Run `hoyeon-cli spec coverage .dev/specs/{name}/spec.json --layer {layer}` (if applicable)
+1. Run `hoyeon-cli spec validate .dev/specs/{name}/spec.json --layer {layer}` (if applicable)
 2. Check exit code — non-zero blocks advancement
 3. Send layer artifacts to gate-keeper via SendMessage
 4. Gate-keeper returns PASS or REVIEW_NEEDED (with items for user confirmation)
@@ -328,15 +332,15 @@ At each layer:
 ## Rules
 
 - **spec.json is the ONLY output** — no DRAFT.md, no PLAN.md, no state.json
-- **Always use cli** — `hoyeon-cli spec init`, `spec merge`, `spec validate`, `spec check`
+- **Always use cli** — `hoyeon-cli spec init`, `spec merge`, `spec validate` (schema + coverage), `spec check`
 - **Never hand-write spec.json** — always go through `spec merge` for auto-validation
 - **Read guide before EVERY merge** — run `hoyeon-cli spec guide <section>` before constructing merge JSON. **Guide output is the SINGLE SOURCE OF TRUTH** — if any example in this file or your own knowledge conflicts with guide output, the guide wins. Field names, types (especially `verify` which must be an object `{type, run}`, not a string), and allowed properties vary per section. Also run `hoyeon-cli spec guide merge` to choose the right mode. **Never truncate guide output** (`head`, `tail` are forbidden) — always read the full output. Cache mentally per section: once you've read a section's guide in this session, you may skip re-reading for subsequent merges of the same section.
 - **Never change schema_version after spec init** — the version set by `spec init` governs all subsequent validations. Patching `meta.schema_version` mid-spec breaks all previously merged sections. If you need a different version, re-run `spec init`.
-- **Sequential CLI validation** — never run `spec validate`, `spec check`, `spec coverage`, or `spec plan` as separate parallel Bash calls. When one fails, parallel siblings are auto-cancelled with no error output. Always chain with `&&`: `spec validate && spec check && spec coverage`.
+- **Sequential CLI validation** — never run `spec validate` and `spec check` as separate parallel Bash calls. When one fails, parallel siblings are auto-cancelled with no error output. Always chain with `&&`: `spec validate && spec check`.
 - **File-based JSON passing** — never pass JSON directly as `--json '...'` argument. Always write to `/tmp/spec-merge.json` via heredoc with quoted EOF (`<< 'EOF'`), pass via `--json "$(cat /tmp/spec-merge.json)"`, clean up with `rm /tmp/spec-merge.json`.
 - **Merge failure recovery** — when `spec merge` fails: (1) run `hoyeon-cli spec guide <failed-section>`, (2) fix JSON to match schema, (3) retry. Do NOT attempt multiple blind retries.
 - **One merge per section** — call `spec merge` once per top-level key. Never merge multiple sections in parallel.
-- **Coverage fix: all gaps at once** — when `spec coverage` fails, read the ENTIRE gap list, then fix ALL gaps in a single `--patch` merge. Never fix one gap, re-run coverage, fix the next. This avoids O(n) coverage loops.
+- **Coverage fix: all gaps at once** — when `spec validate` reports coverage gaps, read the ENTIRE gap list, then fix ALL gaps in a single `--patch` merge. Never fix one gap, re-run validate, fix the next. This avoids O(n) coverage loops.
 - **--append for arrays** — use `--append` when adding to existing arrays (decisions, assumptions, known_gaps)
 - **--patch for updates** — use `--patch` when updating specific items by id
 - **verify abstraction** — verify fields must describe observable behavior (API contracts, input/output relations), NOT implementation details (file paths, function names, code patterns). Self-check: "If implementation files were renamed, would this verify still hold?"
@@ -347,9 +351,9 @@ At each layer:
 - **confirmed_goal in context** — NEVER move `confirmed_goal` to `meta`
 - **gate-keeper** — teammate spawned via TeamCreate, role defined by spawn prompt (not a custom agent file)
 - **Team mode members** — disallowed-tools MUST include Task and Skill
-- **L3-user-advocate** — teammate for user journey mapping + gap severity judgment (only with `--workshop`; spawned at session start, active during L3, shutdown after L3)
-- **L3-requirement-writer** — teammate for requirements + sub-requirements structuring from journeys (only with `--workshop`; spawned at session start, active during L3, shutdown after L3)
-- **L3-devil's-advocate** — teammate for adversarial completeness testing + research requests (only with `--workshop`; spawned at session start, active during L3, shutdown after L3)
+- **L3-user-advocate** — teammate for user journey mapping + gap severity judgment (default on, skipped if ≤2 decisions or `--no-workshop`; spawned at session start, active during L3, shutdown after L3)
+- **L3-requirement-writer** — teammate for requirements + sub-requirements structuring from journeys (default on, skipped if ≤2 decisions or `--no-workshop`; spawned at session start, active during L3, shutdown after L3)
+- **L3-devil's-advocate** — teammate for adversarial completeness testing + research requests (default on, skipped if ≤2 decisions or `--no-workshop`; spawned at session start, active during L3, shutdown after L3)
 - **Team mode members** — disallowed-tools MUST include Task and Skill (C3)
 
 ---
@@ -358,7 +362,7 @@ At each layer:
 
 ### Common (all modes)
 - [ ] spec.json exists at `.dev/specs/{name}/spec.json`
-- [ ] `hoyeon-cli spec validate` passes
+- [ ] `hoyeon-cli spec validate` passes (schema + coverage)
 - [ ] `hoyeon-cli spec check` passes
 - [ ] All tasks have `status: "pending"`
 - [ ] All tasks have `must_not_do` and `acceptance_criteria` (`checks`) and `fulfills` (requirement ID refs)
@@ -379,9 +383,9 @@ At each layer:
 - [ ] `context.decisions[]` populated from interview
 - [ ] `constraints` populated (L2.7 — merge empty array explicitly if none apply)
 - [ ] `external_dependencies` populated (L4.5 — merge empty pre_work/post_work explicitly if none apply)
-- [ ] `spec coverage` passes (full chain + per-layer at each transition)
+- [ ] `spec validate` coverage passes (full + per-layer at each transition)
 
-### With --workshop flag (additional)
+### With workshop (default for 3+ decisions, additional)
 - [ ] TeamCreate called with 4 teammates: gate-keeper, L3-user-advocate, L3-requirement-writer, L3-devil's-advocate
 - [ ] L3 workshop ran (L3-user-advocate → L3-requirement-writer → L3-devil's-advocate, max 3 cycles)
 - [ ] L3 agents shutdown after L3 merge (gate-keeper excluded)

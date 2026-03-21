@@ -4,7 +4,7 @@
 **Output**: `context.decisions[]` (with `implications[]`), `context.assumptions[]`
 **Also**: Provisional requirements in session state only (NOT spec.json) — D13
 **Merge**: `spec merge decisions`, `spec merge assumptions`
-**Gate**: `spec coverage --layer decisions` + gate-keeper via SendMessage
+**Gate**: `spec validate --layer decisions` + gate-keeper via SendMessage
 **User trigger**: "proceed to planning" required (interactive mode)
 
 ### Core Principle: Behavior First, Then Implementation
@@ -457,7 +457,7 @@ Then auto-generate scenario questions for the top gaps — **prioritize breadth 
 ### L2 Gate
 
 ```bash
-hoyeon-cli spec coverage .dev/specs/{name}/spec.json --layer decisions
+hoyeon-cli spec validate .dev/specs/{name}/spec.json --layer decisions
 ```
 
 If exit code non-zero → gate failure. Handle per Gate Protocol.

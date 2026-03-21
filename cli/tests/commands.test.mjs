@@ -352,9 +352,7 @@ test('v4 spec validates successfully using v4 schema path', () => {
   try {
     const { stdout, status } = runCli(['spec', 'validate', path]);
     assert.equal(status, 0, 'v4 spec should validate successfully (exit 0)');
-    const result = JSON.parse(stdout);
-    assert.equal(result.valid, true, 'result.valid should be true');
-    assert.deepEqual(result.errors, [], 'result.errors should be empty');
+    assert.ok(stdout.includes('Schema valid'), `stdout should include "Schema valid", got: ${stdout}`);
   } finally {
     cleanup();
   }

@@ -1,14 +1,17 @@
 /**
- * Integration tests for hoyeon-cli spec coverage subcommand.
+ * Integration tests for hoyeon-cli spec validate (merged schema + coverage).
  *
  * Run: node --test cli/tests/coverage.test.mjs
  *
  * Tests:
- *  1. spec coverage passes on valid spec with full derivation chain
- *  2. spec coverage --layer decisions checks decision-requirement traceability (exit 0 on valid)
- *  3. spec coverage --layer scenarios checks scenario coverage completeness (exit 0 on valid)
- *  4. spec coverage detects uncovered decisions (decision not referenced by any requirement)
- *  5. spec coverage detects orphaned scenario references in tasks
+ *  1. spec validate passes schema + coverage on valid spec (--json)
+ *  2. spec validate --layer decisions checks decision-requirement traceability
+ *  3. spec validate --layer scenarios checks scenario coverage completeness
+ *  4. spec validate detects coverage gaps (uncovered decisions) on schema-valid spec
+ *  5. spec validate detects orphaned requirement references in tasks
+ *  6. spec validate --json returns unified { valid, errors, coverage, gaps } shape
+ *  7. spec validate schema failure skips coverage (coverage: null)
+ *  8. spec coverage legacy alias still works
  */
 
 import { test } from 'node:test';
@@ -16,16 +19,18 @@ import assert from 'node:assert/strict';
 import { loadFixture, createTempSpec, runCli } from './helpers.js';
 
 // ============================================================
-// Test 1: spec coverage passes on valid spec with full derivation chain
+// Test 1: spec validate passes schema + coverage on valid spec
 // ============================================================
-test('spec coverage passes on valid spec with full derivation chain', () => {
+test('spec validate passes schema + coverage on valid spec (--json)', () => {
   const { path, cleanup } = createTempSpec(loadFixture('coverage-valid.json'));
 
   try {
-    const { stdout, status } = runCli(['spec', 'coverage', path, '--json']);
+    const { stdout, status } = runCli(['spec', 'validate', path, '--json']);
     assert.equal(status, 0, `exit code should be 0, got: ${status}`);
     const result = JSON.parse(stdout);
-    assert.equal(result.coverage, 'pass', `coverage should be "pass", got: ${result.coverage}`);
+    assert.equal(result.valid, true, 'valid should be true');
+    assert.deepEqual(result.errors, [], 'errors should be empty');
+    assert.equal(result.coverage, 'pass', 'coverage should be "pass"');
     assert.deepEqual(result.gaps, [], 'gaps should be empty');
   } finally {
     cleanup();
@@ -33,15 +38,16 @@ test('spec coverage passes on valid spec with full derivation chain', () => {
 });
 
 // ============================================================
-// Test 2: spec coverage --layer decisions checks decision-requirement traceability (exit 0 on valid)
+// Test 2: spec validate --layer decisions checks decision-requirement traceability
 // ============================================================
-test('spec coverage --layer decisions checks decision-requirement traceability', () => {
+test('spec validate --layer decisions checks decision-requirement traceability', () => {
   const { path, cleanup } = createTempSpec(loadFixture('coverage-valid.json'));
 
   try {
-    const { stdout, status } = runCli(['spec', 'coverage', path, '--layer', 'decisions', '--json']);
+    const { stdout, status } = runCli(['spec', 'validate', path, '--layer', 'decisions', '--json']);
     assert.equal(status, 0, `exit code should be 0, got: ${status}`);
     const result = JSON.parse(stdout);
+    assert.equal(result.valid, true, 'schema should be valid');
     assert.equal(result.coverage, 'pass', 'decisions layer should pass on valid spec');
     assert.ok(
       result.gaps.filter(g => g.layer === 'decisions').length === 0,
@@ -53,15 +59,16 @@ test('spec coverage --layer decisions checks decision-requirement traceability',
 });
 
 // ============================================================
-// Test 3: spec coverage --layer scenarios checks scenario coverage completeness (exit 0 on valid)
+// Test 3: spec validate --layer scenarios checks scenario coverage completeness
 // ============================================================
-test('spec coverage --layer scenarios checks scenario coverage completeness', () => {
+test('spec validate --layer scenarios checks scenario coverage completeness', () => {
   const { path, cleanup } = createTempSpec(loadFixture('coverage-valid.json'));
 
   try {
-    const { stdout, status } = runCli(['spec', 'coverage', path, '--layer', 'scenarios', '--json']);
+    const { stdout, status } = runCli(['spec', 'validate', path, '--layer', 'scenarios', '--json']);
     assert.equal(status, 0, `exit code should be 0, got: ${status}`);
     const result = JSON.parse(stdout);
+    assert.equal(result.valid, true, 'schema should be valid');
     assert.equal(result.coverage, 'pass', 'scenarios layer should pass on valid spec');
   } finally {
     cleanup();
@@ -69,17 +76,16 @@ test('spec coverage --layer scenarios checks scenario coverage completeness', ()
 });
 
 // ============================================================
-// Test 4: spec coverage detects uncovered decisions (decision not referenced by any requirement)
+// Test 4: spec validate detects uncovered decisions (coverage gaps on schema-valid spec)
 // ============================================================
-test('spec coverage detects uncovered decisions (decision not referenced by any requirement)', () => {
-  // Spec with decisions D1 and D2, but only R2 references D3 (non-existent).
-  // D3 does not exist, R1 has no ref, D1 and D2 are uncovered.
+test('spec validate detects uncovered decisions (coverage gap, schema valid)', () => {
   const { path, cleanup } = createTempSpec(loadFixture('coverage-missing-decision.json'));
 
   try {
-    const { stdout, status } = runCli(['spec', 'coverage', path, '--json'], { expectFail: true });
-    assert.notEqual(status, 0, 'exit code should be non-zero when decisions are uncovered');
+    const { stdout, status } = runCli(['spec', 'validate', path, '--json'], { expectFail: true });
+    assert.notEqual(status, 0, 'exit code should be non-zero when coverage gaps exist');
     const result = JSON.parse(stdout);
+    assert.equal(result.valid, true, 'schema should still be valid');
     assert.equal(result.coverage, 'fail', 'coverage should be "fail"');
     assert.ok(result.gaps.length > 0, 'gaps should be non-empty');
 
@@ -98,16 +104,16 @@ test('spec coverage detects uncovered decisions (decision not referenced by any 
 });
 
 // ============================================================
-// Test 5: spec coverage detects orphaned requirement references in tasks
+// Test 5: spec validate detects orphaned requirement references in tasks
 // ============================================================
-test('spec coverage detects orphaned scenario references in tasks', () => {
-  // R2 is defined in requirements but not referenced by any task fulfills[].
+test('spec validate detects orphaned requirement references in tasks', () => {
   const { path, cleanup } = createTempSpec(loadFixture('coverage-orphan-sub.json'));
 
   try {
-    const { stdout, status } = runCli(['spec', 'coverage', path, '--json'], { expectFail: true });
+    const { stdout, status } = runCli(['spec', 'validate', path, '--json'], { expectFail: true });
     assert.notEqual(status, 0, 'exit code should be non-zero when orphan requirements exist');
     const result = JSON.parse(stdout);
+    assert.equal(result.valid, true, 'schema should still be valid');
     assert.equal(result.coverage, 'fail', 'coverage should be "fail"');
 
     const orphanGaps = result.gaps.filter(g => g.check === 'orphan-requirement' || g.check === 'orphan-scenario');
@@ -116,6 +122,71 @@ test('spec coverage detects orphaned scenario references in tasks', () => {
       orphanGaps.some(g => g.message.includes('R2')),
       `orphan gap should mention R2, got: ${JSON.stringify(orphanGaps)}`,
     );
+  } finally {
+    cleanup();
+  }
+});
+
+// ============================================================
+// Test 6: spec validate --json returns unified output shape
+// ============================================================
+test('spec validate --json returns unified { valid, errors, coverage, gaps } shape', () => {
+  const { path, cleanup } = createTempSpec(loadFixture('coverage-valid.json'));
+
+  try {
+    const { stdout, status } = runCli(['spec', 'validate', path, '--json']);
+    assert.equal(status, 0);
+    const result = JSON.parse(stdout);
+    assert.ok('valid' in result, 'result should have valid field');
+    assert.ok('errors' in result, 'result should have errors field');
+    assert.ok('coverage' in result, 'result should have coverage field');
+    assert.ok('gaps' in result, 'result should have gaps field');
+  } finally {
+    cleanup();
+  }
+});
+
+// ============================================================
+// Test 7: spec validate schema failure skips coverage (coverage: null)
+// ============================================================
+test('spec validate schema failure skips coverage (coverage: null in --json)', () => {
+  const { path, cleanup } = createTempSpec({
+    meta: { name: 'test', goal: 'test goal' },
+    tasks: [
+      {
+        id: 'T1',
+        action: 'some task',
+        type: 'work',
+        status: 'INVALID_STATUS',
+      },
+    ],
+  });
+
+  try {
+    const { stdout, status } = runCli(['spec', 'validate', path, '--json'], { expectFail: true });
+    assert.notEqual(status, 0, 'exit code should be non-zero on schema failure');
+    const result = JSON.parse(stdout);
+    assert.equal(result.valid, false, 'valid should be false');
+    assert.ok(result.errors.length > 0, 'errors should be non-empty');
+    assert.equal(result.coverage, null, 'coverage should be null when schema fails');
+    assert.deepEqual(result.gaps, [], 'gaps should be empty when schema fails');
+  } finally {
+    cleanup();
+  }
+});
+
+// ============================================================
+// Test 8: spec coverage legacy alias still works
+// ============================================================
+test('spec coverage legacy alias still works', () => {
+  const { path, cleanup } = createTempSpec(loadFixture('coverage-valid.json'));
+
+  try {
+    const { stdout, status } = runCli(['spec', 'coverage', path, '--json']);
+    assert.equal(status, 0, `exit code should be 0, got: ${status}`);
+    const result = JSON.parse(stdout);
+    assert.equal(result.coverage, 'pass', 'coverage should be "pass"');
+    assert.deepEqual(result.gaps, [], 'gaps should be empty');
   } finally {
     cleanup();
   }

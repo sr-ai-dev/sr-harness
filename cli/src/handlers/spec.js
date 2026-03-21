@@ -16,14 +16,14 @@ Usage:
   hoyeon-cli spec merge <path> --json '{...}'       Deep-merge a JSON fragment into spec.json
                                                     --append: concatenate arrays
                                                     --patch:  ID-based merge (match by id, update in place)
-  hoyeon-cli spec validate <path>                   Validate a spec.json file against the schema
+  hoyeon-cli spec validate <path> [--layer decisions|requirements|scenarios|tasks] [--json]  Schema validation + coverage checks
   hoyeon-cli spec plan <path> [--format text|mermaid|json]  Show execution plan with parallel groups
   hoyeon-cli spec task <task-id> --status <status> [--summary "..."] <path>  Update task status
   hoyeon-cli spec task <task-id> --get <path>                               Get task details as JSON
   hoyeon-cli spec status <path>                     Show task completion status (exit 0=done, 1=incomplete)
   hoyeon-cli spec meta <path>                       Show spec meta (name, goal, non_goals, mode, etc.)
   hoyeon-cli spec check <path>                      Check internal consistency
-  hoyeon-cli spec coverage <path> [--layer decisions|requirements|tasks] [--json]  Check spec coverage (source.ref, decision coverage, requirement coverage, orphan detection)
+  hoyeon-cli spec coverage <path> [--layer ...] [--json]  (deprecated — use spec validate)
   hoyeon-cli spec amend --reason <feedback-id> --spec <path>  Amend spec.json based on feedback
   hoyeon-cli spec guide [section]                             Show schema guide for a section
   hoyeon-cli spec sub <sub-req-id> --get <path>                    Get sub-requirement details as JSON
@@ -44,6 +44,7 @@ Examples:
   hoyeon-cli spec init api-auth --goal "Add JWT auth" .dev/specs/api-auth/spec.json
   hoyeon-cli spec merge .dev/specs/api-auth/spec.json --json '{"context":{"request":"Add auth"}}'
   hoyeon-cli spec validate ./spec.json
+  hoyeon-cli spec validate ./spec.json --layer decisions --json
   hoyeon-cli spec plan ./spec.json
   hoyeon-cli spec task T1 --status done --summary "implemented" ./spec.json
   hoyeon-cli spec task T1 --get ./spec.json
@@ -343,17 +344,26 @@ async function handleMerge(args) {
 }
 
 async function handleValidate(args) {
-  const filePath = args[0];
+  const parsed = parseArgs(args);
+  const filePath = parsed._[0];
 
   if (!filePath) {
     process.stderr.write('Error: missing <path> argument\n');
-    process.stderr.write('Usage: hoyeon-cli spec validate <path>\n');
+    process.stderr.write('Usage: hoyeon-cli spec validate <path> [--layer decisions|requirements|scenarios|tasks] [--json]\n');
     process.exit(1);
   }
 
+  const layer = parsed.layer;
+  if (layer !== undefined && !VALID_COVERAGE_LAYERS.includes(layer)) {
+    process.stderr.write(`Error: invalid --layer '${layer}'. Valid values: ${VALID_COVERAGE_LAYERS.join(', ')}\n`);
+    process.exit(1);
+  }
+
+  const useJson = parsed.json === true;
+
   let data;
   try {
-    const raw = readFileSync(filePath, 'utf8');
+    const raw = readFileSync(resolve(filePath), 'utf8');
     data = JSON.parse(raw);
   } catch (err) {
     if (err.code === 'ENOENT') {
@@ -366,6 +376,7 @@ async function handleValidate(args) {
     process.exit(1);
   }
 
+  // --- Phase 1: Schema validation ---
   let schema;
   try {
     schema = loadSchema(data);
@@ -380,10 +391,7 @@ async function handleValidate(args) {
   const validate = ajv.compile(schema);
   const valid = validate(data);
 
-  if (valid) {
-    process.stdout.write(JSON.stringify({ valid: true, errors: [] }) + '\n');
-    process.exit(0);
-  } else {
+  if (!valid) {
     const errors = validate.errors.map((e) => ({
       instancePath: e.instancePath,
       schemaPath: e.schemaPath,
@@ -392,7 +400,11 @@ async function handleValidate(args) {
       params: e.params,
     }));
 
-    process.stdout.write(JSON.stringify({ valid: false, errors }) + '\n');
+    if (useJson) {
+      process.stdout.write(JSON.stringify({ valid: false, errors, coverage: null, gaps: [] }) + '\n');
+    } else {
+      process.stdout.write(JSON.stringify({ valid: false, errors }) + '\n');
+    }
     process.stderr.write('Validation failed:\n');
     for (const e of validate.errors) {
       const path = e.instancePath || '(root)';
@@ -401,6 +413,31 @@ async function handleValidate(args) {
     printGuideHints(validate.errors);
     process.exit(1);
   }
+
+  // --- Phase 2: Coverage checks (only if schema is valid) ---
+  const gaps = runCoverageChecks(data, layer);
+
+  if (useJson) {
+    const result = {
+      valid: true,
+      errors: [],
+      coverage: gaps.length === 0 ? 'pass' : 'fail',
+      gaps,
+    };
+    process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    process.exit(gaps.length === 0 ? 0 : 1);
+  }
+
+  if (gaps.length > 0) {
+    process.stderr.write('Schema valid. Coverage gaps found:\n');
+    for (const gap of gaps) {
+      process.stderr.write(`  [${gap.layer}/${gap.check}] ${gap.message}\n`);
+    }
+    process.exit(1);
+  }
+
+  process.stdout.write('Schema valid. Coverage passed.\n');
+  process.exit(0);
 }
 
 function loadSpec(filePath) {
@@ -1109,30 +1146,14 @@ function collectScenarioSets(specData) {
 const VALID_COVERAGE_LAYERS = ['decisions', 'requirements', 'scenarios', 'tasks'];
 
 /**
- * Implement spec coverage checks.
- * Checks: source.ref integrity, decision coverage, scenario min count (HP+EP+BC), orphan scenarios.
- * Reuses collectScenarioSets() helper (C2).
+ * Run coverage checks on parsed spec data.
+ * Returns array of gap objects. Pure function (no I/O, no process.exit).
  *
- * @param {string[]} args
+ * @param {object} specData - parsed spec JSON
+ * @param {string|undefined} layer - optional layer filter
+ * @returns {Array<{layer: string, check: string, message: string}>}
  */
-async function handleCoverage(args) {
-  const parsed = parseArgs(args);
-  const filePath = parsed._[0];
-
-  if (!filePath) {
-    process.stderr.write('Error: missing <path> argument\n');
-    process.stderr.write('Usage: hoyeon-cli spec coverage <path> [--layer decisions|requirements|scenarios|tasks] [--json]\n');
-    process.exit(1);
-  }
-
-  const layer = parsed.layer;
-  if (layer !== undefined && !VALID_COVERAGE_LAYERS.includes(layer)) {
-    process.stderr.write(`Error: invalid --layer '${layer}'. Valid values: ${VALID_COVERAGE_LAYERS.join(', ')}\n`);
-    process.exit(1);
-  }
-
-  const useJson = parsed.json === true;
-  const specData = loadSpec(resolve(filePath));
+function runCoverageChecks(specData, layer) {
   const gaps = [];
 
   const decisions = specData.context?.decisions || specData.decisions || [];
@@ -1147,8 +1168,6 @@ async function handleCoverage(args) {
   const runTasks = !layer || layer === 'tasks';
 
   // --- Check 1: source.ref integrity (decisions layer) ---
-  // When decisions exist, each requirement's source.ref must point to a real decision ID.
-  // When decisions exist, requirements without source.ref are also flagged.
   if (runDecisions && decisionIds.size > 0) {
     for (const req of requirements) {
       const ref = req.source?.ref;
@@ -1169,7 +1188,6 @@ async function handleCoverage(args) {
   }
 
   // --- Check 2: decision coverage (decisions layer) ---
-  // Every decision must be referenced by at least one requirement source.ref.
   if (runDecisions && decisionIds.size > 0 && requirements.length > 0) {
     const coveredDecisionIds = new Set();
     for (const req of requirements) {
@@ -1188,8 +1206,6 @@ async function handleCoverage(args) {
   }
 
   // --- Check 3: sub-requirement coverage (requirements layer) ---
-  // v6: every requirement must have sub.length >= 1
-  // v5: scenario min count (HP+EP+BC or ≥3 count-only) — preserved for backward compat
   if (runRequirements) {
     if (isV6) {
       for (const req of requirements) {
@@ -1203,7 +1219,6 @@ async function handleCoverage(args) {
         }
       }
     } else {
-      // v5: scenario min count (HP+EP+BC or ≥3 scenarios)
       for (const req of requirements) {
         const scenarios = req.scenarios || [];
         const anyHasCategory = scenarios.some(sc => sc.category !== undefined);
@@ -1235,10 +1250,6 @@ async function handleCoverage(args) {
   }
 
   // --- Check 4: orphan detection (requirements or scenarios layer) ---
-  // Reuses collectScenarioSets() helper (C2).
-  // Only runs when runTasks is true — orphan detection requires tasks to exist.
-  // v6: every requirement ID must be referenced by at least one task.fulfills[].
-  // v5: every scenario ID must be referenced by at least one task AC.scenarios[].
   const orphanLayer = isV6 ? 'requirements' : 'scenarios';
   const orphanCheck = isV6 ? 'orphan-requirement' : 'orphan-scenario';
   const runOrphanCheck = isV6 ? (runRequirements && runTasks) : (runScenarios && runTasks);
@@ -1251,7 +1262,6 @@ async function handleCoverage(args) {
     if (allScenarioIds.size > 0 && tasksWithFulfills.length > 0) {
       for (const id of allScenarioIds) {
         if (!referencedScenarioIds.has(id)) {
-          const label = isV6 ? 'requirement' : 'scenario';
           gaps.push({
             layer: orphanLayer,
             check: orphanCheck,
@@ -1262,7 +1272,34 @@ async function handleCoverage(args) {
     }
   }
 
-  // --- Output ---
+  return gaps;
+}
+
+/**
+ * Legacy alias: `spec coverage` now delegates to `spec validate`.
+ * Kept for backward compatibility — runs coverage checks only (no schema validation).
+ */
+async function handleCoverage(args) {
+  const parsed = parseArgs(args);
+  const filePath = parsed._[0];
+
+  if (!filePath) {
+    process.stderr.write('Error: missing <path> argument\n');
+    process.stderr.write('Usage: hoyeon-cli spec validate <path> [--layer decisions|requirements|scenarios|tasks] [--json]\n');
+    process.stderr.write('Note: "spec coverage" is deprecated — use "spec validate" instead.\n');
+    process.exit(1);
+  }
+
+  const layer = parsed.layer;
+  if (layer !== undefined && !VALID_COVERAGE_LAYERS.includes(layer)) {
+    process.stderr.write(`Error: invalid --layer '${layer}'. Valid values: ${VALID_COVERAGE_LAYERS.join(', ')}\n`);
+    process.exit(1);
+  }
+
+  const useJson = parsed.json === true;
+  const specData = loadSpec(resolve(filePath));
+  const gaps = runCoverageChecks(specData, layer);
+
   if (useJson) {
     const result = {
       coverage: gaps.length === 0 ? 'pass' : 'fail',

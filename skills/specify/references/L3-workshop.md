@@ -1,13 +1,34 @@
 ## L3: Requirements + Sub-requirements
 
-**Who**: Orchestrator (default) OR L3-user-advocate + L3-requirement-writer + L3-devil's-advocate (with `--workshop`)
+**Who**: L3-user-advocate + L3-requirement-writer + L3-devil's-advocate (default for 3+ decisions) OR Orchestrator alone (≤2 decisions or `--no-workshop`)
 **Input**: goal + decisions + provisional requirements (as seed)
 **Output**: `requirements[]` with source fields + `sub[]` (sub-requirements per requirement)
 **Merge**: `spec merge requirements` (atomic, with sub[])
-**Gate**: `spec coverage --layer requirements` + gate-keeper via SendMessage
+**Gate**: `spec validate --layer requirements` + gate-keeper via SendMessage
 **Backtracking**: If decision gap found → AskUserQuestion → spec merge decisions (L2) → re-run L3
 
-### Default Flow (without --workshop)
+### Sandbox Capability Check (before derivation)
+
+Before deriving requirements, check if `context.sandbox_capability` is set in spec.json.
+If NOT set → Read `references/sandbox-guide.md` and follow its Phase A (auto-detect) → Phase B (user prompt if needed).
+This determines the verify field type for all sub-requirements (command vs assertion vs instruction).
+
+**MUST complete before any sub-requirement derivation begins.**
+
+### Workshop Scope Check (before L3 begins)
+
+After L2 gate passes, count `context.decisions[]` in the current spec.json:
+
+| Condition | Result |
+|-----------|--------|
+| `decisions.length <= 2` | **Skip workshop** — orchestrator derives directly (Default Flow below) |
+| `decisions.length >= 3` | **Run workshop** (default) |
+| `--no-workshop` flag | **Skip workshop** regardless of decision count |
+| `--workshop` flag | **Force workshop** regardless of decision count |
+
+> Log the decision: "Workshop {enabled|skipped}: {N} decisions, flag={flag}"
+
+### Default Flow (without workshop — when ≤2 decisions or --no-workshop)
 
 Orchestrator derives requirements and sub-requirements directly from goal + decisions.
 
@@ -63,7 +84,7 @@ Verify is REQUIRED for all sub-requirements. Select type based on capability:
 
 Skip to "Merge requirements" after deriving. No SendMessage to L3 agents, no workshop.
 
-### 3-Agent Requirements Workshop (with --workshop flag) — Collaborative Communication
+### 3-Agent Requirements Workshop (default for 3+ decisions) — Collaborative Communication
 
 Three L3 teammates (L3-user-advocate, L3-requirement-writer, L3-devil's-advocate) are **activated simultaneously** and collaborate freely via SendMessage. The orchestrator sends all 3 initial prompts **in a single message**, then monitors for convergence.
 
@@ -505,7 +526,7 @@ Then auto-generate the missing requirements/sub-requirements as proposals — **
 ### L3 Gate
 
 ```bash
-hoyeon-cli spec coverage .dev/specs/{name}/spec.json
+hoyeon-cli spec validate .dev/specs/{name}/spec.json
 ```
 
 Then call gate-keeper via SendMessage with requirements + sub-requirement summary.

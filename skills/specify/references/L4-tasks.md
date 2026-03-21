@@ -3,7 +3,7 @@
 **Who**: Orchestrator
 **Output**: `tasks[]` with `fulfills[]` referencing requirement IDs and `acceptance_criteria.checks[]`
 **Merge**: `spec merge tasks`
-**Gate**: `spec coverage --layer tasks` + gate-keeper via SendMessage
+**Gate**: `spec validate --layer tasks` + gate-keeper via SendMessage
 
 ### Task Structure Guidelines
 
@@ -165,7 +165,7 @@ If merge fails → follow Merge Failure Recovery (SKILL.md).
 ### L4 Gate
 
 ```bash
-hoyeon-cli spec coverage .dev/specs/{name}/spec.json --layer tasks
+hoyeon-cli spec validate .dev/specs/{name}/spec.json --layer tasks
 ```
 
 Then call gate-keeper via SendMessage with tasks + sub-requirement coverage summary + external dependencies + **L4-specific review checklist**:

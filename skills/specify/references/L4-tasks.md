@@ -105,7 +105,7 @@ hoyeon-cli spec validate .dev/specs/{name}/spec.json
 
 If merge fails → follow Merge Failure Recovery (SKILL.md). Do NOT proceed to L4.5 with a broken merge.
 
-> Requirements and sub-requirements were confirmed in L3 (by orchestrator directly or via the 3-agent workshop). Do NOT merge requirements again here.
+> Requirements and sub-requirements were confirmed in L3 (via Task-based derive+review pipeline). Do NOT merge requirements again here.
 
 ### L4.5: External Dependencies Derivation (non-interactive)
 

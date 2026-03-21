@@ -7,7 +7,7 @@ description: |
   Each layer is validated by CLI (schema + coverage) and a gate-keeper agent (drift/gap detection).
   Output: a machine-executable spec.json ready for /execute.
   Modes: interactive (default, asks user at each gate) or --autopilot (autonomous).
-  Workshop mode (3-agent L3) is on by default; auto-skipped for small scope (≤2 decisions) or via --no-workshop.
+  L3 uses Task-based derive+review pipeline (no TeamCreate workshop).
   Use when: "/specify", "specify", "plan this", "계획 짜줘", "스펙 만들어줘"
 allowed-tools:
   - Read
@@ -59,7 +59,6 @@ These principles guide reference file design. They do NOT override the core laye
 
 | Flag | Effect | Default |
 |------|--------|---------|
-| `--no-workshop` | Disable 3-agent L3 workshop, orchestrator derives sub-requirements directly | On by default (auto-skipped if ≤2 L2 decisions) |
 | `--autopilot` | `{interaction}` = autopilot | `{interaction}` = interactive |
 | `--interactive` | `{interaction}` = interactive | (default) |
 
@@ -187,7 +186,7 @@ hoyeon-cli session set --sid $SESSION_ID --spec ".dev/specs/{name}/spec.json"
 
 ### Team Mode Setup
 
-After spec init, spawn the team. The team size depends on whether `--workshop` is used.
+After spec init, spawn the team.
 
 ```
 TeamCreate("specify-session")
@@ -198,24 +197,13 @@ TeamCreate("specify-session")
 | Name | Role | Active During | Spawn Prompt Focus | Required |
 |------|------|---------------|--------------------|----------|
 | **gate-keeper** | Layer-transition reviewer | L2~L4 gate | Check for DRIFT, GAP, CONFLICT, BACKTRACK + information sufficiency (EXTERNAL_REF_UNVERIFIED, CODEBASE_CLAIM_UNVERIFIED, ASSUMPTION_LOAD). Return PASS or REVIEW_NEEDED with numbered items. Read-only: use Read, Grep, Glob only. Do NOT write files, run Bash, or create Tasks. | Always |
-| **L3-user-advocate** | User journey mapper + priority judge | L3 (workshop) | From decisions, derive user personas and their journeys. For every screen/feature, enumerate ALL reachability paths. Judge gap severity from user perspective. | Default on (skipped if ≤2 decisions or --no-workshop) |
-| **L3-requirement-writer** | Requirements + sub-requirements author | L3 (workshop) | Receive user journeys from L3-user-advocate. Structure into formal Requirements + Sub-requirements. Output structured JSON with requirements[] and sub[]. | Default on (skipped if ≤2 decisions or --no-workshop) |
-| **L3-devil's-advocate** | Adversarial completeness tester | L3 (workshop) | Attack requirements: find missing paths, contradictions, impossible assumptions. Return PASS or GAPS with specific issues. | Default on (skipped if ≤2 decisions or --no-workshop) |
 
-> All teammates are general-purpose agents. Specialization is defined entirely through spawn prompts.
-> L3 agents are idle during L0~L2 and L4. Pre-spawned because TeamCreate can only be called once. If workshop is skipped (≤2 decisions or --no-workshop), only gate-keeper is spawned.
+> gate-keeper is the only teammate. L3 derivation and review are handled via Task subagents (not TeamCreate members).
 
-**Teammate lifecycle (without workshop — when ≤2 decisions or --no-workshop):**
+**Teammate lifecycle:**
 - L0~L1: gate-keeper idle (L0 uses mirror confirmation, L1 auto-advances after merge)
 - L2: gate-keeper active
-- L3: gate-keeper active; orchestrator derives sub-requirements directly (no L3 agents)
-- L4: gate-keeper only
-
-**Teammate lifecycle (with workshop — default for 3+ decisions):**
-- L0~L1: all teammates idle (L0 uses mirror confirmation, L1 auto-advances after merge)
-- L2: gate-keeper active, L3 agents idle
-- L3: all 4 active
-- L3 complete → shutdown L3 agents via `SendMessage(to="L3-user-advocate", message={type: "shutdown_request"})` (repeat for L3-requirement-writer and L3-devil's-advocate). Gate-keeper excluded.
+- L3: gate-keeper active at gate; Task(L3-deriver) + Task(L3-reviewer) handle derivation and review
 - L4: gate-keeper only
 
 **gate-keeper return contract:**
@@ -318,7 +306,7 @@ Execute layers sequentially. Read each layer's reference file just-in-time.
 |-------|-------------|------|
 | L0+L1 | After session init | `Read: ${baseDir}/references/L0-L1-context.md` |
 | L2 | After L1 completes | `Read: ${baseDir}/references/L2-decisions.md` |
-| L3 | After L2 gate passes | `Read: ${baseDir}/references/L3-workshop.md` |
+| L3 | After L2 gate passes | `Read: ${baseDir}/references/L3-requirements.md` |
 | L4 | After L3 gate passes | `Read: ${baseDir}/references/L4-tasks.md` |
 
 At each layer:
@@ -351,9 +339,6 @@ At each layer:
 - **confirmed_goal in context** — NEVER move `confirmed_goal` to `meta`
 - **gate-keeper** — teammate spawned via TeamCreate, role defined by spawn prompt (not a custom agent file)
 - **Team mode members** — disallowed-tools MUST include Task and Skill
-- **L3-user-advocate** — teammate for user journey mapping + gap severity judgment (default on, skipped if ≤2 decisions or `--no-workshop`; spawned at session start, active during L3, shutdown after L3)
-- **L3-requirement-writer** — teammate for requirements + sub-requirements structuring from journeys (default on, skipped if ≤2 decisions or `--no-workshop`; spawned at session start, active during L3, shutdown after L3)
-- **L3-devil's-advocate** — teammate for adversarial completeness testing + research requests (default on, skipped if ≤2 decisions or `--no-workshop`; spawned at session start, active during L3, shutdown after L3)
 - **Team mode members** — disallowed-tools MUST include Task and Skill (C3)
 
 ---
@@ -384,11 +369,6 @@ At each layer:
 - [ ] `constraints` populated (L2.7 — merge empty array explicitly if none apply)
 - [ ] `external_dependencies` populated (L4.5 — merge empty pre_work/post_work explicitly if none apply)
 - [ ] `spec validate` coverage passes (full + per-layer at each transition)
-
-### With workshop (default for 3+ decisions, additional)
-- [ ] TeamCreate called with 4 teammates: gate-keeper, L3-user-advocate, L3-requirement-writer, L3-devil's-advocate
-- [ ] L3 workshop ran (L3-user-advocate → L3-requirement-writer → L3-devil's-advocate, max 3 cycles)
-- [ ] L3 agents shutdown after L3 merge (gate-keeper excluded)
 
 ### Interactive mode (additional)
 - [ ] User explicitly triggered plan generation ("proceed to planning") — not auto-transitioned

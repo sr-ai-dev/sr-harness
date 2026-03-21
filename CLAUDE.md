@@ -121,7 +121,15 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v1.3.0)
+## Recent Changes (v1.3.1)
+
+- refactor(specify): replace 3-agent L3 workshop with Task-based derive+review pipeline
+  - Remove L3-user-advocate, L3-requirement-writer, L3-devil's-advocate from TeamCreate
+  - L3 now uses Task(L3-deriver) + Task(L3-reviewer) with max 3 reviewer cycles
+  - Remove --workshop/--no-workshop flags (single path for all decision counts)
+  - Rename L3-workshop.md → L3-requirements.md
+
+## Previous Changes (v1.3.0)
 
 - feat(schema): v6 schema — replace scenarios with sub-requirements (id, behavior, optional verify)
 - refactor(specify): single mode (no quick/standard), --workshop flag for optional 3-agent L3

@@ -315,7 +315,7 @@ At each layer:
 - **verify abstraction** — verify fields must describe observable behavior (API contracts, input/output relations), NOT implementation details (file paths, function names, code patterns). Self-check: "If implementation files were renamed, would this verify still hold?"
 - **Every task needs must_not_do** — at minimum `["Do not run git commands"]`
 - **Every task needs acceptance_criteria** — `checks` (runnable commands). Behavior verification via `fulfills[]` (requirement ID refs)
-- **Requirements = single source of truth** — all verification lives in `requirements[].sub[]` with optional `verify` fields
+- **Requirements = single source of truth** — all verification lives in `requirements[].sub[]` with required `verify` fields (type adapts to sandbox capability: command/assertion/instruction)
 - **Incremental merge** — merge after every layer and every user response; do not batch
 - **confirmed_goal in context** — NEVER move `confirmed_goal` to `meta`
 - **gate-keeper** — teammate spawned via TeamCreate, role defined by spawn prompt (not a custom agent file)

@@ -17,13 +17,11 @@ You receive a `verify_plan` (JSON array) in your task description. Each entry ha
 - `env` — execution environment (`host` or `sandbox`)
 - Method-specific fields (see below)
 
-## Verification Paths
+## Verification
 
-### Path A: Sub-requirement has a `verify` field
+Every sub-requirement has a `verify` field. Route by `verify.type`:
 
-Execute it mechanically:
-
-#### method: "machine"
+#### type: "command" (method: "machine")
 - Run the command in the `run` field using Bash
 - Check the result against the `expect` object:
   - `exit_code` — verify the process exit code matches
@@ -31,29 +29,19 @@ Execute it mechanically:
   - `stdout_not_contains` — verify string does NOT appear in stdout
 - Record PASS if all expect conditions are satisfied, FAIL if any are not
 
-#### method: "agent"
+#### type: "assertion" (method: "agent")
 - Read the relevant source code files independently (do not trust Worker claims)
 - Assess each item in the `checks[]` array
 - Each check must be conclusively true or false — no approximations
 - Record PASS only if ALL checks are confirmed true; otherwise FAIL
 
-#### method: "sandbox"
-- A concrete recipe with step-by-step commands is provided in `recipe`
-- Execute each command in the recipe exactly as written
-- DO NOT skip steps, DO NOT approximate, DO NOT fall back to code review
-- Record PASS only if all recipe steps succeed and the expected outcome is confirmed
-
-#### method: "human"
-- Skip execution — this sub-requirement requires human review
-- Record as `pending`
-
-### Path B: Sub-requirement has no `verify` field
-
-- Read the requirement's `behavior` field to understand the expected behavior
-- Read the relevant code diff or source files independently
-- Assert whether the implemented behavior matches the stated behavior
-- Record PASS if the behavior is concretely satisfied, FAIL otherwise
-- Provide a code-level evidence citation (file + line) in `evidence`
+#### type: "instruction" (method: "sandbox" or "human")
+- For `sandbox`: a concrete recipe with step-by-step commands is provided in `recipe`
+  - Execute each command in the recipe exactly as written
+  - DO NOT skip steps, DO NOT approximate, DO NOT fall back to code review
+  - Record PASS only if all recipe steps succeed and the expected outcome is confirmed
+- For `human`: skip execution — this sub-requirement requires human review
+  - Record as `pending`
 
 ## Recording Results
 

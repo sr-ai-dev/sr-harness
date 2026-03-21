@@ -56,8 +56,10 @@ GOOD: "After config.yaml timeout changed from 30→60, GET /config returns timeo
 
 #### Verify Writer Heuristic
 
-- If behavior describes an **observable output** (API response, CLI exit code, file existence) → include `verify` field
-- If behavior requires **subjective judgment** (UI appearance, UX feel) → behavior text only, no verify
+Verify is REQUIRED for all sub-requirements. Select type based on capability:
+- Observable output + sandbox available → `{type: "command", run: "...", expect: {...}}`
+- Observable output + no sandbox → `{type: "assertion", checks: [...]}`
+- Subjective judgment (any capability) → `{type: "instruction", ask: "..."}`
 
 Skip to "Merge requirements" after deriving. No SendMessage to L3 agents, no workshop.
 
@@ -200,13 +202,14 @@ Examples — BAD vs GOOD:
 Each sub-requirement MUST include:
 - id: {req_id}.{n} (e.g., R1.1, R1.2)
 - behavior: concrete, observable behavior statement (must pass quality rules above)
-- verify: (optional) object describing how to verify — `{type: 'command'|'assertion'|'manual', run?: '...', checks?: [...], ask?: '...'}`
+- verify: (required) object describing how to verify — `{type: 'command'|'assertion'|'instruction', run?: '...', checks?: [...], ask?: '...'}`
 
 ### Verify Writer Heuristic
 
-When to include verify:
-- Behavior describes observable output (API response, CLI exit code, file) → INCLUDE verify
-- Behavior requires subjective judgment (UI feel, UX flow) → behavior only, NO verify
+Verify is REQUIRED for all sub-requirements. Select type based on capability:
+- Observable output + sandbox available → `{type: "command", run: "...", expect: {...}}`
+- Observable output + no sandbox → `{type: "assertion", checks: [...]}`
+- Subjective judgment (any capability) → `{type: "instruction", ask: "..."}`
 
 ### verify Abstraction Rules (MANDATORY)
 

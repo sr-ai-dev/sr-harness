@@ -76,8 +76,10 @@ CHARTER_CHECK:
 1. `fulfills[]` → `requirements[].sub[]` — behavior verification
    - Look up each requirement ID in `fulfills[]`
    - For each requirement, iterate its `sub[]` array
-   - If sub-requirement has `verify` field → run the verify command/assertion
-   - If sub-requirement has no `verify` field → assert the behavior is satisfied by reading the code
+   - Execute the `verify` field for every sub-requirement — route by `verify.type`:
+     - `command` → run `verify.run` in Bash and check exit code / stdout
+     - `assertion` → check `verify.checks[]` items by reading source code
+     - `instruction` → follow the `verify.ask` instruction; mark as manual review if human action required
 
 2. `acceptance_criteria.checks[]` — automated checks (static/build/lint/format)
    - Run each check's `run` command and verify exit code 0
@@ -114,14 +116,12 @@ When work is complete, **always** report in the following JSON format:
     {
       "id": "R1.1",
       "behavior": "Auth middleware rejects unauthenticated requests",
-      "has_verify": true,
       "command": "npm test -- auth.test.ts",
       "status": "PASS"
     },
     {
       "id": "R1.2",
       "behavior": "Middleware reads JWT from Authorization header",
-      "has_verify": false,
       "status": "PASS",
       "detail": "src/auth/middleware.ts line 12 reads req.headers.authorization"
     }
@@ -156,10 +156,9 @@ When work is complete, **always** report in the following JSON format:
 |-------|----------|-------------|
 | `id` | ✅ | Sub-requirement ID from `requirements[].sub[].id` |
 | `behavior` | ✅ | Sub-requirement behavior text |
-| `has_verify` | ✅ | `true` if sub-requirement has a verify field |
-| `command` | ✅ (has_verify) | Command executed for sub-requirements with verify |
+| `command` | ✅ (command type) | Command executed for `verify.type: command` sub-requirements |
 | `status` | ✅ | `PASS` / `FAIL` / `SKIP` |
-| `detail` | ❌ | Evidence for behavior assertion or reason for FAIL/SKIP |
+| `detail` | ❌ | Evidence for assertion or reason for FAIL/SKIP |
 
 **acceptance_criteria.checks item structure:**
 

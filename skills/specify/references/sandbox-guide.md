@@ -5,7 +5,7 @@ The main agent reads this file and follows the steps inline.
 
 ## When to Trigger
 
-- **Primary**: Before L3 derivation begins — determines whether sub-requirements should include verify fields targeting sandbox environments
+- **Primary**: Before L3 derivation begins — determines the TYPE of verify fields (command if sandbox available, assertion/instruction otherwise)
 - **Safety net**: If `context.sandbox_capability` is not set when sub-requirements with sandbox verify fields are generated
 - Condition: `context.sandbox_capability` is NOT set in spec.json
 

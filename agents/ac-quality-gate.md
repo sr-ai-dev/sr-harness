@@ -34,7 +34,11 @@ For each `requirements[]`:
 - Sub-requirement IDs follow `R{n}.{m}` format (e.g., R1.1, R1.2, R2.1)
 - No duplicate sub-requirement IDs across all requirements
 
-### Structural Validity — Sub-requirements with `verify` field (machine-verifiable)
+### Structural Validity — All sub-requirements MUST have a `verify` field
+
+Every sub-requirement must have a `verify` field. Validate by `verify.type`:
+
+**type: `command`**
 
 | Check | PASS | FAIL |
 |-------|------|------|
@@ -42,17 +46,22 @@ For each `requirements[]`:
 | `verify.expect` has concrete value | `{ exit_code: 0 }` | empty, `should work` |
 | Command references real tool/script | `npx tsc --noEmit` | `run the checker` |
 
-### Semantic Quality — Sub-requirements without `verify` field (agent-verifiable)
-
-Sub-requirements without a `verify` field are verified by agent assertion (reading code and behavior).
+**type: `assertion`**
 
 | Check | PASS | FAIL |
 |-------|------|------|
-| `behavior` is **falsifiable** | `All public functions have JSDoc with @param and @returns` | `code is correct` |
-| `behavior` is specific to the requirement | `Error responses include HTTP status + message field` | `API works well` |
+| `verify.checks[]` items are **falsifiable** | `All public functions have JSDoc with @param and @returns` | `code is correct` |
+| Each check is specific and code-readable | `Error responses include HTTP status + message field` | `API works well` |
 | Could be proven wrong by reading code | `No function exceeds 50 lines` | `code quality is good` |
 
-**Falsifiability test**: Can you imagine code that would FAIL this behavior assertion? If not, the behavior is too vague.
+**type: `instruction`**
+
+| Check | PASS | FAIL |
+|-------|------|------|
+| `verify.ask` is actionable | `Open /login in browser, submit empty form, verify red error appears` | `check it looks right` |
+| Steps are concrete and unambiguous | `Run docker-compose up and curl localhost:3000/health` | `test manually` |
+
+**Falsifiability test** (for assertion type): Can you imagine code that would FAIL this check? If not, it is too vague.
 
 ### Task-Level ACs (`tasks[].acceptance_criteria`)
 
@@ -97,15 +106,15 @@ Output EXACTLY this JSON after your pass:
     {
       "id": "R1.1",
       "type": "sub_requirement",
-      "has_verify": false,
-      "check": "falsifiable_behavior",
+      "verify_type": "assertion",
+      "check": "falsifiable_checks",
       "verdict": "PASS",
-      "detail": "behavior is specific and agent-assertable"
+      "detail": "checks[] items are specific and code-assertable"
     },
     {
       "id": "R2.3",
       "type": "sub_requirement",
-      "has_verify": true,
+      "verify_type": "command",
       "check": "executable_command",
       "verdict": "FAIL",
       "detail": "verify.run: 'check it works' is not executable",
@@ -127,7 +136,7 @@ Output EXACTLY this JSON after your pass:
 - `status`: `PASS` if `failed == 0` after fixes, `FAIL` if any items couldn't be fixed
 - `remaining_failures`: items that could not be auto-fixed (e.g., requires domain knowledge from user)
 - `fix_applied`: only present when a fix was made
-- `has_verify`: `true` if sub-requirement has a `verify` field, `false` if agent-verifiable
+- `verify_type`: the `verify.type` value (`command`, `assertion`, or `instruction`)
 
 ## What NOT to Do
 
@@ -137,4 +146,4 @@ Output EXACTLY this JSON after your pass:
 - Do NOT modify task DAG, dependencies, or scope
 - Do NOT run git commands
 - Do NOT enforce HP/EP/BC category coverage — sub-requirements replace scenario categories
-- Do NOT check `verified_by` enum — sub-requirements use presence/absence of `verify` field instead
+- Do NOT check `verified_by` enum — sub-requirements use `verify.type` to determine verification method

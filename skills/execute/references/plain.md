@@ -24,17 +24,16 @@ FOR EACH task in plan (flattened):
   task_verify_plan = task.verify_plan  # from formatSlim output
 
   IF task_verify_plan.length > 0:
-    # Collect sandbox recipes to inline
+    # Collect sandbox recipe file paths (verifier reads them on demand — saves prompt tokens)
     sandbox_subjects = unique(task_verify_plan.filter(e => e.env == "sandbox").map(e => e.subject))
-    sandbox_recipes = ""
+    sandbox_recipe_paths = ""
     FOR EACH subject in sandbox_subjects:
-      recipe_content = Read("${baseDir}/references/verify-recipes/{subject}.md")
-      sandbox_recipes += "### Recipe: {subject}\n{recipe_content}\n\n"
+      sandbox_recipe_paths += "- {subject}: `${baseDir}/references/verify-recipes/{subject}.md`\n"
 
     verify_description[task.id] = VERIFIER_DESCRIPTION(
       task.id,
       JSON.stringify(task_verify_plan, null, 2),
-      sandbox_recipes || "None — no sandbox scenarios for this task."
+      sandbox_recipe_paths || "None — no sandbox scenarios for this task."
     )
 
 # ═══════════════════════════════════════════════════

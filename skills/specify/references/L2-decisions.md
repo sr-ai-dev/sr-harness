@@ -61,7 +61,8 @@ Ask about **behavior**, not technology. Frame every question as a concrete situa
 - **Scenario format**: Present a concrete situation → ask what should happen
 - **Adaptive framing**: Match vocabulary to user's expertise (detected from L1 context and prior answers)
 - User can **skip** any question ("Agent decides") — but track skip rate as friction signal
-- **Internal completeness checklist** (invisible to user): scope boundaries, error/edge cases, data model, auth/permissions, performance constraints, UX behavior. Ensure coverage across rounds.
+- **Internal completeness checklist** (invisible to user): scope boundaries, error/edge cases, data model, auth/permissions, performance constraints, UX behavior, builder preferences (tech stack). Ensure coverage across rounds.
+  - **Builder preferences**: When L1 detects a new project (no existing codebase), this category is unresolved. Generate scenario-based questions about tech stack choices (CSS approach, database, testing strategy, etc.) using the same scenario format as user-facing decisions. When L1 detects an existing codebase, this category is auto-satisfied from L1 research (existing tech stack inferred). Builder preference decisions are recorded in `context.decisions[]` with `"source": "builder"` to distinguish from user-facing decisions.
 - **Infra-aware questions** (when Intent = Migration | Infrastructure): The standard checklist MUST also cover the items below. These are often missed in behavior-focused interviews but are critical for DB/infra changes:
   - Downtime tolerance: "서비스 중단 없이 배포 가능해야 하나요?" → constraint seed
   - Backward compatibility: "기존 API/스키마와 호환성 유지해야 하나요?" → constraint seed

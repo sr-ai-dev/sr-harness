@@ -101,18 +101,17 @@ operate there. No per-worker `cd` is needed. `spec_path` and `CONTEXT_DIR` are a
 FOR EACH task in plan (flattened):
   task_verify_plan = task.verify_plan  # from formatSlim output
 
-  # Collect sandbox recipes to inline
+  # Collect sandbox recipe file paths (verifier reads them on demand — saves prompt tokens)
   sandbox_subjects = unique(task_verify_plan.filter(e => e.env == "sandbox").map(e => e.subject))
-  sandbox_recipes = ""
+  sandbox_recipe_paths = ""
   FOR EACH subject in sandbox_subjects:
-    recipe_content = Read("${baseDir}/references/verify-recipes/{subject}.md")
-    sandbox_recipes += "### Recipe: {subject}\n{recipe_content}\n\n"
+    sandbox_recipe_paths += "- {subject}: `${baseDir}/references/verify-recipes/{subject}.md`\n"
 
   # Build description
   verify_description[task.id] = VERIFIER_DESCRIPTION(
     task.id,
     JSON.stringify(task_verify_plan, null, 2),
-    sandbox_recipes || "None — no sandbox scenarios for this task."
+    sandbox_recipe_paths || "None — no sandbox scenarios for this task."
   )
 
 # ═══════════════════════════════════════════════════
@@ -246,7 +245,7 @@ EOF
 ### Verifier Description Template
 
 ```
-VERIFIER_DESCRIPTION(task_id, verify_plan_json, sandbox_recipes) = """
+VERIFIER_DESCRIPTION(task_id, verify_plan_json, sandbox_recipe_paths) = """
 You are an independent Verifier agent. Verify task {task_id}.
 You did NOT write this code — verify it objectively.
 Work in the current directory (session CWD).
@@ -255,9 +254,12 @@ Work in the current directory (session CWD).
 
 {verify_plan_json}
 
-## Sandbox Recipes (if any)
+## Sandbox Recipes
 
-{sandbox_recipes}
+{sandbox_recipe_paths}
+
+IMPORTANT: Read each recipe file listed above BEFORE executing sandbox scenarios.
+Each recipe contains step-by-step commands for that subject type (web, server, cli, database).
 
 ## Execution
 

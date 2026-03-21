@@ -88,7 +88,7 @@ LLM 负责创造性工作。系统确保它不偏离轨道。
 }
 ```
 
-系统将一切推向 `machine` 验证。AC Quality Gate 审查每个场景，并在可能时建议将 `human` 项转换为 `machine`。多模型代码审查 (Codex + Gemini + Claude) 独立运行并综合出共识裁定。独立验证者在隔离上下文中检查完成定义，以消除自验证偏差。
+系统将一切推向 `machine` 验证。多模型代码审查 (Codex + Gemini + Claude) 独立运行并综合出共识裁定。独立验证者在隔离上下文中检查完成定义，以消除自验证偏差。
 
 人工审查仅保留给机器确实无法判断的事项——UX 体验、业务逻辑正确性、命名决策。其他一切自动运行，每次都如此，无需询问。
 
@@ -163,7 +163,7 @@ LLM 负责创造性工作。系统确保它不偏离轨道。
 ```
 /specify → 访谈暴露了隐藏的假设
            → 智能体并行研究代码库
-           → 逐层推导: L0→L1→L2→L3→L4→L5
+           → 逐层推导: L0→L1→L2→L3→L4
            → 每层由 CLI 验证 + 智能体审查把关
 
 /execute → 编排器读取 spec.json，分派并行 Worker
@@ -191,10 +191,10 @@ LLM 负责创造性工作。系统确保它不偏离轨道。
   L2: Decisions      场景访谈 → 隐含要求推导 (L2.5)
    ↓  ◇ gate         决策是否有依据?
   L3: Requirements   R1: "Toggle switches theme" → 场景 + 验证
-   ↓  ◇ gate         需求是否完整? (AC Quality Gate)
+   ↓  ◇ gate         需求是否完整?
   L4: Tasks          T1: "Add toggle component" → file_scope, AC
    ↓  ◇ gate         任务是否覆盖所有需求?
-  L5: Review         plan-reviewer + step-back gate-keeper
+  Plan Approval      summary + user confirmation → /execute
 ```
 
 每个关卡包含两项检查:
@@ -321,7 +321,7 @@ Worker 负责实现，独立 Verifier 智能体机械执行每个场景的 `veri
 | **Worker** | 按规格精确实现 | *"这符合需求吗?"* |
 | **Verifier** | 每任务独立场景验证 | *"代码与所有场景一致吗?"* |
 | **Ralph Verifier** | 独立的、上下文隔离的完成定义检查 | *"真的完成了吗?"* |
-| **Plan Reviewer** | 验证规格的完整性和质量 | *"计划覆盖目标了吗?"* |
+| **Gate-Keeper** | 验证层级转换的漂移、差距和冲突 | *"该层级是否准备好推进?"* |
 | **External Researcher** | 调研库和最佳实践 | *"我们实际有什么证据?"* |
 
 <details>
@@ -338,12 +338,10 @@ Worker 负责实现，独立 Verifier 智能体机械执行每个场景的 `veri
 | Worker | 基于规格驱动的自验证任务实现 |
 | Verifier | 基于 verify_plan 的独立场景验证（机械执行，不可绕过） |
 | Ralph Verifier | 隔离上下文中的独立完成定义验证 |
-| Plan Reviewer | 规格质量审查: 目标对齐、覆盖度、粒度 |
 | External Researcher | 通过网络调研库和最佳实践 |
 | Docs Researcher | 内部文档和架构决策搜索 |
 | Code Explorer | 快速只读代码库搜索和模式发现 |
 | Git Master | 带项目风格检测的原子提交执行 |
-| AC Quality Gate | 验收标准验证 (迭代式, 最多 5 轮) |
 | Phase2 Stepback | 规划前的范围偏移和盲点检测 |
 | Verification Planner | 测试策略设计 (Auto/Agent/Manual 分类) |
 | Value Assessor | 正面影响和目标对齐评估 |
@@ -372,7 +370,7 @@ Worker 负责实现，独立 Verifier 智能体机械执行每个场景的 `veri
 
 | 命令 | 功能 |
 |------|------|
-| `/specify` | 基于层级的访谈 → spec.json 推导 (L0→L5)，配合 gate-keeper |
+| `/specify` | 基于层级的访谈 → spec.json 推导 (L0→L4)，配合 gate-keeper |
 | `/execute` | 规格驱动的并行智能体调度 + 多模型审查 + Final Verify |
 | `/ultrawork` | 完整流水线: 一条命令完成 specify → execute |
 | `/bugfix` | 根因诊断 → 自动生成规格 → 执行 (自适应路由) |
@@ -394,7 +392,7 @@ Worker 负责实现，独立 Verifier 智能体机械执行每个场景的 `veri
 ```
 .claude/
 ├── skills/
-│   ├── specify/       基于层级的规格推导 (L0→L5)
+│   ├── specify/       基于层级的规格推导 (L0→L4)
 │   ├── execute/       规格驱动的并行编排
 │   ├── bugfix/        根因 → 规格 → 执行流水线
 │   ├── council/       多视角审议
@@ -416,8 +414,7 @@ Worker 负责实现，独立 Verifier 智能体机械执行每个场景的 `veri
 
 **核心内部机制:**
 
-- **推导链** — L0→L5，每层转换时有合并检查点 + gate-keeper 团队
-- **质量关卡** — AC Quality Gate 迭代验证验收标准 (最多 5 轮)
+- **推导链** — L0→L4，每层转换时有合并检查点 + gate-keeper 团队
 - **多模型审查** — Codex + Gemini + Claude 独立审查，综合产出 SHIP/NEEDS_FIXES 裁定
 - **钩子系统** — 18 个钩子自动化流水线流转、守护写入、执行关卡、故障恢复
 - **验证流水线** — CLI 为每个任务构建 verify_plan；专用 Verifier 智能体使用内联沙箱菜谱执行场景

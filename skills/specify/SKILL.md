@@ -18,7 +18,7 @@ allowed-tools:
   - TeamCreate
 validate_prompt: |
   Must produce a valid spec.json that passes both hoyeon-cli spec validate and hoyeon-cli spec check.
-  spec.json must include: meta.mode, context.research (structured), tasks with acceptance_criteria,
+  spec.json must include: meta.mode, context.research (per spec guide context), tasks with acceptance_criteria,
   requirements with sub-requirements, context.confirmed_goal.
   Must include: constraints, external_dependencies, meta.non_goals.
   SKILL.md must have exactly 6 sections starting with "## L0:" through "## L5:".
@@ -83,14 +83,40 @@ STEP 4: MERGE  — Run `hoyeon-cli spec merge ... --json "$(cat /tmp/spec-merge.
 STEP 5: VERIFY — Run `hoyeon-cli spec validate .dev/specs/{name}/spec.json` to confirm state is valid
 ```
 
+**CRITICAL: guide output is the SINGLE SOURCE OF TRUTH for field types.** If any example in this file conflicts with `spec guide` output, the guide wins. Do NOT construct JSON from memory — always copy field names and types from the guide output.
+
 **Common type mistakes** (from real session failures — these cause 90% of merge rejections):
 
-| Field | WRONG | CORRECT |
-|-------|-------|---------|
-| `verify` | `"npm test"` (string) | `{"type": "command", "run": "npm test"}` (object) |
-| `source` | `"D1"` (string) | `{"type": "decision", "ref": "D1"}` (object) |
-| `checks[]` | `["npm run build"]` (string array) | `[{"type": "build", "run": "npm run build"}]` (object array) |
-| `research` | `"Found patterns..."` (string) | `{"summary": "...", "patterns": [...]}` (object) |
+| Field | WRONG | CORRECT | How to verify |
+|-------|-------|---------|---------------|
+| `verify` | `"npm test"` (string) | `{"type": "command", "run": "npm test"}` (object) | `spec guide verify` |
+| `source` | `"D1"` (string) | `{"type": "decision", "ref": "D1"}` (object) | `spec guide requirements` |
+| `checks[]` | `["npm run build"]` (string array) | `[{"type": "build", "run": "npm run build"}]` (object array) | `spec guide acceptance-criteria` |
+| `research` | object with wrong shape | Check guide: `string \| {researchFindings}` — shape varies by schema version | `spec guide context` |
+| `source.ref` | `"CRUD"` (free text) | Must reference an existing decision ID (e.g., `"D1"`) | `spec guide requirements` |
+### Schema Version Integrity
+
+**Never change `schema_version` after `spec init`.** The version set by `spec init` determines which schema is used for all subsequent validations. Changing it mid-spec breaks all previously merged sections.
+
+- After `spec init`, read the created spec.json to confirm which `schema_version` was set
+- All `spec guide` output reflects the CLI's default schema — if guide output contradicts what validate accepts, the spec's `schema_version` governs
+- If you need a different schema version, re-run `spec init` with the correct version flag — do NOT patch `meta.schema_version` via merge
+
+### Sequential CLI Validation
+
+**Never run `spec validate`, `spec check`, `spec coverage`, or `spec plan` in parallel.** When one fails, parallel siblings are auto-cancelled — inflating failure count and losing error details.
+
+Always chain validation commands sequentially:
+```bash
+# CORRECT: sequential chain — each command runs only if previous succeeds
+hoyeon-cli spec validate .dev/specs/{name}/spec.json && \
+hoyeon-cli spec check .dev/specs/{name}/spec.json && \
+hoyeon-cli spec coverage .dev/specs/{name}/spec.json
+
+# WRONG: parallel calls — if validate fails, check and coverage are cancelled with no output
+# (three separate Bash tool calls for validate, check, coverage)
+```
+
 ### Merge Failure Recovery
 
 When `spec merge` returns non-zero exit code, follow this exact sequence:
@@ -305,7 +331,9 @@ At each layer:
 - **spec.json is the ONLY output** — no DRAFT.md, no PLAN.md, no state.json
 - **Always use cli** — `hoyeon-cli spec init`, `spec merge`, `spec validate`, `spec check`
 - **Never hand-write spec.json** — always go through `spec merge` for auto-validation
-- **Read guide before EVERY merge** — run `hoyeon-cli spec guide <section>` before constructing merge JSON. Field names, types (especially `verify` which must be an object `{type, run}`, not a string), and allowed properties vary per section. Also run `hoyeon-cli spec guide merge` to choose the right mode. **Never truncate guide output** (`head`, `tail` are forbidden) — always read the full output. Cache mentally per section: once you've read a section's guide in this session, you may skip re-reading for subsequent merges of the same section.
+- **Read guide before EVERY merge** — run `hoyeon-cli spec guide <section>` before constructing merge JSON. **Guide output is the SINGLE SOURCE OF TRUTH** — if any example in this file or your own knowledge conflicts with guide output, the guide wins. Field names, types (especially `verify` which must be an object `{type, run}`, not a string), and allowed properties vary per section. Also run `hoyeon-cli spec guide merge` to choose the right mode. **Never truncate guide output** (`head`, `tail` are forbidden) — always read the full output. Cache mentally per section: once you've read a section's guide in this session, you may skip re-reading for subsequent merges of the same section.
+- **Never change schema_version after spec init** — the version set by `spec init` governs all subsequent validations. Patching `meta.schema_version` mid-spec breaks all previously merged sections. If you need a different version, re-run `spec init`.
+- **Sequential CLI validation** — never run `spec validate`, `spec check`, `spec coverage`, or `spec plan` as separate parallel Bash calls. When one fails, parallel siblings are auto-cancelled with no error output. Always chain with `&&`: `spec validate && spec check && spec coverage`.
 - **File-based JSON passing** — never pass JSON directly as `--json '...'` argument. Always write to `/tmp/spec-merge.json` via heredoc with quoted EOF (`<< 'EOF'`), pass via `--json "$(cat /tmp/spec-merge.json)"`, clean up with `rm /tmp/spec-merge.json`.
 - **Merge failure recovery** — when `spec merge` fails: (1) run `hoyeon-cli spec guide <failed-section>`, (2) fix JSON to match schema, (3) retry. Do NOT attempt multiple blind retries.
 - **One merge per section** — call `spec merge` once per top-level key. Never merge multiple sections in parallel.
@@ -348,7 +376,7 @@ At each layer:
 - [ ] TeamCreate called at session start with at least gate-keeper
 - [ ] Gate-keeper defined via spawn prompt (DRIFT/GAP/CONFLICT/BACKTRACK review, read-only)
 - [ ] SendMessage called at each layer gate (L2, L3, L4) — L0 and L1 have no gate-keeper review
-- [ ] `context.research` is structured object (not string)
+- [ ] `context.research` populated (check `spec guide context` for accepted types)
 - [ ] AC Quality Gate passed (L5 Step 5)
 - [ ] `context.decisions[]` populated from interview
 - [ ] `constraints` populated (L2.7 — merge empty array explicitly if none apply)

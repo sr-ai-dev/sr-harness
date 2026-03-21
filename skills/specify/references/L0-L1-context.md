@@ -116,25 +116,17 @@ If results are found, include them in the research merge as `past_learnings`.
 Merge all research results into spec.json. Follow the Mandatory Merge Protocol (SKILL.md):
 
 ```bash
-# STEP 1: GUIDE — check research field structure (MANDATORY)
-# ⚠️ research must be a structured OBJECT, not a string
+# STEP 1: GUIDE — read the research field structure (MANDATORY)
 # ⚠️ NEVER truncate guide output (no head/tail) — read the FULL output
 hoyeon-cli spec guide context
 
 # STEP 2+3: CONSTRUCT + WRITE — match guide output exactly
+# Build the JSON object based on the guide output. Do NOT guess the shape.
 cat > /tmp/spec-merge.json << 'EOF'
 {
   "context": {
     "request": "original user request",
-    "research": {
-      "summary": "high-level findings",
-      "patterns": ["pattern1", "pattern2"],
-      "structure": ["dir1/", "dir2/"],
-      "commands": {"build": "npm run build", "test": "npm test"},
-      "documentation": "relevant docs found",
-      "ux_review": "UX impact assessment",
-      "past_learnings": "relevant learnings from spec search (omit if no matches)"
-    }
+    "research": { ... }
   }
 }
 EOF
@@ -145,8 +137,6 @@ hoyeon-cli spec merge .dev/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.
 # STEP 5: VERIFY
 hoyeon-cli spec validate .dev/specs/{name}/spec.json
 ```
-
-> Quick mode: omit `documentation` and `ux_review` from research.
 
 If merge fails → follow Merge Failure Recovery (SKILL.md). Do NOT proceed to L2 with a broken merge.
 

@@ -328,7 +328,7 @@ Quick mode compresses the entire layer sequence without reading reference files.
 | L0 | spec init only, no mirror (autopilot assumption of goal) |
 | L1 | Orchestrator minimal scan (2-3 Glob/Grep), merge abbreviated research |
 | L2 | Assumptions only, no interview. L2.5 auto. No constraints (L2.7 skip) |
-| L3 | Orchestrator derives requirements + scenarios directly (no teammates, no workshop) |
+| L3 | Orchestrator derives requirements directly — **no scenarios** (no teammates, no workshop). Scenarios are generated dynamically at execution time by the Verifier agent. |
 | L4 | Tasks created directly, no gate |
 | L5 | spec validate + spec check only, no plan-reviewer, no AC gate |
 

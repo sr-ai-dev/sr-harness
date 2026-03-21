@@ -13,7 +13,7 @@
   T1 acceptance_criteria.checks should include: `{type: "build", run: "npm run build"}` (or pnpm/yarn equivalent).
   This ensures subsequent workers have a working baseline — do NOT assume "scaffold" implicitly means "install + build verified".
 - Every task: `must_not_do: ["Do not run git commands"]`
-- Every task: `acceptance_criteria` with `scenarios` (scenario ID refs) + `checks` (runnable commands)
+- Every task: `acceptance_criteria` with `scenarios` (scenario ID refs, **empty `[]` in quick mode**) + `checks` (runnable commands)
 - Every task: `inputs` listing dependencies from previous tasks (use task output IDs)
 - HIGH risk tasks: include rollback steps in `steps`
 - **Migration/Infrastructure intent tasks**: DB migration tasks MUST include:

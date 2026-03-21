@@ -263,8 +263,14 @@ Each recipe contains step-by-step commands for that subject type (web, server, c
 
 ## Execution
 
-Follow the verify_plan entries top-to-bottom.
-For each entry, use the execution rules from your agent system prompt (machine/agent/sandbox/human).
+IF verify_plan is empty ([]):
+  You are in DYNAMIC VERIFICATION mode (quick mode — no upfront scenarios).
+  Follow the "Dynamic Verification" instructions in your agent system prompt:
+  read requirements via CLI, inspect code changes, generate and execute checks.
+
+ELSE:
+  Follow the verify_plan entries top-to-bottom.
+  For each entry, use the execution rules from your agent system prompt (machine/agent/sandbox/human).
 
 Record each result:
   hoyeon-cli spec requirement {entry.scenario} --status pass|fail|pending --task {task_id} {spec_path}

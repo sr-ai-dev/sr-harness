@@ -1081,9 +1081,12 @@ async function handleCoverage(args) {
   const requirements = specData.requirements || [];
   const decisionIds = new Set(decisions.map(d => d.id).filter(Boolean));
 
+  const depth = specData.meta?.mode?.depth || 'standard';
+  const isQuick = depth === 'quick';
+
   const runDecisions = !layer || layer === 'decisions';
   const runRequirements = !layer || layer === 'requirements';
-  const runScenarios = !layer || layer === 'scenarios';
+  const runScenarios = (!layer || layer === 'scenarios') && !isQuick;
   const runTasks = !layer || layer === 'tasks';
 
   // --- Check 1: source.ref integrity (decisions layer) ---
@@ -1129,7 +1132,8 @@ async function handleCoverage(args) {
 
   // --- Check 3: scenario min count (requirements layer) ---
   // Each requirement needs HP+EP+BC (when category field present) or ≥3 scenarios (count-only).
-  if (runRequirements) {
+  // Skip in quick mode — scenarios are not generated upfront.
+  if (runRequirements && !isQuick) {
     for (const req of requirements) {
       const scenarios = req.scenarios || [];
       // Check if any scenario has a category field
@@ -1214,6 +1218,8 @@ async function handleCheck(args) {
 
   const specData = loadSpec(resolve(filePath));
   const issues = [];
+  const depth = specData.meta?.mode?.depth || 'standard';
+  const isQuick = depth === 'quick';
 
   const taskIds = new Set(specData.tasks.map(t => t.id));
 
@@ -1262,11 +1268,14 @@ async function handleCheck(args) {
   }
 
   // Referential integrity: AC.scenarios[] must reference valid requirements[].scenarios[].id
+  // Skip in quick mode — scenarios are not generated upfront.
   const { allScenarioIds, referencedScenarioIds } = collectScenarioSets(specData);
-  for (const task of specData.tasks) {
-    for (const scenarioRef of (task.acceptance_criteria?.scenarios || [])) {
-      if (!allScenarioIds.has(scenarioRef)) {
-        issues.push(`task '${task.id}' acceptance_criteria.scenarios references unknown scenario '${scenarioRef}'`);
+  if (!isQuick) {
+    for (const task of specData.tasks) {
+      for (const scenarioRef of (task.acceptance_criteria?.scenarios || [])) {
+        if (!allScenarioIds.has(scenarioRef)) {
+          issues.push(`task '${task.id}' acceptance_criteria.scenarios references unknown scenario '${scenarioRef}'`);
+        }
       }
     }
   }
@@ -1285,11 +1294,14 @@ async function handleCheck(args) {
 
   // Orphan scenario detection: scenarios defined but not referenced by any task AC
   // (skip gracefully when no task defines acceptance_criteria — v4 compat)
-  const tasksWithAC = (specData.tasks || []).filter(t => t.acceptance_criteria?.scenarios);
-  if (allScenarioIds.size > 0 && tasksWithAC.length > 0) {
-    for (const scenarioId of allScenarioIds) {
-      if (!referencedScenarioIds.has(scenarioId)) {
-        issues.push(`scenario '${scenarioId}' is defined but not referenced by any task acceptance_criteria`);
+  // Skip in quick mode — scenarios are not generated upfront.
+  if (!isQuick) {
+    const tasksWithAC = (specData.tasks || []).filter(t => t.acceptance_criteria?.scenarios);
+    if (allScenarioIds.size > 0 && tasksWithAC.length > 0) {
+      for (const scenarioId of allScenarioIds) {
+        if (!referencedScenarioIds.has(scenarioId)) {
+          issues.push(`scenario '${scenarioId}' is defined but not referenced by any task acceptance_criteria`);
+        }
       }
     }
   }

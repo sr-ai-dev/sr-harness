@@ -10158,9 +10158,11 @@ async function handleCoverage(args) {
   const decisions = specData.context?.decisions || specData.decisions || [];
   const requirements = specData.requirements || [];
   const decisionIds = new Set(decisions.map((d) => d.id).filter(Boolean));
+  const depth = specData.meta?.mode?.depth || "standard";
+  const isQuick = depth === "quick";
   const runDecisions = !layer || layer === "decisions";
   const runRequirements = !layer || layer === "requirements";
-  const runScenarios = !layer || layer === "scenarios";
+  const runScenarios = (!layer || layer === "scenarios") && !isQuick;
   const runTasks = !layer || layer === "tasks";
   if (runDecisions && decisionIds.size > 0) {
     for (const req of requirements) {
@@ -10196,7 +10198,7 @@ async function handleCoverage(args) {
       }
     }
   }
-  if (runRequirements) {
+  if (runRequirements && !isQuick) {
     for (const req of requirements) {
       const scenarios = req.scenarios || [];
       const anyHasCategory = scenarios.some((sc) => sc.category !== void 0);
@@ -10267,6 +10269,8 @@ async function handleCheck(args) {
   }
   const specData = loadSpec(resolve(filePath));
   const issues = [];
+  const depth = specData.meta?.mode?.depth || "standard";
+  const isQuick = depth === "quick";
   const taskIds = new Set(specData.tasks.map((t) => t.id));
   if (taskIds.size !== specData.tasks.length) {
     issues.push("duplicate task IDs detected");
@@ -10303,10 +10307,12 @@ async function handleCheck(args) {
     }
   }
   const { allScenarioIds, referencedScenarioIds } = collectScenarioSets(specData);
-  for (const task of specData.tasks) {
-    for (const scenarioRef of task.acceptance_criteria?.scenarios || []) {
-      if (!allScenarioIds.has(scenarioRef)) {
-        issues.push(`task '${task.id}' acceptance_criteria.scenarios references unknown scenario '${scenarioRef}'`);
+  if (!isQuick) {
+    for (const task of specData.tasks) {
+      for (const scenarioRef of task.acceptance_criteria?.scenarios || []) {
+        if (!allScenarioIds.has(scenarioRef)) {
+          issues.push(`task '${task.id}' acceptance_criteria.scenarios references unknown scenario '${scenarioRef}'`);
+        }
       }
     }
   }
@@ -10319,11 +10325,13 @@ async function handleCheck(args) {
       }
     }
   }
-  const tasksWithAC = (specData.tasks || []).filter((t) => t.acceptance_criteria?.scenarios);
-  if (allScenarioIds.size > 0 && tasksWithAC.length > 0) {
-    for (const scenarioId of allScenarioIds) {
-      if (!referencedScenarioIds.has(scenarioId)) {
-        issues.push(`scenario '${scenarioId}' is defined but not referenced by any task acceptance_criteria`);
+  if (!isQuick) {
+    const tasksWithAC = (specData.tasks || []).filter((t) => t.acceptance_criteria?.scenarios);
+    if (allScenarioIds.size > 0 && tasksWithAC.length > 0) {
+      for (const scenarioId of allScenarioIds) {
+        if (!referencedScenarioIds.has(scenarioId)) {
+          issues.push(`scenario '${scenarioId}' is defined but not referenced by any task acceptance_criteria`);
+        }
       }
     }
   }

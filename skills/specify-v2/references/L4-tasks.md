@@ -29,21 +29,22 @@ The scaffold is a **starting point**. The 1:1 requirement→task mapping is rare
 
 As long as `spec validate` passes (every requirement referenced by some task's fulfills), the structure is valid.
 
-Run `hoyeon-cli spec guide tasks --schema v7` and `spec guide acceptance-criteria` to check fields.
+Run `hoyeon-cli spec guide tasks --schema v7` to check fields.
 
 ```bash
 hoyeon-cli spec merge .dev/specs/{name}/spec.json --stdin --patch << 'EOF'
 {"tasks": [
-  {"id": "T1", "action": "Implement login endpoint with JWT", "acceptance_criteria": {"checks": [{"type": "build", "run": "npm run build"}]}},
-  {"id": "TF", "acceptance_criteria": {"checks": [{"type": "build", "run": "npm run build"}, {"type": "lint", "run": "npm run lint"}]}}
+  {"id": "T1", "action": "Implement login endpoint with JWT", "fulfills": ["R1"], "depends_on": []},
+  {"id": "TF", "action": "Full verification", "type": "verification", "depends_on": ["T1"]}
 ]}
 EOF
 ```
 
 **Task rules:**
-- Every task: `fulfills[]` + `acceptance_criteria.checks[]`
+- Every work task: `fulfills[]` linking to requirements
 - `depends_on[]` for ordering. No circular dependencies.
-- TF checks must include at minimum: `{type: "build", run: "<build command>"}`
+- Behavioral acceptance = fulfills → sub-req behaviors (no separate AC field needed)
+- Build/lint/typecheck = Worker runs these automatically (natural language instruction)
 - Agent may consolidate: merge T1+T2 into one task that fulfills both R1 and R2
 
 ### External Dependencies
@@ -80,7 +81,7 @@ D2: {decision}
 
 Requirements ({n} total, {m} sub-requirements)
 ────────────────────────────────────────
-R1: {behavior} [P{priority}]
+R1: {behavior}
   R1.1: {sub behavior}
   R1.2: {sub behavior}
 
@@ -119,9 +120,4 @@ AskUserQuestion(
 )
 ```
 
-On approval, merge `approved_by` and `approved_at` into meta via `--stdin`.
-
-If user selected `/execute`:
-```
-Skill("execute", args="{name}")
-```
+On approval, run `/execute`.

@@ -42,7 +42,7 @@ CHARTER_CHECK:
 - Clarity: {LOW | MEDIUM | HIGH}
 - Domain: implementation
 - Must NOT do: {top 3 constraints from task scope / must_not_do}
-- Success criteria: {acceptance_criteria summary — what PASS looks like}
+- Success criteria: {fulfills → sub-req behaviors that must be satisfied}
 - Assumptions: {defaults applied when info is missing}
 ```
 
@@ -69,22 +69,21 @@ CHARTER_CHECK:
 - Do not introduce new patterns
 - When uncertain, refer to existing code
 
-### 4. Verify Before Completion (Acceptance Criteria)
+### 4. Verify Before Completion
 
-**Task verification has two parts (v6 schema):**
+**Task verification has two parts:**
 
-1. `fulfills[]` → `requirements[].sub[]` — behavior verification
+1. **Behavioral check** — `fulfills[]` → `requirements[].sub[]`
    - Look up each requirement ID in `fulfills[]`
    - For each requirement, iterate its `sub[]` array
-   - Execute the `verify` field for every sub-requirement — route by `verify.type`:
-     - `command` → run `verify.run` in Bash and check exit code / stdout
-     - `assertion` → check `verify.checks[]` items by reading source code
-     - `instruction` → follow the `verify.ask` instruction; mark as manual review if human action required
+   - Each sub-requirement's `behavior` is an acceptance criterion
+   - Verify your implementation satisfies every sub-req behavior
 
-2. `acceptance_criteria.checks[]` — automated checks (static/build/lint/format)
-   - Run each check's `run` command and verify exit code 0
+2. **Build/lint/typecheck** — Run the project's build, lint, and type-check commands
+   - Find commands from package.json, Makefile, or project config
+   - Ensure nothing is broken by your changes
 
-**Completion condition**: All sub-requirements verified AND all `checks` pass
+**Completion condition**: All sub-requirement behaviors satisfied AND build/lint passes
 
 ## Output Format
 
@@ -97,27 +96,12 @@ When work is complete, **always** report in the following JSON format:
     "exported_name": "authMiddleware"
   },
   "fulfills": ["R1"],
-  "acceptance_criteria": {
-    "checks": [
-      {
-        "type": "static",
-        "run": "tsc --noEmit",
-        "status": "PASS"
-      },
-      {
-        "type": "lint",
-        "run": "eslint src/auth/middleware.ts",
-        "status": "FAIL",
-        "reason": "Unexpected console.log statement (line 42)"
-      }
-    ]
-  },
   "sub_requirement_results": [
     {
       "id": "R1.1",
       "behavior": "Auth middleware rejects unauthenticated requests",
-      "command": "npm test -- auth.test.ts",
-      "status": "PASS"
+      "status": "PASS",
+      "detail": "Tested via npm test -- auth.test.ts"
     },
     {
       "id": "R1.2",
@@ -126,15 +110,12 @@ When work is complete, **always** report in the following JSON format:
       "detail": "src/auth/middleware.ts line 12 reads req.headers.authorization"
     }
   ],
+  "build_check": "PASS",
   "learnings": [
-    "This project uses ESM only",
-    "Test files use .test.ts extension"
+    "This project uses ESM only"
   ],
   "issues": [
     "Using require() causes ESM error"
-  ],
-  "decisions": [
-    "Error responses follow existing errorHandler pattern"
   ]
 }
 ```
@@ -143,29 +124,21 @@ When work is complete, **always** report in the following JSON format:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `outputs` | ✅ | Values defined in EXPECTED OUTCOME's Outputs |
-| `acceptance_criteria` | ✅ | Object with `checks` array — echoes the task spec unchanged |
+| `outputs` | ✅ | Key artifacts created or modified |
+| `fulfills` | ✅ | Requirement IDs this task fulfills |
 | `sub_requirement_results` | ✅ | Verification evidence for each sub-requirement from `fulfills[]` → `requirements[].sub[]` |
+| `build_check` | ✅ | `PASS` / `FAIL` — did build/lint/typecheck pass? |
 | `learnings` | ❌ | Discovered and **applied** patterns/conventions |
 | `issues` | ❌ | Problems discovered but **not resolved** (out of scope/unresolved) |
-| `decisions` | ❌ | Decisions made and their reasons |
 
 **sub_requirement_results item structure:**
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `id` | ✅ | Sub-requirement ID from `requirements[].sub[].id` |
-| `behavior` | ✅ | Sub-requirement behavior text |
-| `command` | ✅ (command type) | Command executed for `verify.type: command` sub-requirements |
+| `behavior` | ✅ | Sub-requirement behavior text (= acceptance criterion) |
 | `status` | ✅ | `PASS` / `FAIL` / `SKIP` |
-| `detail` | ❌ | Evidence for assertion or reason for FAIL/SKIP |
-
-**acceptance_criteria.checks item structure:**
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `type` | ✅ | `static` / `build` / `lint` / `format` |
-| `run` | ✅ | Command executed (Verify Worker will re-execute) |
+| `detail` | ❌ | Evidence or reason for FAIL/SKIP |
 | `status` | ✅ | `PASS` / `FAIL` / `SKIP` |
 | `reason` | ❌ | Reason for FAIL/SKIP |
 
@@ -177,29 +150,8 @@ learnings = "This is how it works" (resolved, tip for next Worker)
 issues    = "This problem exists" (unresolved, needs attention)
 ```
 
-**⚠️ Verify Worker will independently re-execute acceptance_criteria commands.**
 - Even if Worker reports PASS, a separate verify worker will re-check
 - If mismatch, Orchestrator will re-run Worker (reconciliation loop)
-
-## Sandbox Verification Tasks (T_SV)
-
-When a worker receives a task whose ID starts with `T_SV`, it is a **sandbox verification task** — not a regular work task.
-
-### What this means
-
-A T_SV task verifies a specific sub-requirement that requires a sandbox environment. Execute the sub-requirement's `verify` command in the sandbox context.
-
-### How to execute a T_SV task
-
-1. **Verify sandbox is available** — check that the sandbox environment exists (e.g., docker-compose services are up). If unavailable, report FAILED immediately with the reason.
-2. **Run the sub-requirement's `verify.run` command** in the sandbox context.
-3. **Record the result** using the CLI:
-   ```
-   hoyeon-cli spec requirement <sub_req_id> --status pass|fail --task <task_id> <spec_path>
-   ```
-4. **Report outcome** in the standard JSON output format.
-
----
 
 ## Important Notes
 

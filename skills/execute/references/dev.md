@@ -221,18 +221,13 @@ Read: {CONTEXT_DIR}/learnings.json — structured learnings from previous worker
 Read: {CONTEXT_DIR}/issues.json — failed approaches to avoid (if exists)
 
 ## Step 4: Implement
-Follow the steps and file_scope from your task spec.
-Meet ALL acceptance_criteria (run commands to verify before reporting DONE).
-Respect must_not_do constraints.
+Follow the task action and steps from your task spec.
+Respect constraints.
 Do NOT run git commands — Orchestrator handles commits.
 
-### Verifying acceptance_criteria (Tier 1 only)
-Task AC has two parts — Worker handles checks[] only:
-1. `acceptance_criteria.checks[]` — automated checks (static/build/lint/format)
-   - Run each check's `run` command and verify exit code 0
-2. `fulfills[]` — behavior verification via requirement IDs. An independent Verifier agent will handle sub-requirement verification after you complete.
-
-Note: If this task's ID starts with T_SV, it is a sandbox verification task — you MUST run sandbox sub-requirements. Use `hoyeon-cli spec task {task_id} --get {spec_path}` to get sub-requirement details and execute them.
+### Verification before reporting DONE
+1. **Behavioral check**: Look up `fulfills[]` → requirements → sub-requirements. Each sub-req behavior is an acceptance criterion. Verify your implementation satisfies all of them.
+2. **Build/lint/typecheck**: Run the project's build, lint, and type-check commands to ensure nothing is broken. Find these from package.json, Makefile, or project config.
 
 ## Step 5: Update context files
 

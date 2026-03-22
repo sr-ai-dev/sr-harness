@@ -244,10 +244,9 @@ async function handleInit(args) {
     meta: {
       name,
       goal: parsed.goal,
-      created_at: now,
     },
     tasks: [
-      { id: 'T1', action: 'TODO', type: 'work', status: 'pending' },
+      { id: 'T1', action: 'TODO', type: 'work' },
     ],
   };
 
@@ -259,13 +258,6 @@ async function handleInit(args) {
       process.exit(1);
     }
     specData.meta.type = parsed.type;
-  }
-
-  // Add optional mode
-  if (parsed.depth || parsed.interaction) {
-    specData.meta.mode = {};
-    if (parsed.depth) specData.meta.mode.depth = parsed.depth;
-    if (parsed.interaction) specData.meta.mode.interaction = parsed.interaction;
   }
 
   // Add optional schema version
@@ -285,9 +277,6 @@ async function handleInit(args) {
   process.stdout.write(`Spec created: ${specPath}\n`);
   process.stdout.write(`  name: ${name}\n`);
   process.stdout.write(`  goal: ${parsed.goal}\n`);
-  if (specData.meta.mode) {
-    process.stdout.write(`  mode: ${specData.meta.mode.depth || '-'}/${specData.meta.mode.interaction || '-'}\n`);
-  }
   process.exit(0);
 }
 
@@ -350,11 +339,6 @@ async function handleMerge(args) {
   // Auto-add history entry for merge
   const now = new Date().toISOString();
   const mergedKeys = Object.keys(fragment).join(', ');
-
-  // Update meta.updated_at
-  if (specData.meta) {
-    specData.meta.updated_at = now;
-  }
 
   validateSpec(specData);
 
@@ -493,46 +477,6 @@ function loadSpec(filePath) {
     }
     process.exit(1);
   }
-}
-
-/**
- * Build verify_plan array for a task by mapping its fulfills[] → requirements[].sub[] to verify entries.
- */
-function buildVerifyPlan(task, spec) {
-  const reqIds = task.fulfills || [];
-  if (reqIds.length === 0) return [];
-
-  const entries = [];
-  for (const reqId of reqIds) {
-    const req = (spec.requirements || []).find(r => r.id === reqId);
-    if (!req) continue;
-    for (const sr of (req.sub || [])) {
-      const method = sr.verify?.type;  // "command" | "assertion" | "instruction"
-
-      const entry = {
-        sub_requirement: sr.id,
-        behavior: sr.behavior,
-        method: method || 'unknown',
-      };
-
-      if (method === 'command' && sr.verify) {
-        entry.run = sr.verify.run;
-        if (sr.verify.expect !== undefined) entry.expect = sr.verify.expect;
-      }
-
-      if (method === 'assertion' && sr.verify) {
-        entry.checks = sr.verify.checks;
-      }
-
-      if (method === 'instruction') {
-        entry.action = 'skip';  // human review — verifier cannot execute
-        if (sr.verify?.ask) entry.ask = sr.verify.ask;
-      }
-
-      entries.push(entry);
-    }
-  }
-  return entries;
 }
 
 /**
@@ -750,13 +694,10 @@ function formatJson(spec, rounds, criticalPath) {
         return {
           id: t.id,
           action: t.action,
-          type: t.type,
+          type: t.type || 'work',
           status: t.status || 'pending',
-          risk: t.risk || null,
           depends_on: t.depends_on || [],
-          steps: t.steps || [],
-          file_scope: t.file_scope || [],
-          verify_plan: buildVerifyPlan(t, spec),
+          fulfills: t.fulfills || [],
         };
       }),
     })),
@@ -776,17 +717,13 @@ function formatSlim(spec, rounds, criticalPath) {
       parallel: round.length > 1,
       tasks: round.map(id => {
         const t = (spec.tasks || []).find(task => task.id === id) || {};
-        const isDerived = t.origin === 'derived';
         return {
           id: t.id,
           action: t.action,
-          type: t.type,
+          type: t.type || 'work',
           status: t.status || 'pending',
-          derived: isDerived,
           depends_on: t.depends_on || [],
-          ...(t.tool ? { tool: t.tool } : {}),
-          ...(t.args ? { args: t.args } : {}),
-          verify_plan: buildVerifyPlan(t, spec),
+          fulfills: t.fulfills || [],
         };
       }),
     })),
@@ -906,11 +843,9 @@ async function handleAmend(args) {
   // Display the feedback message
   process.stdout.write(`Feedback (${feedbackId}): ${feedbackData.message}\n`);
 
-  // Phase 1: update meta.updated_at as a placeholder for future amendment logic
   if (!specData.meta) {
     specData.meta = {};
   }
-  specData.meta.updated_at = new Date().toISOString();
 
   try {
     writeFileSync(specPath, JSON.stringify(specData, null, 2), 'utf8');
@@ -1131,16 +1066,16 @@ function runCoverageChecks(specData, layer) {
   const requirements = specData.requirements || [];
   const decisionIds = new Set(decisions.map(d => d.id).filter(Boolean));
 
+  const isV7 = specData.meta?.schema_version === 'v7';
   const runDecisions = !layer || layer === 'decisions';
   const runRequirements = !layer || layer === 'requirements';
   const runTasks = !layer || layer === 'tasks';
 
-  // --- Check 1: source.ref integrity (decisions layer) ---
-  if (runDecisions && decisionIds.size > 0) {
+  // --- Check 1 & 2: source.ref integrity + decision coverage (v6 only, v7 has no source field) ---
+  if (!isV7 && runDecisions && decisionIds.size > 0) {
     for (const req of requirements) {
       const sourceType = req.source?.type;
       const ref = req.source?.ref;
-      // goal/implicit/negative sources don't need ref — only decision/gap sources do
       if (sourceType === 'goal' || sourceType === 'implicit' || sourceType === 'negative') {
         continue;
       }
@@ -1158,22 +1093,21 @@ function runCoverageChecks(specData, layer) {
         });
       }
     }
-  }
 
-  // --- Check 2: decision coverage (decisions layer) ---
-  if (runDecisions && decisionIds.size > 0 && requirements.length > 0) {
-    const coveredDecisionIds = new Set();
-    for (const req of requirements) {
-      const ref = req.source?.ref;
-      if (ref) coveredDecisionIds.add(ref);
-    }
-    for (const decId of decisionIds) {
-      if (!coveredDecisionIds.has(decId)) {
-        gaps.push({
-          layer: 'decisions',
-          check: 'decision-coverage',
-          message: `decision '${decId}' is not referenced by any requirement source.ref`,
-        });
+    if (requirements.length > 0) {
+      const coveredDecisionIds = new Set();
+      for (const req of requirements) {
+        const ref = req.source?.ref;
+        if (ref) coveredDecisionIds.add(ref);
+      }
+      for (const decId of decisionIds) {
+        if (!coveredDecisionIds.has(decId)) {
+          gaps.push({
+            layer: 'decisions',
+            check: 'decision-coverage',
+            message: `decision '${decId}' is not referenced by any requirement source.ref`,
+          });
+        }
       }
     }
   }
@@ -1325,14 +1259,16 @@ async function handleCheck(args) {
     }
   }
 
-  // source.ref referential integrity: requirement.source.ref must match an existing decision ID
-  // (skip gracefully when decisions array or source.ref are absent — v4 compat)
+  // source.ref referential integrity (v6 only — v7 has no source field on requirements)
+  const isV7Check = specData.meta?.schema_version === 'v7';
   const decisionIds = new Set((specData.context?.decisions || specData.decisions || []).map(d => d.id).filter(Boolean));
-  for (const req of (specData.requirements || [])) {
-    const ref = req.source?.ref;
-    if (ref !== undefined && ref !== null) {
-      if (!decisionIds.has(ref)) {
-        issues.push(`requirement '${req.id}' source.ref '${ref}' does not match any decision ID`);
+  if (!isV7Check) {
+    for (const req of (specData.requirements || [])) {
+      const ref = req.source?.ref;
+      if (ref !== undefined && ref !== null) {
+        if (!decisionIds.has(ref)) {
+          issues.push(`requirement '${req.id}' source.ref '${ref}' does not match any decision ID`);
+        }
       }
     }
   }
@@ -1350,12 +1286,10 @@ async function handleCheck(args) {
     }
   }
 
-  // Check file_scope overlap across tasks (warning only)
   const warnings = [];
 
-  // Decision coverage: every decision ID must appear in at least one requirement source.ref
-  // (skip gracefully when decisions or requirements are absent — v4 compat)
-  if ((specData.context?.decisions || specData.decisions || []).length > 0 && (specData.requirements || []).length > 0) {
+  // Decision coverage via source.ref (v6 only — v7 has no source field)
+  if (!isV7Check && (specData.context?.decisions || specData.decisions || []).length > 0 && (specData.requirements || []).length > 0) {
     const coveredDecisionIds = new Set();
     for (const req of (specData.requirements || [])) {
       const ref = req.source?.ref;
@@ -1365,18 +1299,6 @@ async function handleCheck(args) {
       if (!coveredDecisionIds.has(decId)) {
         warnings.push(`decision '${decId}' is not referenced by any requirement source.ref`);
       }
-    }
-  }
-  const fileScopeMap = new Map();
-  for (const task of specData.tasks) {
-    for (const file of (task.file_scope || [])) {
-      if (!fileScopeMap.has(file)) fileScopeMap.set(file, []);
-      fileScopeMap.get(file).push(task.id);
-    }
-  }
-  for (const [file, taskList] of fileScopeMap) {
-    if (taskList.length > 1) {
-      warnings.push(`file '${file}' appears in file_scope of multiple tasks: ${taskList.join(', ')}`);
     }
   }
 
@@ -1408,17 +1330,14 @@ function generateGuide(section, schemaVersion) {
   const defs = schema.$defs || {};
 
   const SECTIONS = {
-    meta: { ref: 'meta', desc: 'Spec metadata (name, goal, mode, etc.)' },
-    context: { ref: 'context', desc: 'Request context, interview decisions, research, assumptions' },
+    meta: { ref: 'meta', desc: 'Spec metadata (name, goal, type, schema_version)' },
+    context: { ref: 'context', desc: 'Confirmed goal, decisions, known gaps' },
     tasks: { ref: 'task', desc: 'Task DAG (work items + verification)', isArray: true },
-    requirements: { ref: 'requirement', desc: 'Requirements with sub-requirements (sub[])', isArray: true },
+    requirements: { ref: 'requirement', desc: 'Requirements with sub-requirements (sub[] = behavioral acceptance criteria)', isArray: true },
     constraints: { ref: 'constraint', desc: 'Must-not-do / preserve constraints', isArray: true },
-    history: { ref: 'historyEntry', desc: 'Spec change history entries', isArray: true },
     external: { ref: 'externalDependencies', desc: 'Human-only pre/post-work dependencies' },
-    sub: { ref: 'subRequirement', desc: 'Sub-requirement (behavior + verify)' },
-    verify: { ref: null, desc: 'Verify types: command, assertion, instruction', custom: 'verify' },
+    sub: { ref: 'subRequirement', desc: 'Sub-requirement (behavior = testable acceptance criterion)' },
     merge: { ref: null, desc: 'Merge modes: replace (default), --append, --patch', custom: 'merge' },
-    'acceptance-criteria': { ref: null, desc: 'AC structure: checks[] only — behavior coverage via fulfills[]', custom: 'acceptance-criteria' },
   };
 
   if (!section || section === 'list') {
@@ -1455,16 +1374,8 @@ function generateGuide(section, schemaVersion) {
     return `Error: unknown section '${section}'. Run 'hoyeon-cli spec guide' to see available sections.`;
   }
 
-  if (info.custom === 'verify') {
-    return formatVerifyGuide(defs);
-  }
-
   if (info.custom === 'merge') {
     return formatMergeGuide();
-  }
-
-  if (info.custom === 'acceptance-criteria') {
-    return formatAcceptanceCriteriaGuide();
   }
 
   const def = defs[info.ref];
@@ -1659,63 +1570,6 @@ function formatMergeGuide() {
   return lines.join('\n');
 }
 
-function formatAcceptanceCriteriaGuide() {
-  const lines = [
-    'acceptance_criteria: checks[] only',
-    '',
-    '  Behavior verification coverage is declared via task.fulfills[]',
-    '    fulfills: string[]  (top-level task field)',
-    '    List of requirement IDs (requirements[].id) that this task fulfills.',
-    '    spec check validates that each ID exists in requirements[].',
-    '    verify_plan is built by collecting sub[] entries from those requirements.',
-    '    example: ["R1", "R2"]',
-    '',
-    '  checks: taskCheck[]',
-    '    Automated checks to run when verifying the task.',
-    '    Each check has:',
-    '      * type: enum(static|build|lint|format)',
-    '      * run: string (shell command)',
-    '    example: [{"type":"build","run":"cd cli && node build.mjs"},{"type":"static","run":"tsc --noEmit"}]',
-    '',
-    '  example acceptance_criteria:',
-    '    {',
-    '      "checks": [',
-    '        {"type": "build", "run": "cd cli && node build.mjs"},',
-    '        {"type": "lint", "run": "eslint src/"}',
-    '      ]',
-    '    }',
-    '  example task.fulfills:',
-    '    "fulfills": ["R1", "R2"]',
-    '',
-    '  Note: spec check validates referential integrity.',
-    '    task.fulfills[] IDs must exist in requirements[].id.',
-    '    Run: hoyeon-cli spec check <path>',
-  ];
-  return lines.join('\n');
-}
-
-function formatVerifyGuide(defs) {
-  const lines = [
-    'verify: oneOf — choose based on verified_by value:',
-    '',
-    '  verified_by: "machine" → verifyCommand',
-    '    * type: "command"',
-    '    * run: string (shell command)',
-    '    * expect: { *exit_code: int, stdout_contains?: string, stderr_empty?: bool }',
-    '    example: {"type":"command","run":"npm test","expect":{"exit_code":0}}',
-    '',
-    '  verified_by: "agent" → verifyAssertion',
-    '    * type: "assertion"',
-    '    * checks: [string] (min 1 item)',
-    '    example: {"type":"assertion","checks":["file exists at src/foo.ts"]}',
-    '',
-    '  verified_by: "human" → verifyInstruction',
-    '    * type: "instruction"',
-    '    * ask: string (question for human)',
-    '    example: {"type":"instruction","ask":"Does the UI look correct?"}',
-  ];
-  return lines.join('\n');
-}
 
 async function handleGuide(args) {
   const parsed = parseArgs(args);
@@ -1829,7 +1683,7 @@ async function handleDerive(args) {
   const now = new Date().toISOString();
 
   // Update meta
-  if (specData.meta) specData.meta.updated_at = now;
+  if (specData.meta && specData.meta.schema_version !== 'v7') specData.meta.updated_at = now;
 
   // Validate spec
   validateSpec(specData);
@@ -1878,8 +1732,6 @@ async function handleDeriveRequirements(args) {
   requirements.push({
     id: `R0`,
     behavior: `TODO — from goal: ${goal.slice(0, 80)}`,
-    priority: 1,
-    source: { type: 'goal' },
     sub: [{ id: 'R0.1', behavior: 'TODO' }],
   });
 
@@ -1888,8 +1740,6 @@ async function handleDeriveRequirements(args) {
     requirements.push({
       id: `R${idx}`,
       behavior: `TODO — from ${d.id}: ${d.decision.slice(0, 80)}`,
-      priority: 1,
-      source: { type: 'decision', ref: d.id },
       sub: [{ id: `R${idx}.1`, behavior: 'TODO' }],
     });
     idx++;
@@ -1898,7 +1748,7 @@ async function handleDeriveRequirements(args) {
   specData.requirements = requirements;
 
   const now = new Date().toISOString();
-  if (specData.meta) specData.meta.updated_at = now;
+  if (specData.meta && specData.meta.schema_version !== 'v7') specData.meta.updated_at = now;
 
   validateSpec(specData);
   writeState(specPath, specData);
@@ -1906,7 +1756,7 @@ async function handleDeriveRequirements(args) {
 
   process.stdout.write(`Derived ${requirements.length} requirements from ${decisions.length} decisions + goal\n`);
   for (const r of requirements) {
-    process.stdout.write(`  ${r.id}: ${r.source.type}${r.source.ref ? ':' + r.source.ref : ''} → "${r.behavior.slice(0, 60)}..."\n`);
+    process.stdout.write(`  ${r.id}: "${r.behavior.slice(0, 60)}..."\n`);
   }
   process.exit(0);
 }
@@ -1939,11 +1789,8 @@ async function handleDeriveTasks(args) {
     tasks.push({
       id: taskId,
       action: `TODO — implement ${r.id}: ${r.behavior.slice(0, 60)}`,
-      type: 'work',
-      status: 'pending',
       depends_on: [],
       fulfills: [r.id],
-      acceptance_criteria: { checks: [] },
     });
   }
 
@@ -1952,16 +1799,13 @@ async function handleDeriveTasks(args) {
     id: 'TF',
     action: 'Full verification',
     type: 'verification',
-    status: 'pending',
     depends_on: workIds,
-    fulfills: [],
-    acceptance_criteria: { checks: [{ type: 'build', run: 'echo "TODO: add build command"' }] },
   });
 
   specData.tasks = tasks;
 
   const now = new Date().toISOString();
-  if (specData.meta) specData.meta.updated_at = now;
+  if (specData.meta && specData.meta.schema_version !== 'v7') specData.meta.updated_at = now;
 
   validateSpec(specData);
   writeState(specPath, specData);
@@ -1969,7 +1813,7 @@ async function handleDeriveTasks(args) {
 
   process.stdout.write(`Derived ${tasks.length} tasks from ${requirements.length} requirements\n`);
   for (const t of tasks) {
-    process.stdout.write(`  ${t.id}: fulfills=[${t.fulfills.join(',')}] "${t.action.slice(0, 60)}"\n`);
+    process.stdout.write(`  ${t.id}: fulfills=[${(t.fulfills || []).join(',')}] "${t.action.slice(0, 60)}"\n`);
   }
   process.exit(0);
 }
@@ -2192,7 +2036,7 @@ async function handleRequirement(args) {
 
     // Add history entry
     const now = new Date().toISOString();
-    if (specData.meta) specData.meta.updated_at = now;
+    if (specData.meta && specData.meta.schema_version !== 'v7') specData.meta.updated_at = now;
 
     writeState(specPath, specData);
     appendHistory(specPath, {
@@ -2378,7 +2222,7 @@ async function handleSandboxTasks(args) {
   specData.tasks = existingTasks;
 
   const now = new Date().toISOString();
-  if (specData.meta) specData.meta.updated_at = now;
+  if (specData.meta && specData.meta.schema_version !== 'v7') specData.meta.updated_at = now;
 
   writeState(specPath, specData);
   appendHistory(specPath, {

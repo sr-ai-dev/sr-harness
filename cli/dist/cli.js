@@ -8330,7 +8330,7 @@ var dev_spec_v7_schema_default = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: "dev-spec/v7",
   title: "dev-spec v7",
-  description: "Simplified spec schema for specify-v2. No verify fields, no implications, no sandbox_capability. Focused on goal \u2192 decisions \u2192 requirements \u2192 tasks.",
+  description: "Simplified spec schema for specify-v2. No verify fields, no acceptance_criteria, no file_scope. Focused on goal \u2192 decisions \u2192 requirements (with sub-req behaviors as acceptance criteria) \u2192 tasks.",
   type: "object",
   required: ["meta", "tasks"],
   additionalProperties: false,
@@ -8366,16 +8366,6 @@ var dev_spec_v7_schema_default = {
           items: { type: "string" },
           description: "What this project is explicitly NOT trying to achieve"
         },
-        mode: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            interaction: {
-              type: "string",
-              enum: ["interactive", "autopilot"]
-            }
-          }
-        },
         type: {
           type: "string",
           enum: ["dev", "plain"]
@@ -8384,27 +8374,16 @@ var dev_spec_v7_schema_default = {
           type: "string",
           enum: ["v7"],
           description: "Schema version. v7 = specify-v2 simplified schema."
-        },
-        created_at: { type: "string" },
-        updated_at: { type: "string" },
-        approved_by: { type: "string" },
-        approved_at: { type: "string" }
+        }
       }
     },
     context: {
       type: "object",
       additionalProperties: false,
       properties: {
-        request: { type: "string" },
         confirmed_goal: {
           type: "string",
           description: "Confirmed goal statement from mirror phase"
-        },
-        research: {
-          oneOf: [
-            { type: "string" },
-            { $ref: "#/$defs/researchFindings" }
-          ]
         },
         decisions: {
           type: "array",
@@ -8415,18 +8394,7 @@ var dev_spec_v7_schema_default = {
             properties: {
               id: { type: "string" },
               decision: { type: "string" },
-              rationale: { type: "string" },
-              assumed: {
-                type: "boolean",
-                default: false,
-                description: "True if agent-decided (user skipped or autopilot mode)"
-              },
-              status: {
-                type: "string",
-                enum: ["resolved", "pending"],
-                default: "resolved",
-                description: "resolved = user answered, pending = user said 'I don't know' (needs investigation)"
-              }
+              rationale: { type: "string" }
             }
           }
         },
@@ -8448,36 +8416,16 @@ var dev_spec_v7_schema_default = {
     },
     requirement: {
       type: "object",
-      required: ["id", "behavior", "priority", "sub"],
+      required: ["id", "behavior", "sub"],
       additionalProperties: false,
       properties: {
         id: { type: "string" },
         behavior: { type: "string" },
-        priority: {
-          type: "integer",
-          minimum: 1,
-          maximum: 5
-        },
         sub: {
           type: "array",
           minItems: 1,
           items: { $ref: "#/$defs/subRequirement" },
-          description: "Sub-requirements decomposing this requirement into testable behaviors"
-        },
-        source: {
-          type: "object",
-          required: ["type"],
-          additionalProperties: false,
-          properties: {
-            type: {
-              type: "string",
-              enum: ["goal", "decision", "gap", "implicit", "negative"]
-            },
-            ref: {
-              type: "string",
-              description: "Reference ID (e.g. 'D3') pointing to a context entry"
-            }
-          }
+          description: "Sub-requirements decomposing this requirement into testable behaviors. These serve as the behavioral acceptance criteria for tasks that fulfill this requirement."
         }
       }
     },
@@ -8490,32 +8438,9 @@ var dev_spec_v7_schema_default = {
         behavior: { type: "string", description: "Concrete, testable behavior" }
       }
     },
-    taskCheck: {
-      type: "object",
-      required: ["type", "run"],
-      additionalProperties: false,
-      properties: {
-        type: {
-          type: "string",
-          enum: ["static", "build", "lint", "format"]
-        },
-        run: { type: "string" }
-      }
-    },
-    taskAcceptanceCriteria: {
-      type: "object",
-      required: ["checks"],
-      additionalProperties: false,
-      properties: {
-        checks: {
-          type: "array",
-          items: { $ref: "#/$defs/taskCheck" }
-        }
-      }
-    },
     task: {
       type: "object",
-      required: ["id", "action", "type"],
+      required: ["id", "action"],
       additionalProperties: false,
       properties: {
         id: { type: "string" },
@@ -8537,7 +8462,6 @@ var dev_spec_v7_schema_default = {
           type: "array",
           items: { type: "string" }
         },
-        acceptance_criteria: { $ref: "#/$defs/taskAcceptanceCriteria" },
         started_at: { type: "string" },
         completed_at: { type: "string" },
         summary: { type: "string" }
@@ -8554,8 +8478,7 @@ var dev_spec_v7_schema_default = {
             required: ["action"],
             additionalProperties: false,
             properties: {
-              action: { type: "string" },
-              blocking: { type: "boolean" }
+              action: { type: "string" }
             }
           }
         },
@@ -8568,41 +8491,6 @@ var dev_spec_v7_schema_default = {
             properties: {
               action: { type: "string" }
             }
-          }
-        }
-      }
-    },
-    researchFindings: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        summary: { type: "string" },
-        patterns: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["path", "description"],
-            additionalProperties: false,
-            properties: {
-              path: { type: "string" },
-              start_line: { type: "integer", minimum: 1 },
-              end_line: { type: "integer", minimum: 1 },
-              description: { type: "string" }
-            }
-          }
-        },
-        structure: {
-          type: "array",
-          items: { type: "string" }
-        },
-        commands: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            typecheck: { type: "string" },
-            lint: { type: "string" },
-            test: { type: "string" },
-            build: { type: "string" }
           }
         }
       }
@@ -8849,11 +8737,10 @@ async function handleInit(args) {
   const specData = {
     meta: {
       name,
-      goal: parsed.goal,
-      created_at: now
+      goal: parsed.goal
     },
     tasks: [
-      { id: "T1", action: "TODO", type: "work", status: "pending" }
+      { id: "T1", action: "TODO", type: "work" }
     ]
   };
   if (parsed.type !== void 0) {
@@ -8864,11 +8751,6 @@ async function handleInit(args) {
       process.exit(1);
     }
     specData.meta.type = parsed.type;
-  }
-  if (parsed.depth || parsed.interaction) {
-    specData.meta.mode = {};
-    if (parsed.depth) specData.meta.mode.depth = parsed.depth;
-    if (parsed.interaction) specData.meta.mode.interaction = parsed.interaction;
   }
   if (parsed.schema) {
     const validSchemas = ["v6", "v7"];
@@ -8888,10 +8770,6 @@ async function handleInit(args) {
 `);
   process.stdout.write(`  goal: ${parsed.goal}
 `);
-  if (specData.meta.mode) {
-    process.stdout.write(`  mode: ${specData.meta.mode.depth || "-"}/${specData.meta.mode.interaction || "-"}
-`);
-  }
   process.exit(0);
 }
 async function handleMerge(args) {
@@ -8945,9 +8823,6 @@ async function handleMerge(args) {
   deepMerge(specData, fragment, append, patch);
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const mergedKeys = Object.keys(fragment).join(", ");
-  if (specData.meta) {
-    specData.meta.updated_at = now;
-  }
   validateSpec(specData);
   const strict = parsed.strict === true;
   if (strict) {
@@ -9077,36 +8952,6 @@ function loadSpec(filePath) {
     }
     process.exit(1);
   }
-}
-function buildVerifyPlan(task, spec2) {
-  const reqIds = task.fulfills || [];
-  if (reqIds.length === 0) return [];
-  const entries = [];
-  for (const reqId of reqIds) {
-    const req = (spec2.requirements || []).find((r) => r.id === reqId);
-    if (!req) continue;
-    for (const sr of req.sub || []) {
-      const method = sr.verify?.type;
-      const entry = {
-        sub_requirement: sr.id,
-        behavior: sr.behavior,
-        method: method || "unknown"
-      };
-      if (method === "command" && sr.verify) {
-        entry.run = sr.verify.run;
-        if (sr.verify.expect !== void 0) entry.expect = sr.verify.expect;
-      }
-      if (method === "assertion" && sr.verify) {
-        entry.checks = sr.verify.checks;
-      }
-      if (method === "instruction") {
-        entry.action = "skip";
-        if (sr.verify?.ask) entry.ask = sr.verify.ask;
-      }
-      entries.push(entry);
-    }
-  }
-  return entries;
 }
 function buildPlan(tasks) {
   const taskMap = /* @__PURE__ */ new Map();
@@ -9277,13 +9122,10 @@ function formatJson(spec2, rounds, criticalPath) {
         return {
           id: t.id,
           action: t.action,
-          type: t.type,
+          type: t.type || "work",
           status: t.status || "pending",
-          risk: t.risk || null,
           depends_on: t.depends_on || [],
-          steps: t.steps || [],
-          file_scope: t.file_scope || [],
-          verify_plan: buildVerifyPlan(t, spec2)
+          fulfills: t.fulfills || []
         };
       })
     }))
@@ -9302,17 +9144,13 @@ function formatSlim(spec2, rounds, criticalPath) {
       parallel: round.length > 1,
       tasks: round.map((id) => {
         const t = (spec2.tasks || []).find((task) => task.id === id) || {};
-        const isDerived = t.origin === "derived";
         return {
           id: t.id,
           action: t.action,
-          type: t.type,
+          type: t.type || "work",
           status: t.status || "pending",
-          derived: isDerived,
           depends_on: t.depends_on || [],
-          ...t.tool ? { tool: t.tool } : {},
-          ...t.args ? { args: t.args } : {},
-          verify_plan: buildVerifyPlan(t, spec2)
+          fulfills: t.fulfills || []
         };
       })
     }))
@@ -9423,7 +9261,6 @@ async function handleAmend(args) {
   if (!specData.meta) {
     specData.meta = {};
   }
-  specData.meta.updated_at = (/* @__PURE__ */ new Date()).toISOString();
   try {
     writeFileSync(specPath, JSON.stringify(specData, null, 2), "utf8");
   } catch (err) {
@@ -9595,10 +9432,11 @@ function runCoverageChecks(specData, layer) {
   const decisions = specData.context?.decisions || specData.decisions || [];
   const requirements = specData.requirements || [];
   const decisionIds = new Set(decisions.map((d) => d.id).filter(Boolean));
+  const isV7 = specData.meta?.schema_version === "v7";
   const runDecisions = !layer || layer === "decisions";
   const runRequirements = !layer || layer === "requirements";
   const runTasks = !layer || layer === "tasks";
-  if (runDecisions && decisionIds.size > 0) {
+  if (!isV7 && runDecisions && decisionIds.size > 0) {
     for (const req of requirements) {
       const sourceType = req.source?.type;
       const ref = req.source?.ref;
@@ -9619,20 +9457,20 @@ function runCoverageChecks(specData, layer) {
         });
       }
     }
-  }
-  if (runDecisions && decisionIds.size > 0 && requirements.length > 0) {
-    const coveredDecisionIds = /* @__PURE__ */ new Set();
-    for (const req of requirements) {
-      const ref = req.source?.ref;
-      if (ref) coveredDecisionIds.add(ref);
-    }
-    for (const decId of decisionIds) {
-      if (!coveredDecisionIds.has(decId)) {
-        gaps.push({
-          layer: "decisions",
-          check: "decision-coverage",
-          message: `decision '${decId}' is not referenced by any requirement source.ref`
-        });
+    if (requirements.length > 0) {
+      const coveredDecisionIds = /* @__PURE__ */ new Set();
+      for (const req of requirements) {
+        const ref = req.source?.ref;
+        if (ref) coveredDecisionIds.add(ref);
+      }
+      for (const decId of decisionIds) {
+        if (!coveredDecisionIds.has(decId)) {
+          gaps.push({
+            layer: "decisions",
+            check: "decision-coverage",
+            message: `decision '${decId}' is not referenced by any requirement source.ref`
+          });
+        }
       }
     }
   }
@@ -9754,12 +9592,15 @@ async function handleCheck(args) {
       }
     }
   }
+  const isV7Check = specData.meta?.schema_version === "v7";
   const decisionIds = new Set((specData.context?.decisions || specData.decisions || []).map((d) => d.id).filter(Boolean));
-  for (const req of specData.requirements || []) {
-    const ref = req.source?.ref;
-    if (ref !== void 0 && ref !== null) {
-      if (!decisionIds.has(ref)) {
-        issues.push(`requirement '${req.id}' source.ref '${ref}' does not match any decision ID`);
+  if (!isV7Check) {
+    for (const req of specData.requirements || []) {
+      const ref = req.source?.ref;
+      if (ref !== void 0 && ref !== null) {
+        if (!decisionIds.has(ref)) {
+          issues.push(`requirement '${req.id}' source.ref '${ref}' does not match any decision ID`);
+        }
       }
     }
   }
@@ -9775,7 +9616,7 @@ async function handleCheck(args) {
     }
   }
   const warnings = [];
-  if ((specData.context?.decisions || specData.decisions || []).length > 0 && (specData.requirements || []).length > 0) {
+  if (!isV7Check && (specData.context?.decisions || specData.decisions || []).length > 0 && (specData.requirements || []).length > 0) {
     const coveredDecisionIds = /* @__PURE__ */ new Set();
     for (const req of specData.requirements || []) {
       const ref = req.source?.ref;
@@ -9785,18 +9626,6 @@ async function handleCheck(args) {
       if (!coveredDecisionIds.has(decId)) {
         warnings.push(`decision '${decId}' is not referenced by any requirement source.ref`);
       }
-    }
-  }
-  const fileScopeMap = /* @__PURE__ */ new Map();
-  for (const task of specData.tasks) {
-    for (const file of task.file_scope || []) {
-      if (!fileScopeMap.has(file)) fileScopeMap.set(file, []);
-      fileScopeMap.get(file).push(task.id);
-    }
-  }
-  for (const [file, taskList] of fileScopeMap) {
-    if (taskList.length > 1) {
-      warnings.push(`file '${file}' appears in file_scope of multiple tasks: ${taskList.join(", ")}`);
     }
   }
   if (issues.length > 0) {
@@ -9821,17 +9650,14 @@ function generateGuide(section, schemaVersion) {
   const schema = loadSchema(schemaVersion);
   const defs = schema.$defs || {};
   const SECTIONS = {
-    meta: { ref: "meta", desc: "Spec metadata (name, goal, mode, etc.)" },
-    context: { ref: "context", desc: "Request context, interview decisions, research, assumptions" },
+    meta: { ref: "meta", desc: "Spec metadata (name, goal, type, schema_version)" },
+    context: { ref: "context", desc: "Confirmed goal, decisions, known gaps" },
     tasks: { ref: "task", desc: "Task DAG (work items + verification)", isArray: true },
-    requirements: { ref: "requirement", desc: "Requirements with sub-requirements (sub[])", isArray: true },
+    requirements: { ref: "requirement", desc: "Requirements with sub-requirements (sub[] = behavioral acceptance criteria)", isArray: true },
     constraints: { ref: "constraint", desc: "Must-not-do / preserve constraints", isArray: true },
-    history: { ref: "historyEntry", desc: "Spec change history entries", isArray: true },
     external: { ref: "externalDependencies", desc: "Human-only pre/post-work dependencies" },
-    sub: { ref: "subRequirement", desc: "Sub-requirement (behavior + verify)" },
-    verify: { ref: null, desc: "Verify types: command, assertion, instruction", custom: "verify" },
-    merge: { ref: null, desc: "Merge modes: replace (default), --append, --patch", custom: "merge" },
-    "acceptance-criteria": { ref: null, desc: "AC structure: checks[] only \u2014 behavior coverage via fulfills[]", custom: "acceptance-criteria" }
+    sub: { ref: "subRequirement", desc: "Sub-requirement (behavior = testable acceptance criterion)" },
+    merge: { ref: null, desc: "Merge modes: replace (default), --append, --patch", custom: "merge" }
   };
   if (!section || section === "list") {
     const lines = ["Available guide sections:"];
@@ -9863,14 +9689,8 @@ function generateGuide(section, schemaVersion) {
   if (!info) {
     return `Error: unknown section '${section}'. Run 'hoyeon-cli spec guide' to see available sections.`;
   }
-  if (info.custom === "verify") {
-    return formatVerifyGuide(defs);
-  }
   if (info.custom === "merge") {
     return formatMergeGuide();
-  }
-  if (info.custom === "acceptance-criteria") {
-    return formatAcceptanceCriteriaGuide();
   }
   const def = defs[info.ref];
   if (!def) {
@@ -10046,62 +9866,6 @@ function formatMergeGuide() {
   ];
   return lines.join("\n");
 }
-function formatAcceptanceCriteriaGuide() {
-  const lines = [
-    "acceptance_criteria: checks[] only",
-    "",
-    "  Behavior verification coverage is declared via task.fulfills[]",
-    "    fulfills: string[]  (top-level task field)",
-    "    List of requirement IDs (requirements[].id) that this task fulfills.",
-    "    spec check validates that each ID exists in requirements[].",
-    "    verify_plan is built by collecting sub[] entries from those requirements.",
-    '    example: ["R1", "R2"]',
-    "",
-    "  checks: taskCheck[]",
-    "    Automated checks to run when verifying the task.",
-    "    Each check has:",
-    "      * type: enum(static|build|lint|format)",
-    "      * run: string (shell command)",
-    '    example: [{"type":"build","run":"cd cli && node build.mjs"},{"type":"static","run":"tsc --noEmit"}]',
-    "",
-    "  example acceptance_criteria:",
-    "    {",
-    '      "checks": [',
-    '        {"type": "build", "run": "cd cli && node build.mjs"},',
-    '        {"type": "lint", "run": "eslint src/"}',
-    "      ]",
-    "    }",
-    "  example task.fulfills:",
-    '    "fulfills": ["R1", "R2"]',
-    "",
-    "  Note: spec check validates referential integrity.",
-    "    task.fulfills[] IDs must exist in requirements[].id.",
-    "    Run: hoyeon-cli spec check <path>"
-  ];
-  return lines.join("\n");
-}
-function formatVerifyGuide(defs) {
-  const lines = [
-    "verify: oneOf \u2014 choose based on verified_by value:",
-    "",
-    '  verified_by: "machine" \u2192 verifyCommand',
-    '    * type: "command"',
-    "    * run: string (shell command)",
-    "    * expect: { *exit_code: int, stdout_contains?: string, stderr_empty?: bool }",
-    '    example: {"type":"command","run":"npm test","expect":{"exit_code":0}}',
-    "",
-    '  verified_by: "agent" \u2192 verifyAssertion',
-    '    * type: "assertion"',
-    "    * checks: [string] (min 1 item)",
-    '    example: {"type":"assertion","checks":["file exists at src/foo.ts"]}',
-    "",
-    '  verified_by: "human" \u2192 verifyInstruction',
-    '    * type: "instruction"',
-    "    * ask: string (question for human)",
-    '    example: {"type":"instruction","ask":"Does the UI look correct?"}'
-  ];
-  return lines.join("\n");
-}
 async function handleGuide(args) {
   const parsed = parseArgs(args);
   const section = parsed._[0];
@@ -10181,7 +9945,7 @@ async function handleDerive(args) {
   if (!specData.tasks) specData.tasks = [];
   specData.tasks = specData.tasks.concat([newTask]);
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  if (specData.meta) specData.meta.updated_at = now;
+  if (specData.meta && specData.meta.schema_version !== "v7") specData.meta.updated_at = now;
   validateSpec(specData);
   buildPlan(specData.tasks);
   writeState(specPath, specData);
@@ -10214,30 +9978,26 @@ async function handleDeriveRequirements(args) {
   requirements.push({
     id: `R0`,
     behavior: `TODO \u2014 from goal: ${goal.slice(0, 80)}`,
-    priority: 1,
-    source: { type: "goal" },
     sub: [{ id: "R0.1", behavior: "TODO" }]
   });
   for (const d of decisions) {
     requirements.push({
       id: `R${idx}`,
       behavior: `TODO \u2014 from ${d.id}: ${d.decision.slice(0, 80)}`,
-      priority: 1,
-      source: { type: "decision", ref: d.id },
       sub: [{ id: `R${idx}.1`, behavior: "TODO" }]
     });
     idx++;
   }
   specData.requirements = requirements;
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  if (specData.meta) specData.meta.updated_at = now;
+  if (specData.meta && specData.meta.schema_version !== "v7") specData.meta.updated_at = now;
   validateSpec(specData);
   writeState(specPath, specData);
   appendHistory(specPath, { ts: now, type: "spec_updated", detail: `derive-requirements: ${requirements.length} stubs` });
   process.stdout.write(`Derived ${requirements.length} requirements from ${decisions.length} decisions + goal
 `);
   for (const r of requirements) {
-    process.stdout.write(`  ${r.id}: ${r.source.type}${r.source.ref ? ":" + r.source.ref : ""} \u2192 "${r.behavior.slice(0, 60)}..."
+    process.stdout.write(`  ${r.id}: "${r.behavior.slice(0, 60)}..."
 `);
   }
   process.exit(0);
@@ -10265,32 +10025,26 @@ async function handleDeriveTasks(args) {
     tasks.push({
       id: taskId,
       action: `TODO \u2014 implement ${r.id}: ${r.behavior.slice(0, 60)}`,
-      type: "work",
-      status: "pending",
       depends_on: [],
-      fulfills: [r.id],
-      acceptance_criteria: { checks: [] }
+      fulfills: [r.id]
     });
   }
   tasks.push({
     id: "TF",
     action: "Full verification",
     type: "verification",
-    status: "pending",
-    depends_on: workIds,
-    fulfills: [],
-    acceptance_criteria: { checks: [{ type: "build", run: 'echo "TODO: add build command"' }] }
+    depends_on: workIds
   });
   specData.tasks = tasks;
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  if (specData.meta) specData.meta.updated_at = now;
+  if (specData.meta && specData.meta.schema_version !== "v7") specData.meta.updated_at = now;
   validateSpec(specData);
   writeState(specPath, specData);
   appendHistory(specPath, { ts: now, type: "tasks_changed", detail: `derive-tasks: ${tasks.length} stubs` });
   process.stdout.write(`Derived ${tasks.length} tasks from ${requirements.length} requirements
 `);
   for (const t of tasks) {
-    process.stdout.write(`  ${t.id}: fulfills=[${t.fulfills.join(",")}] "${t.action.slice(0, 60)}"
+    process.stdout.write(`  ${t.id}: fulfills=[${(t.fulfills || []).join(",")}] "${t.action.slice(0, 60)}"
 `);
   }
   process.exit(0);
@@ -10457,7 +10211,7 @@ async function handleRequirement(args) {
       found.sub.verification_reason = parsed.reason;
     }
     const now = (/* @__PURE__ */ new Date()).toISOString();
-    if (specData.meta) specData.meta.updated_at = now;
+    if (specData.meta && specData.meta.schema_version !== "v7") specData.meta.updated_at = now;
     writeState(specPath, specData);
     appendHistory(specPath, {
       ts: now,
@@ -10606,7 +10360,7 @@ async function handleSandboxTasks(args) {
   }
   specData.tasks = existingTasks;
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  if (specData.meta) specData.meta.updated_at = now;
+  if (specData.meta && specData.meta.schema_version !== "v7") specData.meta.updated_at = now;
   writeState(specPath, specData);
   appendHistory(specPath, {
     ts: now,

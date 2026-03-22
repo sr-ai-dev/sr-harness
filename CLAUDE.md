@@ -121,7 +121,19 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v1.3.1)
+## Recent Changes (v1.4.0)
+
+- refactor(specify): replace TeamCreate gate-keeper with per-layer Task(reviewer)
+  - Remove TeamCreate/SendMessage/TeamDelete from specify pipeline
+  - L2: Task(L2-reviewer), L3: Task(L3-reviewer) absorbs gate-keeper, L4: Task(L4-reviewer)
+  - Each reviewer gets fresh context per gate (no cross-layer state confusion)
+  - Structured reviewer return contract: PASS/NEEDS_FIX/BACKTRACK, max 3 calls (initial + 2 re-reviews)
+- refactor(specify): add L3-verify-writer step to L3 pipeline
+  - L3-deriver outputs requirements + sub-reqs WITHOUT verify fields
+  - Task(L3-verify-writer) adds verify fields based on sandbox capability
+  - L3 pipeline: deriver → verify-writer → reviewer (3-step)
+
+## Previous Changes (v1.3.1)
 
 - refactor(specify): replace 3-agent L3 workshop with Task-based derive+review pipeline
   - Remove L3-user-advocate, L3-requirement-writer, L3-devil's-advocate from TeamCreate
@@ -181,8 +193,8 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 
 - refactor(specify): replace phase-based specify with layer-based derivation chain (L0-L5)
   - L0:Goal → L1:Context → L2:Decisions → L3:Requirements+Scenarios → L4:Tasks → L5:Review
-  - Each layer has merge checkpoint (CLI) + gate-keeper (step-back via agent team)
-  - Team-mode gate-keepers replace single-agent phase2-stepback
+  - Each layer has merge checkpoint (CLI) + per-layer Task(reviewer)
+  - Per-layer Task(reviewer) replaces single-agent phase2-stepback
   - Spec coverage CLI gates at each layer transition
 - refactor(execute): remove per-task :Verify, simplify to Worker→Commit pipeline
   - Worker self-check + Final Verify replaces triple verification

@@ -181,7 +181,7 @@ ELSE:
   fv_failures = []
   IF result.goal_alignment.status == "FAIL":
     fv_failures.append("[goal_alignment] GOAL MISALIGNMENT: {result.goal_alignment.reason}")
-  FOR EACH category in [constraints, acceptance_criteria, requirements, deliverables]:
+  FOR EACH category in [constraints, requirements, deliverables]:
     FOR EACH failure in result[category].results.filter(r => r.status == "FAIL"):
       fv_failures.append("[{category}] {failure.description} — {failure.reason}")
 ```

@@ -70,9 +70,10 @@ Agent(
     {IF sub_req.verify does not exist:}
     - [{sub_req_id}] Assert behavior against code: {sub_req.description}
 
-  **Automated checks** (from acceptance_criteria.checks[]):
+  **Automated checks** (from acceptance_criteria.checks[] if present):
   {FOR EACH check in task.acceptance_criteria.checks ?? []:}
   - [{check.type}] Run: `{check.run}` → expect exit 0
+  (v7 specs have no acceptance_criteria — sub-req behaviors above serve as the sole acceptance criteria)
 
   ## Step 4: Sub-Requirement Status Check
   Run: `hoyeon-cli spec requirement --status --json {spec_path}`
@@ -121,11 +122,6 @@ Agent(
     "constraints": {
       "pass": 0, "fail": 0, "results": []
     },
-    "acceptance_criteria": {
-      "pass": 0, "fail": 0, "results": [
-        {"task_id": "T1", "sub_requirement_id": "SR1.1", "description": "...", "status": "PASS|FAIL", "reason": "..."}
-      ]
-    },
     "sub_requirement_status": {
       "pass": 0, "fail": 0, "pending": 0, "skipped": 0,
       "results": [
@@ -168,7 +164,7 @@ ELIF result.status == "FAILED":
     fv_attempt += 1
     fix_tasks = []
 
-    FOR EACH category in [constraints, acceptance_criteria, requirements, deliverables]:
+    FOR EACH category in [constraints, requirements, deliverables]:
       FOR EACH failure in result[category].results.filter(r => r.status == "FAIL"):
         parent_task_id = failure.task_id ?? last_planned_task_id
 
@@ -241,7 +237,7 @@ Agent(subagent_type="worker", description="FV-Tier2: Cross-task compatibility",
   Read spec at {spec_path}. For each pair of tasks where one task's outputs
   are consumed by another task's inputs (check depends_on relationships):
   1. Verify data format and contract compatibility across the boundary
-  2. Check tasks with overlapping file_scope for coherent changes (no conflicts)
+  2. Check tasks with overlapping file changes for coherent modifications (no conflicts)
   3. Report any incompatibilities found
 
   Output: {"status": "PASS"|"FAIL", "issues": [...]}

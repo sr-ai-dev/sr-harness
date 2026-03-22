@@ -101,6 +101,6 @@ Autopilot mode: skip user approval (except Plan Summary at L4).
 - [ ] `meta.non_goals` populated (empty `[]` if none)
 - [ ] `context.decisions[]` populated
 - [ ] Every requirement has at least 1 sub-requirement
-- [ ] Every task has `fulfills[]` and `acceptance_criteria.checks[]`
+- [ ] Every task has `fulfills[]`
 - [ ] Plan Summary presented to user
 - [ ] `meta.approved_by` and `meta.approved_at` written after approval

@@ -40,7 +40,6 @@ function baseSpec(overrides = {}) {
       name: 'merge-test',
       goal: 'Test merge operations',
       type: 'dev',
-      created_at: new Date().toISOString(),
     },
     tasks: [
       { id: 'T1', action: 'Initial task', type: 'work', status: 'pending' },
@@ -51,7 +50,7 @@ function baseSpec(overrides = {}) {
 
 // Test 1: deep merge overwrites scalar, merges objects
 test('deep merge overwrites scalar, merges objects', () => {
-  const spec = createSpec(baseSpec({ meta: { name: 'original', goal: 'old goal', type: 'dev', created_at: new Date().toISOString() } }));
+  const spec = createSpec(baseSpec({ meta: { name: 'original', goal: 'old goal', type: 'dev' } }));
   try {
     runMerge(spec.path, { meta: { goal: 'new goal' } });
     const result = spec.read();
@@ -171,29 +170,24 @@ test('--patch with items missing id field appends them', () => {
   }
 });
 
-// Test 7: nested array patch (requirements[].scenarios[])
-test('nested array patch — requirements[].scenarios[] replaces via shallow object merge', () => {
+// Test 7: nested array patch (requirements[].sub[])
+test('nested array patch — requirements[] replaces via shallow object merge', () => {
   const spec = createSpec(baseSpec({
     requirements: [
       {
-        id: 'R1', behavior: 'parsing', priority: 1,
-        scenarios: [
-          { id: 'R1-S1', given: 'a', when: 'b', then: 'c', verified_by: 'machine', verify: { type: 'command', run: 'test', expect: { exit_code: 0 } } },
-          { id: 'R1-S2', given: 'x', when: 'y', then: 'z', verified_by: 'agent', verify: { type: 'assertion', checks: ['ok'] } },
-        ],
+        id: 'R1', behavior: 'parsing',
+        sub: [{ id: 'R1.1', behavior: 'sub one' }, { id: 'R1.2', behavior: 'sub two' }],
       },
       {
-        id: 'R2', behavior: 'scanning', priority: 2,
-        scenarios: [
-          { id: 'R2-S1', given: 'a', when: 'b', then: 'c', verified_by: 'machine', verify: { type: 'command', run: 'test2', expect: { exit_code: 0 } } },
-        ],
+        id: 'R2', behavior: 'scanning',
+        sub: [{ id: 'R2.1', behavior: 'sub three' }],
       },
     ],
   }));
   try {
     // --patch on requirements: patch R1 only, R2 preserved
     runMerge(spec.path, {
-      requirements: [{ id: 'R1', behavior: 'parsing UPDATED', priority: 1 }],
+      requirements: [{ id: 'R1', behavior: 'parsing UPDATED' }],
     }, ['--patch']);
     const result = spec.read();
     assert.equal(result.requirements.length, 2, 'both requirements preserved');
@@ -223,39 +217,7 @@ test('history entries are append-only across multiple merges', () => {
   }
 });
 
-// Test 9: derived tasks (origin=derived) merge correctly
-test('derived tasks (origin=derived) merge correctly via --patch', () => {
-  const spec = createSpec(baseSpec({
-    tasks: [
-      { id: 'T1', action: 'work task', type: 'work', status: 'pending' },
-      {
-        id: 'T2',
-        action: 'derived task',
-        type: 'work',
-        status: 'pending',
-        origin: 'derived',
-        derived_from: { parent: 'T1', trigger: 'adapt', source: 'orchestrator', reason: 'subtask' },
-      },
-    ],
-  }));
-  try {
-    runMerge(spec.path, {
-      tasks: [{ id: 'T2', status: 'done', summary: 'derived completed' }],
-    }, ['--patch']);
-    const result = spec.read();
-    assert.equal(result.tasks.length, 2, 'task count preserved');
-    const t2 = result.tasks.find(t => t.id === 'T2');
-    assert.ok(t2, 'T2 found');
-    assert.equal(t2.status, 'done', 'T2 status updated');
-    assert.equal(t2.origin, 'derived', 'T2 origin=derived preserved');
-    assert.deepEqual(t2.derived_from, { parent: 'T1', trigger: 'adapt', source: 'orchestrator', reason: 'subtask' }, 'T2 derived_from preserved');
-    assert.equal(t2.summary, 'derived completed', 'T2 summary added');
-  } finally {
-    spec.cleanup();
-  }
-});
-
-// Test 10: task.status update via merge
+// Test 9: task.status update via merge
 test('task.status update via --patch merge', () => {
   const spec = createSpec(baseSpec({
     tasks: [

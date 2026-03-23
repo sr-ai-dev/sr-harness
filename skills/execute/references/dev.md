@@ -27,9 +27,25 @@ ELSE:
   depth = "standard"
 ```
 
+### TDD Mode
+
+`{tdd}` is resolved:
+
+```
+IF --tdd flag present:
+  tdd = true
+ELSE:
+  tdd = false
+```
+
+When `tdd = true`, Workers write tests BEFORE implementation (RED-GREEN-REFACTOR).
+The `tdd` flag is passed to `WORKER_DESCRIPTION` so each Worker knows to use TDD flow.
+
 Examples:
 - `/execute` → reads `meta.mode.depth` from spec.json (set by specify)
 - `/execute --quick` → override to quick regardless of spec
+- `/execute --tdd` → Workers write tests first, then implement
+- `/execute --quick --tdd` → quick mode + TDD
 - `/execute my-feature` → reads mode from my-feature's spec.json
 
 ### Mode Variable
@@ -156,7 +172,7 @@ FOR EACH task in plan (flattened):
 
 FOR EACH task in plan (flattened from rounds, excluding done):
   w  = TaskCreate(subject="{task.id}.1:Worker — {task.action}",
-                  description=WORKER_DESCRIPTION(task.id),
+                  description=WORKER_DESCRIPTION(task.id, tdd),
                   activeForm="{task.id}.1: Running Worker")
 
   # Verify Auto-Pass: skip .V:Verify when gate returns false
@@ -203,9 +219,10 @@ rp = TaskCreate(subject="Finalize:Report",
 > 3. **Self-contained** — each worker has all instructions to operate independently
 
 ```
-WORKER_DESCRIPTION(task_id) = """
+WORKER_DESCRIPTION(task_id, tdd) = """
 You are a Worker agent. Implement task {task_id}.
 Work in the current directory (session CWD — already set to worktree if applicable).
+TDD Mode: {IF tdd: "ON" ELSE: "OFF"}
 
 ## Step 1: Read your task spec
 Run: `hoyeon-cli spec task {task_id} --get {spec_path}`
@@ -223,12 +240,14 @@ Read: {CONTEXT_DIR}/issues.json — failed approaches to avoid (if exists)
 
 ## Step 4: Implement
 Follow the task action and steps from your task spec.
+If TDD Mode is ON, follow your agent's TDD rules (RED → GREEN → REFACTOR).
 Respect constraints.
 Do NOT run git commands — Orchestrator handles commits.
 
 ### Verification before reporting DONE
 1. **Behavioral check**: Look up `fulfills[]` → requirements → sub-requirements. Each sub-req behavior is an acceptance criterion. Verify your implementation satisfies all of them.
 2. **Build/lint/typecheck**: Run the project's build, lint, and type-check commands to ensure nothing is broken. Find these from package.json, Makefile, or project config.
+3. **Test pass (TDD only)**: If TDD Mode is ON, run the test suite and confirm all tests pass.
 
 ## Step 5: Update context files
 
@@ -473,7 +492,7 @@ function dispatch_derived_task(derive_result, spec_path):
   # 1. Create tracking tasks (always 2-step: Worker → Commit)
   fw = TaskCreate(
     subject="{task_id}.1:Worker — {task_action}",
-    description=WORKER_DESCRIPTION(task_id),
+    description=WORKER_DESCRIPTION(task_id, tdd),
     activeForm="{task_id}.1: Running Worker")
 
   fc = TaskCreate(subject="{task_id}.2:Commit",
@@ -502,7 +521,7 @@ function dispatch_fv_fix(derive_result, spec_path):
 
   fw = TaskCreate(
     subject="{task_id}.1:Worker — FV fix",
-    description=WORKER_DESCRIPTION(task_id),
+    description=WORKER_DESCRIPTION(task_id, tdd),
     activeForm="{task_id}.1: FV fix")
 
   TaskUpdate(taskId=fw, status="in_progress")
@@ -561,7 +580,7 @@ ELIF result.status == "BLOCKED":
 
   # Chain: fix commit → re-run original worker → original commit → finalize
   rw = TaskCreate(subject="{task_id}.R:Worker — Re-run after scope fix",
-       description=WORKER_DESCRIPTION(task_id),
+       description=WORKER_DESCRIPTION(task_id, tdd),
        activeForm="{task_id}: Re-running after scope fix")
   TaskUpdate(taskId=tracking.commit, addBlocks=[rw])
   TaskUpdate(taskId=rw, addBlocks=[cm_original])  # re-worker must finish before original commit

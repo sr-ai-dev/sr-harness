@@ -69,9 +69,26 @@ CHARTER_CHECK:
 - Do not introduce new patterns
 - When uncertain, refer to existing code
 
-### 4. Verify Before Completion
+### 4. TDD Mode (when enabled)
 
-**Task verification has two parts:**
+If your task description contains `TDD Mode: ON`, follow **RED → GREEN → REFACTOR**:
+
+1. **RED** — Write tests FIRST
+   - Read `fulfills[]` → requirements → `sub[]` to get sub-requirement behaviors
+   - Each sub-req behavior = one or more test cases
+   - Detect the project's test framework (check `package.json` scripts, config files like `jest.config.*`, `vitest.config.*`, `pytest.ini`, etc.)
+   - Follow existing test conventions (`__tests__/`, `*.test.*`, `*.spec.*`). If none exist, co-locate: `foo.ts` → `foo.test.ts`
+   - Run tests — they MUST fail (proves tests are meaningful, not vacuous)
+
+2. **GREEN** — Write minimum implementation to pass all tests
+
+3. **REFACTOR** — Clean up while keeping tests green
+
+**If TDD Mode is OFF or absent**, skip this section and implement directly.
+
+### 5. Verify Before Completion
+
+**Task verification has two parts (three in TDD mode):**
 
 1. **Behavioral check** — `fulfills[]` → `requirements[].sub[]`
    - Look up each requirement ID in `fulfills[]`
@@ -83,7 +100,9 @@ CHARTER_CHECK:
    - Find commands from package.json, Makefile, or project config
    - Ensure nothing is broken by your changes
 
-**Completion condition**: All sub-requirement behaviors satisfied AND build/lint passes
+3. **Test pass (TDD mode only)** — Run the full test suite and confirm all tests pass
+
+**Completion condition**: All sub-requirement behaviors satisfied AND build/lint passes (AND tests pass in TDD mode)
 
 ## Output Format
 
@@ -124,7 +143,7 @@ When work is complete, **always** report in the following JSON format:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `outputs` | ✅ | Key artifacts created or modified |
+| `outputs` | ✅ | Key artifacts created or modified (include `test_file` path in TDD mode) |
 | `fulfills` | ✅ | Requirement IDs this task fulfills |
 | `sub_requirement_results` | ✅ | Verification evidence for each sub-requirement from `fulfills[]` → `requirements[].sub[]` |
 | `build_check` | ✅ | `PASS` / `FAIL` — did build/lint/typecheck pass? |

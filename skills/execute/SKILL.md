@@ -27,11 +27,7 @@ validate_prompt: |
   Context files (learnings.json, issues.json, audit.md) are created at init for meta.type == "dev".
   Final Verify must run (all modes and types).
   Final report must be output.
-  Dedicated verifier agent (subagent_type=verifier) must run for tasks where should_spawn_verifier() returns true.
-  Verify Auto-Pass gate must skip .V:Verify for tasks with empty verify_plan, machine-only + low/medium risk.
-  Sandbox sub-requirements must have inlined recipes in verifier description.
-  Verification-type tasks must NOT get .V:Verify TaskCreate (TF dedup).
-  Auto-passed verify tasks must be logged to audit.
+  TDD mode (--tdd) must pass tdd flag to WORKER_DESCRIPTION when enabled.
 ---
 
 # /execute — Spec-Driven Orchestrator
@@ -234,14 +230,9 @@ plain.md owns: flexible dispatch (direct/Skill/Agent), Final Verify, and report.
 
 ### dev mode (additional)
 - [ ] Follow ${baseDir}/references/dev.md completely for all dev-specific steps
-- [ ] verify_plan built from CLI `spec plan --format slim` output for each work task
-- [ ] Verify Auto-Pass gate (`should_spawn_verifier()`) evaluated for each task
-- [ ] Auto-passed tasks logged to audit (`AUTO_PASS: Verify skipped for {task.id}`)
-- [ ] Sandbox recipes inlined into verifier description from verify-recipes/{subject}.md (when verifier spawned)
-- [ ] Dedicated verifier agent (subagent_type=verifier) ran for tasks where gate returned true
-- [ ] Verification-type tasks skipped .V:Verify (TF dedup guard)
-- [ ] Verifier FAIL triggered fix loop (max 2 retries via spec derive)
-- [ ] Final Verify Tier 1 passed (gate for Tier 2)
+- [ ] Worker descriptions use WORKER_DESCRIPTION template with tdd flag
+- [ ] Worker BLOCKED status handled (scope fix derived task + re-worker)
+- [ ] Final Verify ran (holistic spec verification)
 - [ ] Final Verify Tier 2 ran in standard mode (cross-task compatibility, sub-requirement coverage, constraint audit)
 
 ### plain mode (additional)

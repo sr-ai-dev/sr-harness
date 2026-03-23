@@ -170,7 +170,7 @@ Read: {CONTEXT_DIR}/issues.json — failed approaches to avoid (if exists)
 
 ## Step 4: Implement
 Follow the task action and steps from your task spec.
-If TDD Mode is ON, follow your agent's TDD rules (RED → GREEN → REFACTOR).
+If TDD Mode is ON, read `skills/execute/references/tdd-guide.md` and follow the TDD workflow (RED → GREEN → REFACTOR).
 Respect constraints.
 Do NOT run git commands — Orchestrator handles commits.
 

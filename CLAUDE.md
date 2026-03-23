@@ -121,7 +121,25 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v1.4.0)
+## Recent Changes (v1.5.0)
+
+- refactor(schema): v7-slim — remove acceptance_criteria, file_scope, priority, verify from spec schema
+  - requirements: removed `priority`, `source` (only id, behavior, sub)
+  - sub-requirements: removed `verify`, `status`, `verified_by_task` (only id, behavior)
+  - tasks: simplified to id, action, type, status, depends_on, fulfills (removed file_scope, acceptance_criteria, risk, origin, steps, inputs, outputs, etc.)
+- refactor(specify): delete legacy specify (v5), promote specify-v2 to specify
+  - Simplified layer chain: L0:Goal → L1:Context → L2:Decisions → L3:Requirements → L4:Tasks
+  - No reviewer agents, no verify fields. Evidence-based clarity scoring at L2
+  - User approves at L2, L3, L4
+- refactor(execute,bugfix,quick-plan): v7 schema compatibility
+- fix(execute): remove remaining acceptance_criteria and file_scope references
+- feat(execute): add `--tdd` flag for test-driven worker flow (RED-GREEN-REFACTOR)
+- refactor(execute): remove dead per-task verify pipeline (should_spawn_verifier, VERIFIER_DESCRIPTION, .V:Verify)
+  - DAG simplified: Worker → Commit (2-step, no per-task verify)
+  - Final Verify retained (holistic spec verification)
+  - verifier.md agent and verify-recipes/ kept for future use
+
+## Previous Changes (v1.4.0)
 
 - refactor(specify): replace TeamCreate gate-keeper with per-layer Task(reviewer)
   - Remove TeamCreate/SendMessage/TeamDelete from specify pipeline
@@ -296,12 +314,10 @@ Available guide sections:
 |---------|-------|
 | `hoyeon-cli spec guide meta` | meta fields (goal, non_goals, mode) |
 | `hoyeon-cli spec guide context` | context fields (request, research, assumptions, decisions, confirmed_goal, known_gaps) |
-| `hoyeon-cli spec guide constraints` | constraints field structure (id, type, rule, verified_by, verify) |
-| `hoyeon-cli spec guide requirements` | requirements fields (id, behavior, priority, source, sub[]) |
-| `hoyeon-cli spec guide sub` | sub-requirement fields (id, behavior, optional verify) |
-| `hoyeon-cli spec guide verify` | verify object structure (`{type, run}` — NOT a string) |
-| `hoyeon-cli spec guide tasks` | task fields (id, action, type, status, risk, file_scope, etc.) |
-| `hoyeon-cli spec guide acceptance-criteria` | AC fields (checks[] only — behavior coverage via task.fulfills[]) |
+| `hoyeon-cli spec guide constraints` | constraints field structure (id, rule) |
+| `hoyeon-cli spec guide requirements` | requirements fields (id, behavior, sub[]) |
+| `hoyeon-cli spec guide sub` | sub-requirement fields (id, behavior) |
+| `hoyeon-cli spec guide tasks` | task fields (id, action, type, status, depends_on, fulfills) |
 | `hoyeon-cli spec guide external` | external_dependencies (pre_work, post_work) |
 | `hoyeon-cli spec guide merge` | merge modes (replace vs `--append` vs `--patch`) |
 

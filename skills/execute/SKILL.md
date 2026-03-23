@@ -192,8 +192,8 @@ Read: ${baseDir}/references/dev.md
 Follow ALL instructions in dev.md for task execution, verification, and finalization.
 ```
 
-dev.md owns: Worker/Verify/Commit chain, triage, adaptation, code-review,
-Final Verify, WORKER_DESCRIPTION, VERIFY_DESCRIPTION, and mode selection (quick/standard).
+dev.md owns: Worker/Commit chain, adaptation, code-review,
+Final Verify, WORKER_DESCRIPTION, TDD mode, and mode selection (quick/standard).
 
 ### meta.type == "plain"
 

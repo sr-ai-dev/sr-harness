@@ -1,7 +1,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
-import { mkdirSync, rmSync, readFileSync } from 'node:fs';
+import { mkdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const CLI = resolve(import.meta.dirname, '../dist/cli.js');
@@ -113,6 +113,52 @@ describe('v7 schema', () => {
     const out = run('spec guide constraints --schema v7');
     assert.match(out, /required: id, rule/);
     assert.doesNotMatch(out, /verified_by/); // v6 field not in v7
+  });
+
+  it('sub-requirements with given/when/then fields pass v7 schema validation', () => {
+    execSync(
+      `echo '{"requirements":[{"id":"R1","behavior":"GWT test","sub":[{"id":"R1.1","behavior":"User login with valid credentials","given":"a registered user on the login page","when":"the user submits valid credentials","then":"the user is redirected to the dashboard"}]}]}' | node ${CLI} spec merge ${SPEC} --stdin`,
+      { encoding: 'utf8', cwd: TMP }
+    );
+    const out = run(`spec validate ${SPEC}`);
+    assert.match(out, /Coverage passed/);
+    const spec = readSpec();
+    const sub = spec.requirements[0].sub[0];
+    assert.equal(sub.given, 'a registered user on the login page');
+    assert.equal(sub.when, 'the user submits valid credentials');
+    assert.equal(sub.then, 'the user is redirected to the dashboard');
+    assert.equal(sub.behavior, 'User login with valid credentials');
+  });
+
+  it('sub-requirements with only behavior (no GWT) still pass validation', () => {
+    execSync(
+      `echo '{"requirements":[{"id":"R1","behavior":"Behavior-only test","sub":[{"id":"R1.1","behavior":"System returns 200 on health check"}]}]}' | node ${CLI} spec merge ${SPEC} --stdin`,
+      { encoding: 'utf8', cwd: TMP }
+    );
+    const out = run(`spec validate ${SPEC}`);
+    assert.match(out, /Coverage passed/);
+    const spec = readSpec();
+    const sub = spec.requirements[0].sub[0];
+    assert.equal(sub.behavior, 'System returns 200 on health check');
+    assert.equal(sub.given, undefined);
+    assert.equal(sub.when, undefined);
+    assert.equal(sub.then, undefined);
+  });
+
+  it('sub-requirements with unknown extra fields fail validation (additionalProperties)', () => {
+    // Save current spec, write invalid one, test, then restore
+    const originalSpec = readFileSync(SPEC, 'utf8');
+    const spec = readSpec();
+    spec.requirements = [{
+      id: 'R1', behavior: 'Bad sub test',
+      sub: [{ id: 'R1.1', behavior: 'has extra field', extraField: 'should fail' }],
+    }];
+    writeFileSync(SPEC, JSON.stringify(spec, null, 2));
+    const out = runFail(`spec validate ${SPEC}`);
+    // Restore original spec so subsequent tests are not affected
+    writeFileSync(SPEC, originalSpec);
+    // The validation should fail due to additionalProperties
+    assert.match(out, /must NOT have additional properties/);
   });
 
   it('known_gaps is string array in v7', () => {

@@ -283,6 +283,87 @@ assert(parsed9.behavior === 'input parsed correctly', 'Returned sub has correct 
 teardown();
 
 // ============================================================
+// Test 10: --patch merge with GWT sub-requirements preserves given/when/then
+// ============================================================
+console.log('\nTest 10: --patch merge with GWT sub-requirements preserves given/when/then');
+setup();
+
+writeSpec(makeSpec({
+  requirements: [
+    {
+      id: 'R1', behavior: 'user authentication',
+      sub: [
+        { id: 'R1.1', behavior: 'login with valid credentials' },
+      ],
+    },
+  ],
+}));
+
+run(`spec merge ${specPath} --patch --json '${JSON.stringify({
+  requirements: [{
+    id: 'R1',
+    sub: [{
+      id: 'R1.2',
+      behavior: 'login with invalid credentials rejected',
+      given: 'a user on the login page',
+      when: 'the user submits invalid credentials',
+      then: 'an error message is displayed',
+    }],
+  }],
+})}'`);
+
+const result10 = readSpec();
+const r1_10 = result10.requirements.find(r => r.id === 'R1');
+assert(r1_10.sub.length === 2, 'R1 has 2 subs after patch');
+assert(r1_10.sub[0].id === 'R1.1', 'R1.1 preserved');
+assert(r1_10.sub[0].given === undefined, 'R1.1 has no given (behavior-only)');
+const gwt = r1_10.sub.find(s => s.id === 'R1.2');
+assert(gwt !== undefined, 'R1.2 added via patch');
+assert(gwt.behavior === 'login with invalid credentials rejected', 'R1.2 behavior preserved');
+assert(gwt.given === 'a user on the login page', 'R1.2 given preserved after merge');
+assert(gwt.when === 'the user submits invalid credentials', 'R1.2 when preserved after merge');
+assert(gwt.then === 'an error message is displayed', 'R1.2 then preserved after merge');
+
+teardown();
+
+// ============================================================
+// Test 11: --patch updates existing GWT sub-requirement fields
+// ============================================================
+console.log('\nTest 11: --patch updates existing GWT sub-requirement fields');
+setup();
+
+writeSpec(makeSpec({
+  requirements: [
+    {
+      id: 'R1', behavior: 'data export',
+      sub: [
+        {
+          id: 'R1.1', behavior: 'export CSV',
+          given: 'user has data',
+          when: 'user clicks export',
+          then: 'CSV file is downloaded',
+        },
+      ],
+    },
+  ],
+}));
+
+run(`spec merge ${specPath} --patch --json '${JSON.stringify({
+  requirements: [{
+    id: 'R1',
+    sub: [{ id: 'R1.1', behavior: 'export CSV with headers', then: 'CSV file with headers is downloaded' }],
+  }],
+})}'`);
+
+const result11 = readSpec();
+const r1_11 = result11.requirements.find(r => r.id === 'R1');
+assert(r1_11.sub.length === 1, 'Still 1 sub after update');
+assert(r1_11.sub[0].behavior === 'export CSV with headers', 'behavior updated');
+assert(r1_11.sub[0].then === 'CSV file with headers is downloaded', 'then field updated');
+
+teardown();
+
+// ============================================================
 // Summary
 // ============================================================
 console.log(`\n${'='.repeat(50)}`);

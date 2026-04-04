@@ -53,6 +53,11 @@ scaffold is specify's **architecture variant**. Same spec.json format, different
 4. **Validate at layer transitions** — `hoyeon-cli spec validate` once per layer.
 5. **One merge per section** — Never merge multiple sections in parallel.
 6. **--append for arrays** — When adding to existing arrays.
+7. **Revision Merge Protocol** — When user selects "Revise" at an approval gate:
+   - **Modify existing item** (e.g. update D3's rationale) → `--patch`
+   - **Add new item** (e.g. add D12) → `--append`
+   - **Remove + rewrite entire section** → no flag (intentional full replace)
+   - **NEVER** use no-flag merge with a subset of items — this silently replaces the entire array.
 
 ---
 

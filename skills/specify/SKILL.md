@@ -39,6 +39,11 @@ Before starting, run `hoyeon-cli spec guide full --schema v1` to see the complet
 5. **One merge per section** — Never merge multiple sections in parallel.
 6. **Merge failure** — Read error → run guide → fix JSON → retry (max 2). Don't retry with same JSON.
 7. **--append for arrays** — When adding to existing arrays (decisions). **No flag** for first-time writes.
+8. **Revision Merge Protocol** — When user selects "Revise" at an approval gate:
+   - **Modify existing item** (e.g. update D3's rationale) → `--patch`
+   - **Add new item** (e.g. add D5) → `--append`
+   - **Remove + rewrite entire section** → no flag (intentional full replace)
+   - **NEVER** use no-flag merge with a subset of items — this silently replaces the entire array.
 
 ---
 

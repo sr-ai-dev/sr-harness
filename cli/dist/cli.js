@@ -8113,6 +8113,28 @@ async function handleMerge(args) {
     process.stderr.write("Error: --append and --patch are mutually exclusive\n");
     process.exit(1);
   }
+  if (!append && !patch) {
+    for (const key of Object.keys(fragment)) {
+      const src = fragment[key];
+      const tgt = specData[key];
+      if (Array.isArray(src) && Array.isArray(tgt) && tgt.length > 0) {
+        process.stderr.write(`\u26A0\uFE0F  Warning: replacing ${key}[] (${tgt.length} items \u2192 ${src.length} items) without --append or --patch
+`);
+        process.stderr.write(`   Use --append to add items, --patch to update by id, or no flag to replace entirely.
+`);
+      }
+      if (src && typeof src === "object" && !Array.isArray(src) && tgt && typeof tgt === "object") {
+        for (const nested of Object.keys(src)) {
+          if (Array.isArray(src[nested]) && Array.isArray(tgt[nested]) && tgt[nested].length > 0) {
+            process.stderr.write(`\u26A0\uFE0F  Warning: replacing ${key}.${nested}[] (${tgt[nested].length} items \u2192 ${src[nested].length} items) without --append or --patch
+`);
+            process.stderr.write(`   Use --append to add items, --patch to update by id, or no flag to replace entirely.
+`);
+          }
+        }
+      }
+    }
+  }
   deepMerge(specData, fragment, append, patch);
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const mergedKeys = Object.keys(fragment).join(", ");

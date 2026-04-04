@@ -316,6 +316,29 @@ async function handleMerge(args) {
     process.stderr.write('Error: --append and --patch are mutually exclusive\n');
     process.exit(1);
   }
+
+  // Warn when replacing non-empty arrays without --append or --patch
+  if (!append && !patch) {
+    for (const key of Object.keys(fragment)) {
+      const src = fragment[key];
+      const tgt = specData[key];
+      // Direct array replacement (e.g. requirements, tasks, constraints)
+      if (Array.isArray(src) && Array.isArray(tgt) && tgt.length > 0) {
+        process.stderr.write(`⚠️  Warning: replacing ${key}[] (${tgt.length} items → ${src.length} items) without --append or --patch\n`);
+        process.stderr.write(`   Use --append to add items, --patch to update by id, or no flag to replace entirely.\n`);
+      }
+      // Nested array replacement (e.g. context.decisions)
+      if (src && typeof src === 'object' && !Array.isArray(src) && tgt && typeof tgt === 'object') {
+        for (const nested of Object.keys(src)) {
+          if (Array.isArray(src[nested]) && Array.isArray(tgt[nested]) && tgt[nested].length > 0) {
+            process.stderr.write(`⚠️  Warning: replacing ${key}.${nested}[] (${tgt[nested].length} items → ${src[nested].length} items) without --append or --patch\n`);
+            process.stderr.write(`   Use --append to add items, --patch to update by id, or no flag to replace entirely.\n`);
+          }
+        }
+      }
+    }
+  }
+
   deepMerge(specData, fragment, append, patch);
 
   // Auto-add history entry for merge

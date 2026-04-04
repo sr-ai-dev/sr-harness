@@ -349,15 +349,16 @@ Twenty-one agents, each a different mode of thinking. You never interact with th
 
 ## Commands
 
-24 skills — slash commands you invoke inside Claude Code.
+28 skills — slash commands you invoke inside Claude Code.
 
 | Category | What you're doing | Skills |
 |----------|------------------|--------|
 | **Understand** | Derive requirements, generate specs | `/specify` `/quick-plan` `/discuss` `/deep-interview` `/mirror` |
 | **Research** | Analyze codebase, find references, scan communities | `/deep-research` `/dev-scan` `/reference-seek` `/google-search` `/browser-work` |
 | **Decide** | Evaluate tradeoffs, multi-perspective review | `/council` `/tribunal` `/tech-decision` `/stepback` |
-| **Build** | Execute specs, fix bugs, iterate | `/execute` `/ralph` `/rulph` `/bugfix` `/ultrawork` |
-| **Reflect** | Verify changes, extract learnings | `/check` `/compound` `/scope` `/issue` |
+| **Build** | Execute specs, fix bugs, iterate | `/execute` `/ralph` `/rulph` `/bugfix` `/ultrawork` `/scaffold` |
+| **Test** | QA test applications, verify changes | `/qa` `/check` `/scope` |
+| **Reflect** | Extract learnings, analyze sessions | `/compound` `/issue` `/skill-session-analyzer` |
 
 <details>
 <summary><strong>Key commands explained</strong></summary>
@@ -365,7 +366,8 @@ Twenty-one agents, each a different mode of thinking. You never interact with th
 | Command | What It Does |
 |---------|--------------|
 | `/specify` | Layer-based interview → spec.json derivation (L0→L4) with gate-keepers |
-| `/execute` | Spec-driven parallel agent dispatch + multi-model review + Final Verify |
+| `/execute` | Spec-driven orchestration with 3-axis config (dispatch: direct/agent/team, verify: light/standard/thorough) |
+| `/qa` | Systematic QA testing — browser (chromux/CDP) or computer (MCP computer-use) mode |
 | `/ultrawork` | Full pipeline: specify → execute in one command |
 | `/bugfix` | Root cause diagnosis → auto-generated spec → execute (adaptive routing) |
 | `/ralph` | Iterative loop with DoD — keeps going until independently verified |
@@ -381,7 +383,7 @@ Twenty-one agents, each a different mode of thinking. You never interact with th
 
 ## Under the Hood
 
-**24 skills · 21 agents · 18 hooks**
+**28 skills · 21 agents · 18 hooks**
 
 ```
 .claude/
@@ -391,7 +393,8 @@ Twenty-one agents, each a different mode of thinking. You never interact with th
 │   ├── bugfix/        Root cause → spec → execute pipeline
 │   ├── council/       Multi-perspective deliberation
 │   ├── tribunal/      3-agent adversarial review
-│   └── ...            19 more skills
+│   ├── qa/            Systematic QA testing (browser + computer)
+│   └── ...            22 more skills
 ├── agents/
 │   ├── interviewer    Socratic questioning
 │   ├── debugger       Root cause analysis

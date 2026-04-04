@@ -90,7 +90,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
   3. `CLAUDE.md` — add entry to the Active Hooks table above
 - A hook script that is not registered in settings will **not fire** — creating the file alone is not enough
 - Run `hoyeon-cli settings validate` to verify all hook paths are correct after changes
-- See [docs/learnings/lessons-learned.md](docs/learnings/lessons-learned.md) for additional hook behavior gotchas
+- Hook behavior gotchas are documented in commit history and session learnings
 
 ## Git Branching & Release
 
@@ -370,4 +370,4 @@ See [VERIFICATION.md](VERIFICATION.md) for the 4-Tier Testing Model (Unit → In
 
 ## Lessons Learned
 
-See [docs/learnings/lessons-learned.md](docs/learnings/lessons-learned.md) for hook/tool behavior gotchas discovered during development.
+Hook/tool behavior gotchas are documented in commit history and session learnings.

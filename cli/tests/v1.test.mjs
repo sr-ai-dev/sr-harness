@@ -96,12 +96,11 @@ describe('v1 schema', () => {
 
   it('spec derive-tasks creates stubs from requirements', () => {
     const out = run(`spec derive-tasks ${SPEC}`);
-    assert.match(out, /Derived 3 tasks/); // T1 + T2 + TF
+    assert.match(out, /Derived 2 tasks/); // T1 + T2 (no TF — Final Verify handles holistic verification)
     const spec = readSpec();
-    assert.equal(spec.tasks.length, 3);
-    assert.equal(spec.tasks[2].id, 'TF');
-    assert.equal(spec.tasks[2].type, 'verification');
-    assert.deepEqual(spec.tasks[2].depends_on, ['T1', 'T2']);
+    assert.equal(spec.tasks.length, 2);
+    assert.equal(spec.tasks[0].id, 'T1');
+    assert.equal(spec.tasks[1].id, 'T2');
   });
 
   it('spec validate passes after derive-tasks', () => {

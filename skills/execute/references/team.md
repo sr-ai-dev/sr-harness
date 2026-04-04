@@ -255,9 +255,18 @@ FOR i in 1..N:
 
 # Lead actions on message receipt:
 #   - On completion: log progress, check if all tasks done
-#   - On failure: decide reassign or halt (see Watchdog)
+#   - On failure: log_to_audit + reassign or halt (see Watchdog)
 #   - On standing by: check if verify phase should start
-#   - On blocked: unblock or reassign
+#   - On blocked: log_to_audit + unblock or reassign
+
+# IMPORTANT: On FAILED or BLOCKED messages, lead MUST append to audit.md:
+IF worker reports BLOCKED for task:
+  log_to_audit("BLOCKED: {task_id} from {worker} — {reason}")
+  # Then proceed to scope fix (derive + reassign)
+
+IF worker reports FAILED for task:
+  log_to_audit("FAILED: {task_id} from {worker} — {reason}")
+  # Then proceed to reassign (see Watchdog)
 ```
 
 ### Watchdog Policy
@@ -473,6 +482,68 @@ POST-WORK (human actions after completion)
 
 TaskUpdate(taskId=report_task, status="completed")
 ```
+
+---
+
+## Context File Management
+
+### File Structure
+
+```
+.hoyeon/specs/{name}/context/
+  learnings.json — structured learnings (lead creates empty [], workers append via hoyeon-cli spec learning)
+  issues.json   — structured issues (lead creates empty [], workers append via hoyeon-cli spec issue)
+  audit.md      — scope blockers, verify events, reassignments (lead creates empty, appends)
+```
+
+### Who reads/writes what
+
+| File | Created by | Written by | Read by |
+|------|-----------|-----------|---------|
+| `learnings.json` | lead (Phase 0.7, `[]`) | workers (via `spec learning` CLI) | workers (next worker reads prev learnings) |
+| `issues.json` | lead (Phase 0.7, `[]`) | workers (via `spec issue` CLI) | workers (avoid repeated failed approaches) |
+| `audit.md` | lead (Phase 0.7, empty) | **lead only** | lead (report generation) |
+| `history.json` | CLI auto | CLI auto (on merge/task/derive) | analysis only |
+
+### Worker Context Flow
+
+Workers self-read context files — lead does NOT read them during dispatch.
+This saves lead tokens and survives compaction.
+
+```
+Worker claims task → reads learnings.json + issues.json
+  → implements task
+  → writes learnings/issues via CLI
+  → reports to lead via SendMessage
+```
+
+### Lead Audit Log
+
+The lead writes to `audit.md` for:
+- Worker BLOCKED events (scope blocker detected, derived fix task created)
+- Worker FAILED events (task failure, reassignment)
+- Verify fix events (verify failure, fix tasks created)
+- Reassignment events (watchdog timeout, task moved to different worker)
+
+Format:
+```
+## {task_id} — {timestamp}
+Event: {BLOCKED|FAILED|VERIFY_FIX|REASSIGN}
+Worker: {worker_name}
+Reason: {reason}
+Action: {what was done — derive, reassign, halt}
+```
+
+### spec.json Update Responsibilities
+
+| Actor | Updates | Via |
+|-------|---------|-----|
+| lead | meta.mode (dispatch/work/verify) | `spec merge` |
+| lead | context.sandbox_capability | `spec merge` |
+| workers | tasks[].status → done | `spec task --status done` |
+| lead | tasks[].status → blocked | `spec task --status blocked` |
+| lead | new derived tasks | `spec derive` |
+| lead | final consistency check | `spec check` (read-only) |
 
 ---
 

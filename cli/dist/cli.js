@@ -7732,6 +7732,18 @@ var dev_spec_v1_schema_default = {
           type: "array",
           items: { type: "string" },
           description: "Things that couldn't be decided yet"
+        },
+        sandbox_capability: {
+          type: "object",
+          additionalProperties: false,
+          description: "Auto-detected sandbox capabilities for verification",
+          properties: {
+            tools: {
+              type: "array",
+              items: { type: "string", enum: ["browser", "terminal", "desktop"] }
+            },
+            scaffold_required: { type: "boolean" }
+          }
         }
       }
     },
@@ -7779,6 +7791,10 @@ var dev_spec_v1_schema_default = {
       properties: {
         id: { type: "string" },
         action: { type: "string" },
+        tool: {
+          type: "string",
+          description: "Dispatch hint for plain mode: skill name (e.g. /bugfix), agent subtype (e.g. worker), or omit for orchestrator-direct"
+        },
         type: {
           type: "string",
           enum: ["work", "verification"]
@@ -10694,7 +10710,7 @@ async function main() {
     process.exit(0);
   }
   if (args[0] === "--version") {
-    const version = true ? "1.5.0" : "dev";
+    const version = true ? "1.5.1" : "dev";
     process.stdout.write(`hoyeon-cli v${version}
 `);
     process.exit(0);

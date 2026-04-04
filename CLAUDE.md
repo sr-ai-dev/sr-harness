@@ -121,7 +121,15 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v1.5.0)
+## Recent Changes (v1.5.1)
+
+- refactor(bugfix): remove SIMPLE/COMPLEX branching — always run full investigation pipeline
+  - Always dispatch: debugger + verification-planner + gap-analyzer (all parallel)
+  - Always use agent dispatch + standard verify (no more direct/light for simple bugs)
+  - Unified retry: max 3 attempts for all bugs (remove COMPLEX instant-escalate)
+- feat(bugfix): add Phase 5.3 QA suggestion — offer /qa handoff after successful fix
+
+## Previous Changes (v1.5.0)
 
 - feat(execute): add 3-axis configuration model (dispatch/work/verify) with AskUserQuestion
   - dispatch: direct (orchestrator-direct) | agent (worker subagents with grouping) | team (TeamCreate persistent workers)

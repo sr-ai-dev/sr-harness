@@ -3,7 +3,8 @@ name: bugfix
 description: |
   Root cause based one-shot bug fix. debugger diagnosis → spec.json generation → /execute.
   /bugfix "error description"
-  Adaptive mode: auto-routes by debugger's Severity assessment (SIMPLE/COMPLEX).
+  Full investigation pipeline: debugger + gap-analyzer + standard verify.
+  QA suggestion after successful fix.
 allowed_tools:
   - Read
   - Grep
@@ -40,8 +41,7 @@ Must stop after 3 failed attempts
 /bugfix "error description"
 
 Phase 1: DIAGNOSE ─────────────────────────────────
-  debugger + verification-planner (always parallel)
-  + gap-analyzer (COMPLEX only)
+  debugger + verification-planner + gap-analyzer (all parallel)
   → User confirmation
 
 Phase 2: SPEC GENERATION ──────────────────────────
@@ -53,22 +53,20 @@ Phase 3: EXECUTE ─────────────────────
   → HALT: Phase 4
 
 Phase 4: RESULT HANDLING (if HALT) ────────────────
-  SIMPLE: retry (max 3) with stagnation detection → Phase 3
-  COMPLEX: escalate immediately (execute already retried)
+  Retry (max 3) with stagnation detection → Phase 3
   Circuit breaker → .hoyeon/debug/{slug}.md → suggest /specify
 
 Phase 5: CLEANUP & REPORT ─────────────────────────
   Save .hoyeon/debug/{slug}.md → final summary
 ```
 
-## Adaptive Mode
+## Execution Mode
 
-Mode is never asked from the user. Auto-routes based on debugger's **Severity** assessment:
+Always runs the full investigation + execution pipeline. No SIMPLE/COMPLEX branching.
 
-| Severity | spec depth | Phase 1 | Phase 3 (execute) | Retry |
-|----------|-----------|---------|-------------------|-------|
-| **SIMPLE** | quick | debugger + verification-planner | worker → commit → final verify | bugfix-managed (max 3) |
-| **COMPLEX** | standard | + gap-analyzer | worker → verify → commit → code review → requirements | execute-internal (max 2), then escalate |
+| dispatch | verify | Phase 1 | Retry |
+|---------|--------|---------|-------|
+| agent | standard | debugger + verification-planner + gap-analyzer | bugfix-managed (max 3) |
 
 ---
 
@@ -92,7 +90,7 @@ hoyeon-cli session set --sid $SESSION_ID --skill bugfix --debug "$DEBUG_STATE"
 Write(DEBUG_STATE):
 # Debug: {bug description}
 status: investigating
-severity: pending
+
 attempt: 0
 slug: {slug}
 
@@ -140,20 +138,15 @@ Task(verification-planner):
 
 ```
 Update DEBUG_STATE:
-  severity: {SIMPLE/COMPLEX}
-
   ## Diagnosis section:
   root_cause: {debugger's Root Cause — 1 line}
   bug_type: {classification}
   proposed_fix: {proposed fix — 1 line}
 ```
 
-### Step 1.3: Evaluate Severity & Conditional Gap Analysis
+### Step 1.3: Gap Analysis
 
-Check **Severity** from debugger results:
-
-- **SIMPLE** → Proceed directly to Step 1.4
-- **COMPLEX** → Run gap-analyzer, then Step 1.4:
+Always run gap-analyzer after debugger results:
 
 ```
 Task(gap-analyzer):
@@ -180,10 +173,9 @@ AskUserQuestion:
   - Bug Type: [classification]
   - Root Cause: [file:line + 1-line description]
   - Proposed Fix: [change description — 1 line]
-  - Severity: [SIMPLE/COMPLEX]
   - Verification: [verification commands from verification-planner]
   - Assumptions: [debugger's Assumptions section]
-  [COMPLEX only] Key warnings from Gap Analysis
+  - Key warnings from Gap Analysis
 
   options:
   - "Correct, proceed" → Phase 2
@@ -203,13 +195,10 @@ Convert diagnosis results into spec.json format. spec.json is the standard forma
 SPEC_DIR = "$HOME/.hoyeon/$SESSION_ID"
 SPEC_PATH = "$SPEC_DIR/spec.json"
 
-depth = "quick" for SIMPLE, "standard" for COMPLEX
-
 hoyeon-cli spec init fix-{slug} \
   --goal "Fix: {bug description}" \
   --type dev \
-  --depth {depth} \
-  --interaction autopilot \
+  --schema v1 \
   ${SPEC_PATH}
 ```
 
@@ -224,21 +213,19 @@ Use `hoyeon-cli spec merge` to populate the spec from diagnosis results. Single 
 
 **What to include:**
 
-- **meta**: `non_goals` (no refactoring, no unrelated features), `deliverables` (debug report path)
-- **context**: `request` (original bug description), `research` (debugger analysis summary), `assumptions` (from debugger), `decisions` (root cause location + rationale)
+- **meta**: `non_goals` (no refactoring, no unrelated features)
+- **context**: `confirmed_goal` (original bug description), `research` (debugger analysis summary as string array), `decisions` (root cause location + rationale), `known_gaps` (from debugger's assumptions/unknowns)
 - **tasks**: Single task (T1) with:
-  - `action`: debugger's proposed fix
-  - `steps`: write regression test (RED) → apply minimal fix (GREEN) → verify
-  - `must_not_do`: minimal diff (<5%), no refactoring, no unrelated changes, no git commands, fix root cause not symptom
+  - `action`: debugger's proposed fix (include implementation steps: write regression test RED → apply minimal fix GREEN → verify. Include must-not-do constraints inline: minimal diff <5%, no refactoring, no unrelated changes, no git commands, fix root cause not symptom)
+  - `type`: `"work"`, `status`: `"pending"`
   - `fulfills`: requirement IDs from `requirements[].id` this task covers
-  - If debugger found **similar issues**: add T2 (`depends_on: [T1]`) to fix those locations — T2 must include all required task fields: `type: "work"`, `status: "pending"`, `must_not_do`, and `fulfills`
-- **constraints**: minimal diff rule, root cause targeting rule (both `verified_by: agent`)
+  - If debugger found **similar issues**: add T2 (`depends_on: ["T1"]`) to fix those locations — T2 must include `type: "work"`, `status: "pending"`, and `fulfills`
+- **constraints**: minimal diff rule, root cause targeting rule (id + rule)
 - **requirements**: Generate from debugger diagnosis. Each requirement describes a behavior that was broken:
   1. Run `hoyeon-cli spec guide requirements` to check field structure
-  2. Construct JSON with `requirements[]` (id, priority, behavior, sub[])
+  2. Construct JSON with `requirements[]` (id, behavior, sub[])
      - Convert debugger's reproduction steps → behavior description for each sub-requirement
-     - Use verification-planner's Auto items as `verify.run` commands
-     - Run `hoyeon-cli spec guide verify` to check verify object structure (must be `{type, run}` object, not string)
+     - Use optional GWT fields (given, when, then) when precondition/action/outcome is clear
      - If debugger identified edge cases, add additional sub-requirements
   3. Merge via `hoyeon-cli spec merge ${SPEC_PATH} --json "$(cat /tmp/spec-merge.json)"`
   - This enables Final Verify to check requirement sub-requirements, preventing regression
@@ -246,6 +233,9 @@ Use `hoyeon-cli spec merge` to populate the spec from diagnosis results. Single 
 ### Step 2.3: Validate & Register
 
 ```bash
+# Always use agent dispatch + standard verify for thorough investigation
+hoyeon-cli spec merge ${SPEC_PATH} --json '{"meta": {"mode": {"dispatch": "agent", "work": "branch", "verify": "standard"}}}'
+
 hoyeon-cli spec validate ${SPEC_PATH}
 hoyeon-cli session set --sid $SESSION_ID --spec "$SPEC_PATH"
 ```
@@ -265,12 +255,9 @@ Skill("execute", args="${SPEC_PATH}")
 ```
 
 What execute handles:
-- Worker dispatch (self-read pattern)
-- Per-task verify (standard only)
-- Per-task commit (git-master)
-- Retry/Adaptation (standard only, max 2)
-- Code Review (standard only)
-- Final Verify (all modes — checks goal, constraints, AC, requirements, deliverables)
+- Worker dispatch (self-read pattern, mode set by meta.mode)
+- Round-level commit (git-master)
+- Verify recipe (light/standard/thorough based on meta.mode.verify)
 - Final report
 
 **Result judgment:**
@@ -287,7 +274,7 @@ IF execute HALTED:
 
 ## Phase 4: RESULT HANDLING
 
-When execute HALTs. Handling differs by severity.
+When execute HALTs.
 
 ### Step 4.1: Read Failure Context
 
@@ -298,19 +285,7 @@ CONTEXT_DIR = ".hoyeon/specs/fix-{slug}/context"
 failure_reason = {execute HALT output or last triage result from audit.md}
 ```
 
-### Step 4.2: Route by Severity
-
-```
-IF severity == "COMPLEX":
-  # Execute standard mode already retried internally (max 2)
-  # No further retries — go straight to Circuit Breaker
-  → Step 4.5 (Circuit Breaker)
-
-IF severity == "SIMPLE":
-  → Step 4.3 (Retry)
-```
-
-### Step 4.3: Retry (SIMPLE only)
+### Step 4.2: Retry
 
 ```
 # Read current attempt from debug-state.md
@@ -375,9 +350,9 @@ Execute handles resume naturally:
 - Context files (learnings.json, issues.json) retain previous failure info for the new worker
 - `known_gaps` carry failure context and retry_hint for the worker
 
-### Step 4.5: Circuit Breaker
+### Step 4.4: Circuit Breaker
 
-Max attempts exceeded or COMPLEX mode HALT. Present escalation options to user.
+Max attempts exceeded. Present escalation options to user.
 
 **First, save attempt records:**
 
@@ -388,7 +363,6 @@ Write to .hoyeon/debug/{slug}.md:
   # Bugfix Report: {description}
   Date: {timestamp}
   Status: ESCALATED
-  Severity: {SIMPLE/COMPLEX}
   Attempts: {attempt count}
   Spec: {SPEC_PATH}
 
@@ -399,8 +373,7 @@ Write to .hoyeon/debug/{slug}.md:
   {full ## Attempts section from debug-state.md}
 
   ## Assessment
-  {SIMPLE: "{attempt} attempts failed. Likely not a simple bug."}
-  {COMPLEX: "Execute standard mode failed including internal retries. Architecture-level issue."}
+  "{attempt} attempts failed. Architecture-level issue likely."
 
 Update DEBUG_STATE:
   status: escalated
@@ -436,7 +409,6 @@ Write to .hoyeon/debug/{slug}.md:
   # Bugfix Report: {description}
   Date: {timestamp}
   Status: RESOLVED
-  Severity: {SIMPLE/COMPLEX}
   Attempts: {attempt count + 1}
   Spec: {SPEC_PATH}
 
@@ -461,11 +433,25 @@ print("""
 
 **Bug**: {description}
 **Root Cause**: {file:line — 1-line description}
-**Severity**: {SIMPLE/COMPLEX}
 **Attempts**: {count}
 **Spec**: {SPEC_PATH}
 **Report**: .hoyeon/debug/{slug}.md
 """)
+```
+
+### Step 5.3: QA Suggestion
+
+After successful fix, offer QA verification via browser/app:
+
+```
+AskUserQuestion:
+  header: "QA"
+  question: "Fix complete. Run QA to verify in browser/app?"
+  options:
+  - "Yes — run /qa"
+    → Skill("qa", args="Verify bugfix: {description}. Root cause was at {file:line}. Check that the fix works and no regressions.")
+  - "No — done"
+    → End
 ```
 
 ---
@@ -474,7 +460,7 @@ print("""
 
 ```
 /bugfix (diagnose + spec.json + execute)
-   ↓ circuit breaker (SIMPLE: 3 failures, COMPLEX: execute HALT)
+   ↓ circuit breaker (3 failures)
    ↓ spec.json + .hoyeon/debug/{slug}.md saved
 /specify (spec.json enrichment, leveraging existing diagnosis context)
    ↓
@@ -489,10 +475,11 @@ Since spec.json is the standard format, `/specify` can read and enrich the exist
 
 | Phase | Agent | Status | Condition | Role |
 |-------|-------|--------|-----------|------|
-| 1 | **debugger** | existing | always | Root cause analysis, Bug Type classification, Severity assessment |
+| 1 | **debugger** | existing | always | Root cause analysis, Bug Type classification |
 | 1 | **verification-planner** | existing | always | Generate Auto items list (verification commands) |
-| 1 | **gap-analyzer** | existing | COMPLEX only | Check for missed factors, risk assessment |
+| 1 | **gap-analyzer** | existing | always | Check for missed factors, risk assessment |
 | 3 | **/execute** (Skill) | existing | always | spec.json-based execution (worker, verify, commit, review) |
+| 5 | **/qa** (Skill) | existing | user opts in | Browser/app QA verification of the fix |
 
 Phase 2 (SPEC GENERATION) and Phase 4 (RESULT HANDLING) are handled directly by bugfix without agents (hoyeon-cli calls + judgment logic).
 
@@ -509,7 +496,7 @@ This skill combines core patterns from 3 proven open-source projects:
 | Defense-in-depth after fix | superpowers (defense-in-depth) | Optional worker application |
 | Anti-pattern rationalizations | superpowers (common rationalizations) | debugger's checklist |
 | Bug Type → Tool routing | oh-my-opencode (Metis intent classification) | debugger's tool table |
-| Adaptive severity | oh-my-opencode (Momus "80% is good enough") | SIMPLE/COMPLEX auto-routing |
+| Full investigation | oh-my-opencode (Momus "80% is good enough") | Always gap-analyzer + standard verify |
 | Minimal diff (<5%) | oh-my-claudecode (executor/build-fixer) | spec constraint C1 |
 | Circuit breaker (3 attempts) | oh-my-claudecode (debugger) + superpowers | Phase 4 |
 | spec.json as universal format | internal (specify/execute unification) | Phase 2 |

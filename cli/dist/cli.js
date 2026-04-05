@@ -7740,7 +7740,7 @@ var dev_spec_v1_schema_default = {
           properties: {
             tools: {
               type: "array",
-              items: { type: "string", enum: ["browser", "terminal", "desktop"] }
+              items: { type: "string", enum: ["browser", "terminal", "desktop", "cli"] }
             },
             scaffold_required: { type: "boolean" }
           }

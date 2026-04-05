@@ -186,40 +186,64 @@ When auto-passed, log: `"code_review": {"status": "AUTO_PASS", "reason": "..."}`
 ### Dispatch
 
 ```
-IF spec.context.sandbox_capability exists:
-  # Collect sandbox sub-requirements as QA test targets
-  sandbox_subs = spec.requirements.flatMap(r => r.sub)
-    .filter(s => s.execution_env == "sandbox")
+IF spec.context.sandbox_capability exists AND len(sandbox_capability.tools) > 0:
 
-  IF len(sandbox_subs) > 0:
+  # Collect ALL sub-requirements as QA candidates (no execution_env filter — v1 schema
+  # doesn't have this field). Every sub-req with a GWT is a potential QA target.
+  all_subs = spec.requirements.flatMap(r => r.sub)
+    .filter(s => s.given AND s.when AND s.then)
+
+  IF len(all_subs) > 0:
     # Build QA checklist from sub-requirements
-    qa_checklist = sandbox_subs.map(s =>
-      "- {s.id}: {s.behavior}" +
-      (s.given ? " | Given: {s.given}, When: {s.when}, Then: {s.then}" : "")
+    qa_checklist = all_subs.map(s =>
+      "- {s.id}: {s.behavior} | Given: {s.given}, When: {s.when}, Then: {s.then}"
     ).join("\n")
 
     # Route to /qa skill based on sandbox tool type
     qa_mode = ""
     IF "browser" in sandbox_capability.tools:
-      qa_mode = "--browser"
-    ELIF "desktop" in sandbox_capability.tools:
+      # Verify browser binary is actually usable before routing
+      browser_ready = false
+      IF Bash("chromux --check 2>/dev/null; echo $?").trim() == "0":
+        qa_mode = "--browser"
+        browser_ready = true
+      ELIF Bash("npx playwright test --list 2>/dev/null; echo $?").trim() == "0":
+        qa_mode = "--browser"
+        browser_ready = true
+
+      IF NOT browser_ready:
+        # Browser detected but binary missing — ask to install
+        AskUserQuestion(
+          question: "Browser sandbox detected but browser binary not installed. Install now?",
+          options: [
+            { label: "Install chromium (Recommended)", description: "npx playwright install chromium (~150MB)" },
+            { label: "Skip sandbox", description: "Skip browser QA — verify only via code review" }
+          ]
+        )
+        IF answer == "Install chromium":
+          Bash("npx playwright install chromium")
+          qa_mode = "--browser"
+          browser_ready = true
+        # ELSE: fall through to desktop/cli check
+
+    IF qa_mode == "" AND "desktop" in sandbox_capability.tools:
       qa_mode = "--computer"
+    IF qa_mode == "" AND "cli" in sandbox_capability.tools:
+      qa_mode = "--cli"
 
-    # Invoke /qa skill with spec-derived checklist
-    Skill("qa", args="{qa_mode} --tier standard")
-    # The /qa skill handles: plan → test → fix → verify loop
-    # Pass the checklist as context (print before invoking):
-    print("QA checklist from spec sub-requirements:")
-    print(qa_checklist)
-    print("URL/app: {determine from spec context or task outputs}")
+    IF qa_mode != "":
+      # Invoke /qa skill with spec-derived checklist
+      print("QA checklist from spec sub-requirements:")
+      print(qa_checklist)
+      print("URL/app: {determine from spec context or task outputs}")
+      Skill("qa", args="{qa_mode} --tier standard")
+      # Results from /qa aggregated into verify output.
+    ELSE:
+      print("Sandbox tools detected but no usable QA mode — marking as MANUAL REVIEW")
 
-  Results from /qa aggregated into verify output.
-
-IF no sandbox_capability:
-  # Sandbox sub-requirements cannot be verified automatically
-  FOR EACH sub_req WHERE sub_req.execution_env == "sandbox":
-    Mark as SKIPPED with reason "no sandbox capability"
-  Report as MANUAL REVIEW items
+IF NOT spec.context.sandbox_capability OR len(sandbox_capability.tools) == 0:
+  print("No sandbox capability — sandbox verification skipped")
+  # Report as MANUAL REVIEW items
 ```
 
 ---

@@ -69,6 +69,39 @@ Apply these 8 review categories systematically to the complete diff:
 8. **Production Readiness**: Error handling graceful? Logging sufficient?
    Performance obvious issues? Cross-cutting consistency?
 
+### AI Expression Check (anti-slop)
+
+In addition to the 8 categories above, flag these AI-generated code patterns in changed files:
+
+1. **Redundant comments**: Comments that restate what the code already says
+   - BAD: `// Get the user by ID` above `getUserById(id)`
+   - OK: `// Retry with backoff — API has undocumented 429 rate limit`
+
+2. **Empty error handling**: catch-rethrow, catch-log-rethrow, empty catch blocks
+   - BAD: `catch(e) { throw e }` or `catch(e) { console.error(e); throw e }`
+   - OK: `catch(e) { throw new AppError('context', e) }`
+
+3. **Unnecessary intermediates**: Assign to variable only to immediately return
+   - BAD: `const result = await foo(); return result;`
+   - OK: `const result = await foo(); log(result); return result;`
+
+4. **Defensive over-checking**: Null checks for values guaranteed by types/framework
+   - BAD: `if (req.body && req.body.name && typeof req.body.name === 'string')` when middleware already validates
+   - OK: `if (!user)` after a database lookup
+
+5. **Single-use abstractions**: Helper functions called exactly once
+   - BAD: `function formatName(n) { return n.trim() }` called once
+   - OK: Shared utility used across multiple files
+
+6. **Vacuous documentation**: JSDoc/docstrings adding no info beyond the signature
+   - BAD: `/** Gets user by id. @param id The id. @returns The user. */`
+   - OK: `/** Throws NotFoundError if id doesn't exist in active users. */`
+
+7. **Leftover debug code**: console.log, debugger statements, TODO comments from implementation
+
+Report each finding as: `SLOP: {file}:{line} — {pattern}: {description}`
+Classify all SLOP findings as severity `info`. If 3+ SLOP instances found across changed files, escalate to `warning` severity and include in NEEDS_FIXES calculation.
+
 ### Step 3: Output Report
 
 ```markdown

@@ -168,6 +168,16 @@ If TDD Mode is ON, read `skills/execute/references/tdd-guide.md` and follow the 
 Respect constraints.
 Do NOT run git commands — Orchestrator handles commits.
 
+### Code quality: avoid AI expression patterns
+Do NOT produce these patterns in your implementation:
+- Comments that restate what the code already says (e.g., `// increment counter` above `counter++`)
+- Catch-rethrow blocks that add no context (`catch(e) { throw e }`)
+- Assign to variable only to immediately return (`const result = foo(); return result;`)
+- Null checks for values already guaranteed by types or framework validation
+- Helper functions called exactly once — inline them
+- JSDoc/docstrings that add no information beyond the function signature
+- Leftover console.log, debugger statements, or TODO comments
+
 ### Verification before reporting DONE
 1. **Behavioral check**: Look up `fulfills[]` → requirements → sub-requirements. Each sub-req's GWT fields (given/when/then) define the structured acceptance criterion when available; behavior serves as summary. Verify your implementation satisfies all of them.
 2. **Build/lint/typecheck**: Run the project's build, lint, and type-check commands to ensure nothing is broken. Find these from package.json, Makefile, or project config.
@@ -251,6 +261,16 @@ Follow each task's action from the task spec, in order.
 If TDD Mode is ON, read `skills/execute/references/tdd-guide.md` and follow the TDD workflow (RED → GREEN → REFACTOR).
 Respect constraints.
 Do NOT run git commands — Orchestrator handles commits.
+
+### Code quality: avoid AI expression patterns
+Do NOT produce these patterns in your implementation:
+- Comments that restate what the code already says (e.g., `// increment counter` above `counter++`)
+- Catch-rethrow blocks that add no context (`catch(e) { throw e }`)
+- Assign to variable only to immediately return (`const result = foo(); return result;`)
+- Null checks for values already guaranteed by types or framework validation
+- Helper functions called exactly once — inline them
+- JSDoc/docstrings that add no information beyond the function signature
+- Leftover console.log, debugger statements, or TODO comments
 
 ### Verification before reporting DONE
 1. **Behavioral check**: For each task, look up `fulfills[]` → requirements → sub-requirements. Each sub-req's GWT fields (given/when/then) define the structured acceptance criterion when available; behavior serves as summary. Verify your implementation satisfies all of them.
@@ -652,6 +672,7 @@ Read the verify recipe based on verify_depth:
   light    → ${baseDir}/references/verify-light.md
   standard → ${baseDir}/references/verify-standard.md
   thorough → ${baseDir}/references/verify-thorough.md
+  ralph    → ${baseDir}/references/verify-ralph.md
 Follow verify recipe instructions.
 ```
 

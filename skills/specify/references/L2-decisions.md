@@ -311,6 +311,7 @@ Check:
 2. Any dimension below 0.70 that should have more checkpoints?
 3. Any decision that is too vague to derive requirements from?
 4. Any cross-decision tension not caught by Unknown/Unknown detection?
+5. Steelman test: For the most impactful decision, construct the strongest possible argument AGAINST the chosen option (not a strawman — the real reason a smart person would disagree). If this counterargument is not addressed in the decision's rationale, flag it as NEEDS_FIX.
 
 Return: PASS or NEEDS_FIX with specific issues.
 """)

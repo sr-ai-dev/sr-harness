@@ -326,4 +326,47 @@ Return: PASS or NEEDS_FIX with specific issues.
 hoyeon-cli spec validate .hoyeon/specs/{name}/spec.json --layer decisions
 ```
 
+### L2 Document Rendering
+
+After CLI validate passes, generate design documents before presenting to user.
+
+**Read spec.json** to get: `confirmed_goal`, `non_goals`, `decisions[]`, `constraints[]`, `context.research`.
+
+**Generate `design.md`** at `.hoyeon/specs/{name}/design.md` with these sections:
+
+#### §1 시스템 개요 (from confirmed_goal)
+- 목적 2-3문장 (confirmed_goal 확장)
+- 기술 스택 표: decisions에서 기술 선택 추출 → `| 분류 | 기술 | 용도 |`
+
+#### §2 아키텍처 — 초안 (from context.research)
+- 2.1 배포 구조: L1 research 기반 ASCII 배포도 + 프로세스 표
+- 2.2 정적 구조: 예상 모듈 관계도 + 역할 표 (L3에서 보강 예정이므로 초안 명시)
+- 2.3 동적 흐름: 주요 요청 경로 초안 (L3에서 보강 예정)
+
+#### §6 핵심 설계 결정 (from decisions[])
+- 각 decision을 독립 섹션으로 확장:
+  - **D{n}. {question}** — 제목
+  - **결정**: answer
+  - **근거**: rationale (반드시 rejected alternatives 포함)
+  - **대안 비교**: 2-3 alternatives와 트레이드오프 표
+  - **코드 예시**: 결정에 따른 구현 방향 코드 스니펫 (3-10줄)
+- constraints도 별도 섹션으로 표시
+
+#### §3~§5, §7~§9
+- "L3/L4에서 생성 예정" placeholder 표시 (빈 섹션 아님, 명시적 예고)
+
+**Generate `requirements.md` 초안** at `.hoyeon/specs/{name}/requirements.md`:
+- §1 배경/목표: confirmed_goal
+- §2 비목표: non_goals
+- §3 요구사항: "L3에서 생성 예정"
+- known_gaps가 있으면 별도 표시
+
+**Present documents to user** — design.md와 requirements.md를 보여주고 User Approval Protocol 실행.
+
+사용자가 Revise 선택 시:
+1. 사용자가 문서의 특정 부분(예: "§6의 D3") 지적
+2. 해당 decision을 spec.json에서 `--patch`로 수정
+3. design.md 해당 섹션 재생성
+4. 재제시 → 승인 대기
+
 Pass → advance to L3.

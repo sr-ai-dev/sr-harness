@@ -119,4 +119,67 @@ Print ALL requirements and sub-requirements as text (show everything, do not tru
 hoyeon-cli spec validate .hoyeon/specs/{name}/spec.json --layer requirements
 ```
 
+### L3 Document Rendering
+
+After CLI validate passes, update design documents before presenting to user.
+
+**Read spec.json** to get: `requirements[]` with `sub[]` (GWT), plus all L2 data.
+
+**Update `requirements.md`** at `.hoyeon/specs/{name}/requirements.md`:
+
+```markdown
+# Requirements — {project name}
+
+## 배경/목표
+{confirmed_goal 확장}
+
+## 비목표
+{non_goals 목록}
+
+## 요구사항
+
+### R1. {behavior} (← D{n})
+- **R1.1** {sub behavior} `[testable]`
+  - Given: {given}
+  - When: {when}
+  - Then: {then}
+- **R1.2** {sub behavior} `[testable]`
+  - Given: {given}
+  - When: {when}
+  - Then: {then}
+
+### R2. {behavior} (← D{n}, D{m})
+...
+
+## Known Gaps
+{known_gaps 목록, 없으면 "(없음)"}
+```
+
+**Update `design.md`** — L2에서 생성한 파일에 다음 섹션을 추가/보강:
+
+#### §2 아키텍처 보강
+- 2.2 정적 구조: requirements에서 도출된 모듈/컴포넌트 관계도 확정 + `| 모듈 | 파일 | 역할 | 핵심 원칙 |` 표
+- 2.3 동적 흐름: requirements의 GWT 시나리오 기반으로 주요 요청 경로 확정
+
+#### §3 주요 엔티티 (from requirements)
+- requirements에서 데이터 모델 도출 → 테이블/스키마 표
+- 상태 머신이 있으면 상태 전이 다이어그램 (ASCII)
+- 열거형, 설정값, 예�� 타입 표
+
+#### §4 주요 기능 상세 (from requirements + sub)
+- requirement별 독립 섹션으로 확장:
+  - 엔드포인트 URL + HTTP 메서드
+  - 요청/응답 JSON 예시 (실제 필드명)
+  - 처리 흐름 ASCII (입력 → 검증 → 처리 → 응답)
+  - 분기/에러 케이스 (sub-requirement의 GWT에서 추출)
+  - 알고리즘이 있으면 pseudo-code
+
+**Present documents to user** — 갱신된 requirements.md와 design.md를 보여주고 User Approval Protocol 실행.
+
+사용자가 Revise 선택 시:
+1. 사용자가 문서의 특정 부분(예: "R2에 에러 핸들링 추가", "§4의 JSON 응답 형식 수정") 지적
+2. 해당 requirement/sub를 spec.json에서 `--patch` 또는 `--append`로 수정
+3. requirements.md + design.md 해당 섹션 재생성
+4. 재제시 → 승인 대기
+
 Pass → advance to L4.

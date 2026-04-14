@@ -1,17 +1,17 @@
-# CLI Conventions for hoyeon-cli
+# CLI Conventions for sr-harness-cli
 
 ## Single Source of Truth
 
-`hoyeon-cli spec guide <section>` is the authoritative source for JSON field names, types, and structures.
+`sr-harness-cli spec guide <section>` is the authoritative source for JSON field names, types, and structures.
 SKILL.md files must NOT hardcode JSON body examples — they drift when the CLI schema changes.
 
 ## Merge Pattern
 
 Every `spec merge` call follows this 3-step pattern:
 
-1. **Read guide** — `hoyeon-cli spec guide <section>` to check field names and types
+1. **Read guide** — `sr-harness-cli spec guide <section>` to check field names and types
 2. **Construct JSON** — build merge payload matching the guide schema
-3. **Merge** — `hoyeon-cli spec merge <spec-path> [--append|--patch] --json "$(cat /tmp/spec-merge.json)"`
+3. **Merge** — `sr-harness-cli spec merge <spec-path> [--append|--patch] --json "$(cat /tmp/spec-merge.json)"`
 
 ### File-based JSON passing (required)
 
@@ -21,7 +21,7 @@ Always pass merge JSON via file to avoid zsh shell escaping issues:
 cat > /tmp/spec-merge.json << 'EOF'
 { ... }
 EOF
-hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
+sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
 ```
 
 ### Merge flags
@@ -32,13 +32,13 @@ hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --json "$(cat /tmp/spec-mer
 | `--append` | Add items to existing arrays (decisions, assumptions) |
 | `--patch` | Update existing items by ID without duplicating (task re-runs) |
 
-Run `hoyeon-cli spec guide merge` to verify flag semantics.
+Run `sr-harness-cli spec guide merge` to verify flag semantics.
 
 ## Validation Pattern
 
 After every merge, the CLI auto-validates. On failure:
 
-1. Run `hoyeon-cli spec guide <failed-section>` to check expected schema
+1. Run `sr-harness-cli spec guide <failed-section>` to check expected schema
 2. Fix JSON to match
 3. Retry merge (max 2 blind retries, then escalate)
 
@@ -49,7 +49,7 @@ meta, context, tasks, requirements, constraints, history,
 verification, external, sub, verify, merge, acceptance-criteria
 ```
 
-Run `hoyeon-cli spec guide` to see the full list (may change over time).
+Run `sr-harness-cli spec guide` to see the full list (may change over time).
 
 ## SKILL.md Writing Rules
 
@@ -65,9 +65,9 @@ When writing merge instructions in SKILL.md:
 ### Example (good)
 
 ```markdown
-1. Run `hoyeon-cli spec guide context` to check `decisions` field structure
+1. Run `sr-harness-cli spec guide context` to check `decisions` field structure
 2. Construct JSON with `context.decisions[]` (id, decision, rationale, alternatives_rejected)
-3. Merge via `hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --append --json "$(cat /tmp/spec-merge.json)"`
+3. Merge via `sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --append --json "$(cat /tmp/spec-merge.json)"`
 ```
 
 ### Example (bad — will break when schema changes)
@@ -77,7 +77,7 @@ When writing merge instructions in SKILL.md:
 cat > /tmp/spec-merge.json << 'EOF'
 { "context": { "decisions": [{"id": "D1", "decision": "...", ...}] } }
 EOF
-hoyeon-cli spec merge ...
+sr-harness-cli spec merge ...
 \```
 ```
 

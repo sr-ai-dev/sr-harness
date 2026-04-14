@@ -7,7 +7,7 @@ Use this mode for web applications. Chromux gives DOM-level access via CDP proto
 Resolve chromux path (run once, remember the output literally):
 
 ```bash
-CX=$(command -v chromux 2>/dev/null || echo "") && [ -n "$CX" ] && echo "CHROMUX=$CX" || (npx @team-attention/chromux help >/dev/null 2>&1 && echo "CHROMUX=npx @team-attention/chromux" || echo "MISSING")
+CX=$(command -v chromux 2>/dev/null || echo "") && [ -n "$CX" ] && echo "CHROMUX=$CX" || (npx @syscon-robotics/chromux help >/dev/null 2>&1 && echo "CHROMUX=npx @syscon-robotics/chromux" || echo "MISSING")
 ```
 
 If `MISSING`, fall back to computer mode or report error.

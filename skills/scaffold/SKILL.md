@@ -22,7 +22,7 @@ allowed-tools:
 Generate a scaffold spec.json through an architecture-focused derivation chain.
 Produces a complete development foundation that AI agents can extend consistently.
 
-Before starting, run `hoyeon-cli spec guide full --schema v1` to see the complete schema.
+Before starting, run `sr-harness-cli spec guide full --schema v1` to see the complete schema.
 
 ---
 
@@ -46,12 +46,12 @@ scaffold is specify's **architecture variant**. Same spec.json format, different
 1. **CLI is the writer** — `spec init`, `spec merge`, `spec validate`. Never hand-write spec.json.
 2. **Stdin merge** — Pass JSON via heredoc stdin. No temp files.
    ```bash
-   hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin << 'EOF'
+   sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin << 'EOF'
    {"context": {"decisions": [...]}}
    EOF
    ```
-3. **Guide before merge** — Run `hoyeon-cli spec guide <section> --schema v1` before constructing JSON.
-4. **Validate at layer transitions** — `hoyeon-cli spec validate` once per layer.
+3. **Guide before merge** — Run `sr-harness-cli spec guide <section> --schema v1` before constructing JSON.
+4. **Validate at layer transitions** — `sr-harness-cli spec validate` once per layer.
 5. **One merge per section** — Never merge multiple sections in parallel.
 6. **--append for arrays** — When adding to existing arrays.
 7. **Revision Merge Protocol** — When user selects "Revise" at an approval gate:
@@ -75,13 +75,13 @@ scaffold is specify's **architecture variant**. Same spec.json format, different
 ### Session Init (before L0)
 
 ```bash
-hoyeon-cli spec init {name} --goal "{goal}" --type dev --schema v1 --interaction {interaction} \
-  .hoyeon/specs/{name}/spec.json
+sr-harness-cli spec init {name} --goal "{goal}" --type dev --schema v1 --interaction {interaction} \
+  .sr-harness/specs/{name}/spec.json
 ```
 
 ```bash
 SESSION_ID="[from UserPromptSubmit hook]"
-hoyeon-cli session set --sid $SESSION_ID --spec ".hoyeon/specs/{name}/spec.json"
+sr-harness-cli session set --sid $SESSION_ID --spec ".sr-harness/specs/{name}/spec.json"
 ```
 
 ---
@@ -107,7 +107,7 @@ Mirror the user's goal with scaffold-specific framing:
 ### Merge
 
 ```bash
-hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin << 'EOF'
+sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin << 'EOF'
 {confirmed_goal, non_goals matching guide output}
 EOF
 ```
@@ -138,7 +138,7 @@ Unlike specify's L1 (which scans existing code), scaffold's L1 scans the **envir
 ### Past Scaffold Search
 
 ```bash
-hoyeon-cli spec search "[goal keywords]" --json --limit 5
+sr-harness-cli spec search "[goal keywords]" --json --limit 5
 ```
 
 Find previous scaffold decisions to compound on.
@@ -148,7 +148,7 @@ Find previous scaffold decisions to compound on.
 Merge findings as `context.research`:
 
 ```bash
-hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin << 'EOF'
+sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin << 'EOF'
 {"context": {"research": "Environment: node v22, pnpm available, Docker installed, empty directory (greenfield confirmed). No past scaffold specs found."}}
 EOF
 ```
@@ -370,7 +370,7 @@ Return: PASS or NEEDS_FIX with specific issues.
 ### L2 Gate
 
 ```bash
-hoyeon-cli spec validate .hoyeon/specs/{name}/spec.json --layer decisions
+sr-harness-cli spec validate .sr-harness/specs/{name}/spec.json --layer decisions
 ```
 
 ---
@@ -384,7 +384,7 @@ scaffold's L3 is deliberately thin. Requirements describe **what the scaffold mu
 ### Derive from Decisions
 
 ```bash
-hoyeon-cli spec derive-requirements .hoyeon/specs/{name}/spec.json
+sr-harness-cli spec derive-requirements .sr-harness/specs/{name}/spec.json
 ```
 
 ### Reshape into Output Categories
@@ -463,7 +463,7 @@ Print all requirements → AskUserQuestion (Approve/Revise/Abort).
 ### L3 Gate
 
 ```bash
-hoyeon-cli spec validate .hoyeon/specs/{name}/spec.json --layer requirements
+sr-harness-cli spec validate .sr-harness/specs/{name}/spec.json --layer requirements
 ```
 
 ---
@@ -475,7 +475,7 @@ hoyeon-cli spec validate .hoyeon/specs/{name}/spec.json --layer requirements
 ### Derive from Requirements
 
 ```bash
-hoyeon-cli spec derive-tasks .hoyeon/specs/{name}/spec.json
+sr-harness-cli spec derive-tasks .sr-harness/specs/{name}/spec.json
 ```
 
 ### Task Structure
@@ -703,7 +703,7 @@ TF verifies the scaffold is agent-ready:
 ### L4 Approval — Plan Summary
 
 ```
-spec.json ready! .hoyeon/specs/{name}/spec.json
+spec.json ready! .sr-harness/specs/{name}/spec.json
 
 Goal
 ----------------------------------------
@@ -787,8 +787,8 @@ AskUserQuestion(
 
 ## Checklist Before Stopping
 
-- [ ] spec.json at `.hoyeon/specs/{name}/spec.json`
-- [ ] `hoyeon-cli spec validate` passes
+- [ ] spec.json at `.sr-harness/specs/{name}/spec.json`
+- [ ] `sr-harness-cli spec validate` passes
 - [ ] `context.confirmed_goal` is architecture-framed (not feature-framed)
 - [ ] `meta.non_goals` includes "feature implementation" or similar
 - [ ] `context.decisions[]` cover all 6 architecture dimensions (including Harness & Context)

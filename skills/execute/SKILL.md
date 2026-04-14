@@ -26,7 +26,7 @@ allowed-tools:
   - SendMessage
 validate_prompt: |
   All tasks in spec.json must have status "done" at completion.
-  hoyeon-cli spec check must pass (internal consistency).
+  sr-harness-cli spec check must pass (internal consistency).
   Context files (learnings.json, issues.json, audit.md) are created at init for meta.type == "dev".
   Verify recipe must run (all modes and types).
   Final report must be output.
@@ -37,13 +37,13 @@ validate_prompt: |
 
 **You are the conductor. You do not play instruments directly.**
 Delegate to worker agents or skills, manage parallelization.
-All task data comes from spec.json via `hoyeon-cli spec plan`.
+All task data comes from spec.json via `sr-harness-cli spec plan`.
 
 ## Core Principles
 
 1. **DELEGATE** — In agent/team mode, all work goes to worker agents. In direct mode, the orchestrator executes tasks itself. In plain mode, the orchestrator may handle tasks directly or delegate. You only use Read, Grep, Glob, Bash (for orchestration), and Task tools for coordination.
 2. **PARALLELIZE** — Run all unblocked tasks within a round simultaneously via `run_in_background: true`.
-3. **spec.json is truth** — Task status and progress flow through `hoyeon-cli spec` commands.
+3. **spec.json is truth** — Task status and progress flow through `sr-harness-cli spec` commands.
 4. **Context flows forward** — Workers write learnings/issues to shared context files. In agent mode, after each round the orchestrator collects DONE summaries into `round-summaries.json`. Next-round workers read all context files including prior round summaries.
 
 ---
@@ -61,10 +61,10 @@ SESSION_ID="[session ID from UserPromptSubmit hook]"
    spec_path = arg  (use as-is)
 
 2) IF arg is a feature name (e.g. "auth-login"):
-   spec_path = ".hoyeon/specs/{arg}/spec.json"
+   spec_path = ".sr-harness/specs/{arg}/spec.json"
 
 3) No arg: session state (path registered by quick-plan, specify, etc.)
-   hoyeon-cli session get --sid $SESSION_ID
+   sr-harness-cli session get --sid $SESSION_ID
    → if state.spec field exists, spec_path = state.spec
 
 If none found → error: "spec.json not found. Please generate one first with /specify or /quick-plan."
@@ -73,8 +73,8 @@ If none found → error: "spec.json not found. Please generate one first with /s
 Read spec.json and validate:
 
 ```bash
-hoyeon-cli spec validate {spec_path}
-hoyeon-cli spec check {spec_path}
+sr-harness-cli spec validate {spec_path}
+sr-harness-cli spec check {spec_path}
 ```
 
 **Read `spec.meta.type`** (default `"dev"` if absent):
@@ -86,8 +86,8 @@ meta_type = spec.meta.type ?? "dev"
 ### 0.2 Get Execution Plan
 
 ```bash
-plan_text = Bash("hoyeon-cli spec plan {spec_path}")
-plan_json = Bash("hoyeon-cli spec plan {spec_path} --format slim")
+plan_text = Bash("sr-harness-cli spec plan {spec_path}")
+plan_json = Bash("sr-harness-cli spec plan {spec_path} --format slim")
 plan = JSON.parse(plan_json)
 ```
 
@@ -194,14 +194,14 @@ IF verify is null:
 #### Save to spec.json
 
 ```bash
-Bash("hoyeon-cli spec merge {spec_path} --json '{\"meta\": {\"mode\": {\"dispatch\": \"{dispatch}\", \"work\": \"{work}\", \"verify\": \"{verify}\"}}}'")
+Bash("sr-harness-cli spec merge {spec_path} --json '{\"meta\": {\"mode\": {\"dispatch\": \"{dispatch}\", \"work\": \"{work}\", \"verify\": \"{verify}\"}}}'")
 ```
 
 #### Save dispatch to session state
 
 ```bash
 # Stop hook uses this to skip blocking when team workers are running
-STATE_FILE="$HOME/.hoyeon/$CLAUDE_SESSION_ID/state.json"
+STATE_FILE="$HOME/.sr-harness/$CLAUDE_SESSION_ID/state.json"
 IF file_exists(STATE_FILE):
   Bash("jq --arg d '{dispatch}' '.dispatch = $d' $STATE_FILE > $STATE_FILE.tmp && mv $STATE_FILE.tmp $STATE_FILE")
 ```
@@ -263,7 +263,7 @@ ELSE:
 ### 0.7 Init Context
 
 ```bash
-CONTEXT_DIR=".hoyeon/specs/{name}/context"
+CONTEXT_DIR=".sr-harness/specs/{name}/context"
 mkdir -p "$CONTEXT_DIR"
 ```
 
@@ -325,7 +325,7 @@ plain.md owns: flexible dispatch (direct/Skill/Agent), verify recipe, and report
 3. **TaskCreate for all modes** — create Claude Code tracking tasks before execution begins. Structure differs per mode (see each reference md).
 4. **Background for parallel** — use `run_in_background: true` for round-parallel workers
 5. **Context files (dev only)** — in dev mode, workers write to learnings.json / issues.json via CLI; orchestrator appends to audit.md. Plain mode does not use context files.
-6. **Compaction recovery** — `session-compact-hook.sh` re-injects skill name + state.json path; use `hoyeon-cli spec plan` to rebuild task state
+6. **Compaction recovery** — `session-compact-hook.sh` re-injects skill name + state.json path; use `sr-harness-cli spec plan` to rebuild task state
 7. **Dispatch mode, work mode, and verify depth saved to spec.json meta.mode**
 8. **Verify depth routes to verify-light.md, verify-standard.md, verify-thorough.md, or verify-ralph.md**
 
@@ -333,7 +333,7 @@ plain.md owns: flexible dispatch (direct/Skill/Agent), verify recipe, and report
 
 ### Common (all modes and types)
 - [ ] spec.json found and validated
-- [ ] `hoyeon-cli spec plan` executed and shown to user
+- [ ] `sr-harness-cli spec plan` executed and shown to user
 - [ ] `meta.type` read (defaulted to "dev" if absent)
 - [ ] Plan analysis ran (parallelism, solo candidates, groupable)
 - [ ] Sandbox detection ran (Phase 0.4)
@@ -343,8 +343,8 @@ plain.md owns: flexible dispatch (direct/Skill/Agent), verify recipe, and report
 - [ ] Context directory initialized (audit.md, learnings.json, issues.json, round-summaries.json)
 - [ ] Pre-work status logged explicitly (none/pass/fail)
 - [ ] TaskCreate entries created for all tasks + finalize steps (structure per mode reference)
-- [ ] All spec tasks have `status: "done"` (via `hoyeon-cli spec task`)
-- [ ] `hoyeon-cli spec check` passes at end
+- [ ] All spec tasks have `status: "done"` (via `sr-harness-cli spec task`)
+- [ ] `sr-harness-cli spec check` passes at end
 - [ ] Final report output
 
 ### dispatch == "agent" (additional)

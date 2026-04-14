@@ -65,7 +65,7 @@ IF test_command detected:
 ### Step 3: Spec consistency
 
 ```
-result = Bash("hoyeon-cli spec check {spec_path}")
+result = Bash("sr-harness-cli spec check {spec_path}")
 checks.append({"name": "spec_check", "status": "PASS" if exit==0 else "FAIL", "detail": stderr})
 ```
 
@@ -74,7 +74,7 @@ checks.append({"name": "spec_check", "status": "PASS" if exit==0 else "FAIL", "d
 This step MUST run — it provides the sub_requirement_status counts in the output.
 
 ```
-result = Bash("hoyeon-cli spec requirement --status --json {spec_path}")
+result = Bash("sr-harness-cli spec requirement --status --json {spec_path}")
 # Report counts only — no auto-fix in light mode
 ```
 

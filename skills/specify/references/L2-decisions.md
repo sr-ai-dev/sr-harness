@@ -245,10 +245,10 @@ After each round, merge that round's decisions immediately. Do NOT batch decisio
 
 **Rationale must include rejected alternatives**: When writing the `rationale` field, mention alternatives that were considered and why they were rejected (e.g., `"REST over GraphQL (team unfamiliar) and gRPC (browser incompatible)"`). This prevents workers from re-evaluating already-rejected approaches during execution.
 
-Run `hoyeon-cli spec guide context --schema v1` to check field types, then:
+Run `sr-harness-cli spec guide context --schema v1` to check field types, then:
 
 ```bash
-hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin --append << 'EOF'
+sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin --append << 'EOF'
 {decisions array matching guide output — include status field}
 EOF
 ```
@@ -261,7 +261,7 @@ Collect constraints naturally during the interview — things that must NOT be v
 
 Sources: user statements, L1 research findings, inversion probe answers.
 
-Run `hoyeon-cli spec guide constraints --schema v1`, then merge at L2 end.
+Run `sr-harness-cli spec guide constraints --schema v1`, then merge at L2 end.
 If no constraints: merge `"constraints": []` explicitly.
 
 ### Known Gaps
@@ -269,7 +269,7 @@ If no constraints: merge `"constraints": []` explicitly.
 If things couldn't be decided (pending decisions that need investigation):
 
 ```bash
-hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin --append << 'EOF'
+sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin --append << 'EOF'
 {"context": {"known_gaps": ["Performance target TBD"]}}
 EOF
 ```
@@ -285,7 +285,7 @@ After Inversion Probe, before presenting approval to user:
 3. Merge via `spec merge --stdin --append`
 
 ```bash
-hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin --append << 'EOF'
+sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin --append << 'EOF'
 {"context": {"known_gaps": [
   "L2 unresolved: Data Model — Level/stage data format",
   "L2 provisional: Core Behavior — Character movement model (answer: 'free movement' — no physics detail)"
@@ -323,7 +323,7 @@ Return: PASS or NEEDS_FIX with specific issues.
 ### L2 Gate
 
 ```bash
-hoyeon-cli spec validate .hoyeon/specs/{name}/spec.json --layer decisions
+sr-harness-cli spec validate .sr-harness/specs/{name}/spec.json --layer decisions
 ```
 
 ### L2 Document Rendering
@@ -332,7 +332,7 @@ After CLI validate passes, generate design documents before presenting to user.
 
 **Read spec.json** to get: `confirmed_goal`, `non_goals`, `decisions[]`, `constraints[]`, `context.research`.
 
-**Generate `design.md`** at `.hoyeon/specs/{name}/design.md` with these sections:
+**Generate `design.md`** at `.sr-harness/specs/{name}/design.md` with these sections:
 
 #### §1 시스템 개요 (from confirmed_goal)
 - 목적 2-3문장 (confirmed_goal 확장)
@@ -355,7 +355,7 @@ After CLI validate passes, generate design documents before presenting to user.
 #### §3~§5, §7~§9
 - "L3/L4에서 생성 예정" placeholder 표시 (빈 섹션 아님, 명시적 예고)
 
-**Generate `requirements.md` 초안** at `.hoyeon/specs/{name}/requirements.md`:
+**Generate `requirements.md` 초안** at `.sr-harness/specs/{name}/requirements.md`:
 - §1 배경/목표: confirmed_goal
 - §2 비목표: non_goals
 - §3 요구사항: "L3에서 생성 예정"

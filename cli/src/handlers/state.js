@@ -8,10 +8,10 @@ import { readState, writeState } from '../lib/state-io.js';
 
 const STATE_HELP = `
 Usage:
-  hoyeon-cli state init --spec <path> [--output <path>]
-  hoyeon-cli state update <task-id> --status <status> [--state <path>]
-  hoyeon-cli state check --spec <path> --state <path>
-  hoyeon-cli state sync --spec <path> --state <path>
+  sr-harness-cli state init --spec <path> [--output <path>]
+  sr-harness-cli state update <task-id> --status <status> [--state <path>]
+  sr-harness-cli state check --spec <path> --state <path>
+  sr-harness-cli state sync --spec <path> --state <path>
 
 Subcommands:
   init    Initialize state.json from a spec.json file
@@ -23,13 +23,13 @@ Options:
   --help, -h    Show this help message
 
 Examples:
-  hoyeon-cli state init --spec ./spec.json
-  hoyeon-cli state init --spec ./spec.json --output ./state.json
-  hoyeon-cli state update T1 --done --state ./state.json
-  hoyeon-cli state update T1 --status in_progress --state ./state.json
-  hoyeon-cli state update T1 --status blocked_by --blocked-by T2 --state ./state.json
-  hoyeon-cli state check --spec ./spec.json --state ./state.json
-  hoyeon-cli state sync --spec ./spec.json --state ./state.json
+  sr-harness-cli state init --spec ./spec.json
+  sr-harness-cli state init --spec ./spec.json --output ./state.json
+  sr-harness-cli state update T1 --done --state ./state.json
+  sr-harness-cli state update T1 --status in_progress --state ./state.json
+  sr-harness-cli state update T1 --status blocked_by --blocked-by T2 --state ./state.json
+  sr-harness-cli state check --spec ./spec.json --state ./state.json
+  sr-harness-cli state sync --spec ./spec.json --state ./state.json
 `;
 
 function getStateValidator() {
@@ -84,7 +84,7 @@ async function handleInit(args) {
 
   if (!parsed.spec) {
     process.stderr.write('Error: --spec <path> is required\n');
-    process.stderr.write('Usage: hoyeon-cli state init --spec <path> [--output <path>]\n');
+    process.stderr.write('Usage: sr-harness-cli state init --spec <path> [--output <path>]\n');
     process.exit(1);
   }
 
@@ -167,7 +167,7 @@ async function handleUpdate(args) {
 
   if (!taskId || taskId.startsWith('--')) {
     process.stderr.write('Error: <task-id> is required\n');
-    process.stderr.write('Usage: hoyeon-cli state update <task-id> --status <status> [--state <path>]\n');
+    process.stderr.write('Usage: sr-harness-cli state update <task-id> --status <status> [--state <path>]\n');
     process.exit(1);
   }
 
@@ -180,7 +180,7 @@ async function handleUpdate(args) {
 
   if (!status) {
     process.stderr.write('Error: --status <status> is required (or use --done / --in-progress)\n');
-    process.stderr.write('Usage: hoyeon-cli state update <task-id> --status <status> [--state <path>]\n');
+    process.stderr.write('Usage: sr-harness-cli state update <task-id> --status <status> [--state <path>]\n');
     process.exit(1);
   }
 
@@ -235,7 +235,7 @@ async function handleUpdate(args) {
   const historyEntry = {
     action: `status:${status}`,
     task: taskId,
-    by: 'hoyeon-cli',
+    by: 'sr-harness-cli',
     at: now,
   };
 
@@ -268,13 +268,13 @@ async function handleCheck(args) {
 
   if (!parsed.spec) {
     process.stderr.write('Error: --spec <path> is required\n');
-    process.stderr.write('Usage: hoyeon-cli state check --spec <path> --state <path>\n');
+    process.stderr.write('Usage: sr-harness-cli state check --spec <path> --state <path>\n');
     process.exit(1);
   }
 
   if (!parsed.state) {
     process.stderr.write('Error: --state <path> is required\n');
-    process.stderr.write('Usage: hoyeon-cli state check --spec <path> --state <path>\n');
+    process.stderr.write('Usage: sr-harness-cli state check --spec <path> --state <path>\n');
     process.exit(1);
   }
 
@@ -338,13 +338,13 @@ async function handleSync(args) {
 
   if (!parsed.spec) {
     process.stderr.write('Error: --spec <path> is required\n');
-    process.stderr.write('Usage: hoyeon-cli state sync --spec <path> --state <path>\n');
+    process.stderr.write('Usage: sr-harness-cli state sync --spec <path> --state <path>\n');
     process.exit(1);
   }
 
   if (!parsed.state) {
     process.stderr.write('Error: --state <path> is required\n');
-    process.stderr.write('Usage: hoyeon-cli state sync --spec <path> --state <path>\n');
+    process.stderr.write('Usage: sr-harness-cli state sync --spec <path> --state <path>\n');
     process.exit(1);
   }
 
@@ -413,7 +413,7 @@ async function handleSync(args) {
 
   stateData.history.push({
     action: 'sync',
-    by: 'hoyeon-cli',
+    by: 'sr-harness-cli',
     at: now,
     detail: `added: [${added.join(', ')}], removed: [${archived.join(', ')}]`,
   });
@@ -463,7 +463,7 @@ export default async function state(args) {
     await handleSync(args.slice(1));
   } else {
     process.stderr.write(`Error: unknown state subcommand '${subcommand}'\n`);
-    process.stderr.write(`Run 'hoyeon-cli state --help' for usage.\n`);
+    process.stderr.write(`Run 'sr-harness-cli state --help' for usage.\n`);
     process.exit(1);
   }
 }

@@ -1,17 +1,17 @@
-# hoyeon-cli Reference
+# sr-harness-cli Reference
 
 Developer workflow CLI for managing spec, state, session, and feedback files.
 
 ## Installation
 
 ```bash
-npm install -g @team-attention/hoyeon-cli
+npm install -g @syscon-robotics/sr-harness-cli
 ```
 
 Verify installation:
 
 ```bash
-hoyeon-cli --version
+sr-harness-cli --version
 ```
 
 ## Global Options
@@ -30,7 +30,7 @@ hoyeon-cli --version
 Manage spec.json files (create, validate, query, and update).
 
 ```
-hoyeon-cli spec <subcommand> [options]
+sr-harness-cli spec <subcommand> [options]
 ```
 
 ---
@@ -40,7 +40,7 @@ hoyeon-cli spec <subcommand> [options]
 Create a new minimal spec.json file.
 
 ```
-hoyeon-cli spec init <name> --goal "..." <path> [--type <type>] [--depth <depth>] [--interaction <interaction>]
+sr-harness-cli spec init <name> --goal "..." <path> [--type <type>] [--depth <depth>] [--interaction <interaction>]
 ```
 
 | Argument / Flag | Required | Description |
@@ -59,8 +59,8 @@ Fails if the file already exists (use `spec merge` to update an existing spec).
 **Example:**
 
 ```bash
-hoyeon-cli spec init api-auth --goal "Add JWT auth" .hoyeon/specs/api-auth/spec.json
-hoyeon-cli spec init my-feature --goal "Build X" --type dev ./spec.json
+sr-harness-cli spec init api-auth --goal "Add JWT auth" .sr-harness/specs/api-auth/spec.json
+sr-harness-cli spec init my-feature --goal "Build X" --type dev ./spec.json
 ```
 
 ---
@@ -70,7 +70,7 @@ hoyeon-cli spec init my-feature --goal "Build X" --type dev ./spec.json
 Deep-merge a JSON fragment into an existing spec.json.
 
 ```
-hoyeon-cli spec merge <path> --json '{...}' [--append]
+sr-harness-cli spec merge <path> --json '{...}' [--append]
 ```
 
 | Argument / Flag | Required | Description |
@@ -84,8 +84,8 @@ Automatically adds a `spec_updated` history entry and updates `meta.updated_at`.
 **Example:**
 
 ```bash
-hoyeon-cli spec merge ./spec.json --json '{"context":{"request":"Add auth"}}'
-hoyeon-cli spec merge ./spec.json --json '{"tasks":[{"id":"T2","action":"test","type":"work","status":"pending"}]}' --append
+sr-harness-cli spec merge ./spec.json --json '{"context":{"request":"Add auth"}}'
+sr-harness-cli spec merge ./spec.json --json '{"tasks":[{"id":"T2","action":"test","type":"work","status":"pending"}]}' --append
 ```
 
 ---
@@ -95,7 +95,7 @@ hoyeon-cli spec merge ./spec.json --json '{"tasks":[{"id":"T2","action":"test","
 Schema validation + coverage checks in one command. Validates against the JSON schema first (v6/v5/v4), then runs coverage checks (source.ref integrity, decision coverage, sub-requirement coverage, orphan detection).
 
 ```
-hoyeon-cli spec validate <path> [--layer decisions|requirements|scenarios|tasks] [--json]
+sr-harness-cli spec validate <path> [--layer decisions|requirements|scenarios|tasks] [--json]
 ```
 
 | Argument | Required | Description |
@@ -109,8 +109,8 @@ Without `--json`: prints human-readable text. With `--json`: outputs `{"valid": 
 **Example:**
 
 ```bash
-hoyeon-cli spec validate ./spec.json
-hoyeon-cli spec validate ./spec.json --layer decisions --json
+sr-harness-cli spec validate ./spec.json
+sr-harness-cli spec validate ./spec.json --layer decisions --json
 ```
 
 > **Note**: `spec coverage` is deprecated — use `spec validate` instead.
@@ -122,7 +122,7 @@ hoyeon-cli spec validate ./spec.json --layer decisions --json
 Show the execution plan with parallel groups, computed via topological sort (Kahn's algorithm).
 
 ```
-hoyeon-cli spec plan <path> [--format text|mermaid|json|slim]
+sr-harness-cli spec plan <path> [--format text|mermaid|json|slim]
 ```
 
 | Argument / Flag | Required | Description |
@@ -142,9 +142,9 @@ Detects circular dependencies and exits with an error if found.
 **Example:**
 
 ```bash
-hoyeon-cli spec plan ./spec.json
-hoyeon-cli spec plan ./spec.json --format mermaid
-hoyeon-cli spec plan ./spec.json --format slim
+sr-harness-cli spec plan ./spec.json
+sr-harness-cli spec plan ./spec.json --format mermaid
+sr-harness-cli spec plan ./spec.json --format slim
 ```
 
 ---
@@ -156,7 +156,7 @@ Update a task's status or retrieve task details from a spec.json.
 **Update mode:**
 
 ```
-hoyeon-cli spec task <task-id> --status <status> [--summary "..."] <path>
+sr-harness-cli spec task <task-id> --status <status> [--summary "..."] <path>
 ```
 
 | Argument / Flag | Required | Description |
@@ -175,7 +175,7 @@ Automatically sets `started_at` (on `in_progress`) or `completed_at` (on `done`)
 **Get mode:**
 
 ```
-hoyeon-cli spec task <task-id> --get <path>
+sr-harness-cli spec task <task-id> --get <path>
 ```
 
 | Argument / Flag | Required | Description |
@@ -188,10 +188,10 @@ Outputs the full task object as JSON.
 **Example:**
 
 ```bash
-hoyeon-cli spec task T1 --status done --summary "implemented JWT middleware" ./spec.json
-hoyeon-cli spec task T1 --done ./spec.json
-hoyeon-cli spec task T2 --in-progress ./spec.json
-hoyeon-cli spec task T1 --get ./spec.json
+sr-harness-cli spec task T1 --status done --summary "implemented JWT middleware" ./spec.json
+sr-harness-cli spec task T1 --done ./spec.json
+sr-harness-cli spec task T2 --in-progress ./spec.json
+sr-harness-cli spec task T1 --get ./spec.json
 ```
 
 ---
@@ -201,7 +201,7 @@ hoyeon-cli spec task T1 --get ./spec.json
 Show task completion status for a spec.
 
 ```
-hoyeon-cli spec status <path>
+sr-harness-cli spec status <path>
 ```
 
 | Argument | Required | Description |
@@ -215,7 +215,7 @@ Exit code: 0 if all tasks are done, 1 if any tasks remain.
 **Example:**
 
 ```bash
-hoyeon-cli spec status ./spec.json
+sr-harness-cli spec status ./spec.json
 ```
 
 ---
@@ -225,7 +225,7 @@ hoyeon-cli spec status ./spec.json
 Show spec metadata.
 
 ```
-hoyeon-cli spec meta <path>
+sr-harness-cli spec meta <path>
 ```
 
 | Argument | Required | Description |
@@ -237,7 +237,7 @@ Outputs the `meta` object as formatted JSON (name, goal, non_goals, mode, create
 **Example:**
 
 ```bash
-hoyeon-cli spec meta ./spec.json
+sr-harness-cli spec meta ./spec.json
 ```
 
 ---
@@ -247,7 +247,7 @@ hoyeon-cli spec meta ./spec.json
 Check internal consistency of a spec.json.
 
 ```
-hoyeon-cli spec check <path>
+sr-harness-cli spec check <path>
 ```
 
 | Argument | Required | Description |
@@ -267,7 +267,7 @@ Exit code: 0 on pass, 1 on failure.
 **Example:**
 
 ```bash
-hoyeon-cli spec check ./spec.json
+sr-harness-cli spec check ./spec.json
 ```
 
 ---
@@ -277,7 +277,7 @@ hoyeon-cli spec check ./spec.json
 Amend a spec.json based on a feedback file.
 
 ```
-hoyeon-cli spec amend --reason <feedback-id> --spec <path>
+sr-harness-cli spec amend --reason <feedback-id> --spec <path>
 ```
 
 | Flag | Required | Description |
@@ -290,7 +290,7 @@ Displays the feedback message, updates `meta.updated_at`, and writes the spec. F
 **Example:**
 
 ```bash
-hoyeon-cli spec amend --reason fb-001 --spec ./spec.json
+sr-harness-cli spec amend --reason fb-001 --spec ./spec.json
 ```
 
 ---
@@ -300,7 +300,7 @@ hoyeon-cli spec amend --reason fb-001 --spec ./spec.json
 Look up a scenario by ID across all `requirements[].scenarios[]` (legacy read-only).
 
 ```
-hoyeon-cli spec scenario <scenario-id> --get <path>
+sr-harness-cli spec scenario <scenario-id> --get <path>
 ```
 
 | Argument / Flag | Required | Description |
@@ -315,7 +315,7 @@ Note: `spec requirement <id> --get <path>` provides the same functionality and i
 **Example:**
 
 ```bash
-hoyeon-cli spec scenario R1-S1 --get ./spec.json
+sr-harness-cli spec scenario R1-S1 --get ./spec.json
 ```
 
 ---
@@ -329,7 +329,7 @@ This subcommand has three modes:
 **Status overview mode:**
 
 ```
-hoyeon-cli spec requirement --status <path> [--json]
+sr-harness-cli spec requirement --status <path> [--json]
 ```
 
 | Argument / Flag | Required | Description |
@@ -343,7 +343,7 @@ Shows all requirements with their scenario verification status. Text format grou
 **Get mode:**
 
 ```
-hoyeon-cli spec requirement <id> --get <path>
+sr-harness-cli spec requirement <id> --get <path>
 ```
 
 | Argument / Flag | Required | Description |
@@ -356,7 +356,7 @@ Returns the individual scenario object as JSON. Equivalent to `spec scenario <id
 **Update mode:**
 
 ```
-hoyeon-cli spec requirement <id> --status pass|fail|skipped --task <task_id> [--reason <msg>] <path>
+sr-harness-cli spec requirement <id> --status pass|fail|skipped --task <task_id> [--reason <msg>] <path>
 ```
 
 | Argument / Flag | Required | Description |
@@ -372,11 +372,11 @@ Updates the scenario's `status` and `verified_by_task` fields in spec.json. Used
 **Example:**
 
 ```bash
-hoyeon-cli spec requirement --status ./spec.json
-hoyeon-cli spec requirement --status ./spec.json --json
-hoyeon-cli spec requirement R1-S1 --get ./spec.json
-hoyeon-cli spec requirement R1-S1 --status pass --task T3 ./spec.json
-hoyeon-cli spec requirement R1-S1 --status fail --task T3 --reason "assertion failed on line 42" ./spec.json
+sr-harness-cli spec requirement --status ./spec.json
+sr-harness-cli spec requirement --status ./spec.json --json
+sr-harness-cli spec requirement R1-S1 --get ./spec.json
+sr-harness-cli spec requirement R1-S1 --status pass --task T3 ./spec.json
+sr-harness-cli spec requirement R1-S1 --status fail --task T3 --reason "assertion failed on line 42" ./spec.json
 ```
 
 ---
@@ -386,7 +386,7 @@ hoyeon-cli spec requirement R1-S1 --status fail --task T3 --reason "assertion fa
 Auto-generate sandbox verification tasks from `requirements[].scenarios[]` where `execution_env` is `"sandbox"`.
 
 ```
-hoyeon-cli spec sandbox-tasks <path> [--json]
+sr-harness-cli spec sandbox-tasks <path> [--json]
 ```
 
 | Argument / Flag | Required | Description |
@@ -403,8 +403,8 @@ Scans all scenarios with `execution_env: "sandbox"` and creates:
 **Example:**
 
 ```bash
-hoyeon-cli spec sandbox-tasks ./spec.json
-hoyeon-cli spec sandbox-tasks ./spec.json --json
+sr-harness-cli spec sandbox-tasks ./spec.json
+sr-harness-cli spec sandbox-tasks ./spec.json --json
 ```
 
 ---
@@ -414,7 +414,7 @@ hoyeon-cli spec sandbox-tasks ./spec.json --json
 Create a derived task in spec.json (for retries, adaptations, or code review fixes).
 
 ```
-hoyeon-cli spec derive --parent <id> --source <src> --trigger <t> --action <a> --reason <r> <path>
+sr-harness-cli spec derive --parent <id> --source <src> --trigger <t> --action <a> --reason <r> <path>
 ```
 
 | Flag | Required | Description |
@@ -433,7 +433,7 @@ Outputs JSON: `{"created": "T1.retry-1"}`.
 **Example:**
 
 ```bash
-hoyeon-cli spec derive --parent T1 --source verifier --trigger test_failure --action "Fix broken assertion" --reason "Unit test failed in T1" ./spec.json
+sr-harness-cli spec derive --parent T1 --source verifier --trigger test_failure --action "Fix broken assertion" --reason "Unit test failed in T1" ./spec.json
 ```
 
 ---
@@ -443,7 +443,7 @@ hoyeon-cli spec derive --parent T1 --source verifier --trigger test_failure --ac
 Show the drift ratio between derived and planned tasks.
 
 ```
-hoyeon-cli spec drift <path>
+sr-harness-cli spec drift <path>
 ```
 
 | Argument | Required | Description |
@@ -455,7 +455,7 @@ Outputs the drift ratio: derived tasks divided by planned (non-derived) tasks. A
 **Example:**
 
 ```bash
-hoyeon-cli spec drift ./spec.json
+sr-harness-cli spec drift ./spec.json
 ```
 
 ---
@@ -465,7 +465,7 @@ hoyeon-cli spec drift ./spec.json
 Show schema documentation for spec.json sections.
 
 ```
-hoyeon-cli spec guide [section]
+sr-harness-cli spec guide [section]
 ```
 
 | Argument | Required | Description |
@@ -484,10 +484,10 @@ Available sections:
 **Example:**
 
 ```bash
-hoyeon-cli spec guide list
-hoyeon-cli spec guide task
-hoyeon-cli spec guide acceptance-criteria
-hoyeon-cli spec guide merge
+sr-harness-cli spec guide list
+sr-harness-cli spec guide task
+sr-harness-cli spec guide acceptance-criteria
+sr-harness-cli spec guide merge
 ```
 
 ---
@@ -497,7 +497,7 @@ hoyeon-cli spec guide merge
 Read or update workflow state (state.json), which tracks task execution progress separately from the spec.
 
 ```
-hoyeon-cli state <subcommand> [options]
+sr-harness-cli state <subcommand> [options]
 ```
 
 ---
@@ -507,7 +507,7 @@ hoyeon-cli state <subcommand> [options]
 Initialize a state.json from a spec.json file.
 
 ```
-hoyeon-cli state init --spec <path> [--output <path>]
+sr-harness-cli state init --spec <path> [--output <path>]
 ```
 
 | Flag | Required | Description |
@@ -527,8 +527,8 @@ Validates against the dev-state-v1 schema. Fails on duplicate task IDs or missin
 **Example:**
 
 ```bash
-hoyeon-cli state init --spec ./spec.json
-hoyeon-cli state init --spec ./spec.json --output ./run/state.json
+sr-harness-cli state init --spec ./spec.json
+sr-harness-cli state init --spec ./spec.json --output ./run/state.json
 ```
 
 ---
@@ -538,7 +538,7 @@ hoyeon-cli state init --spec ./spec.json --output ./run/state.json
 Update a task's status in state.json.
 
 ```
-hoyeon-cli state update <task-id> --status <status> [--state <path>]
+sr-harness-cli state update <task-id> --status <status> [--state <path>]
 ```
 
 | Argument / Flag | Required | Description |
@@ -557,9 +557,9 @@ Automatically sets `started_at` (on `in_progress`) and `completed_at` (on `done`
 **Example:**
 
 ```bash
-hoyeon-cli state update T1 --done --state ./state.json
-hoyeon-cli state update T1 --status in_progress --state ./state.json
-hoyeon-cli state update T1 --status blocked_by --blocked-by T2 --state ./state.json
+sr-harness-cli state update T1 --done --state ./state.json
+sr-harness-cli state update T1 --status in_progress --state ./state.json
+sr-harness-cli state update T1 --status blocked_by --blocked-by T2 --state ./state.json
 ```
 
 ---
@@ -569,7 +569,7 @@ hoyeon-cli state update T1 --status blocked_by --blocked-by T2 --state ./state.j
 Check consistency between spec.json and state.json.
 
 ```
-hoyeon-cli state check --spec <path> --state <path>
+sr-harness-cli state check --spec <path> --state <path>
 ```
 
 | Flag | Required | Description |
@@ -586,7 +586,7 @@ Exit code: 0 on pass, 1 on failure.
 **Example:**
 
 ```bash
-hoyeon-cli state check --spec ./spec.json --state ./state.json
+sr-harness-cli state check --spec ./spec.json --state ./state.json
 ```
 
 ---
@@ -596,7 +596,7 @@ hoyeon-cli state check --spec ./spec.json --state ./state.json
 Sync state.json after spec.json changes (tasks added or removed).
 
 ```
-hoyeon-cli state sync --spec <path> --state <path>
+sr-harness-cli state sync --spec <path> --state <path>
 ```
 
 | Flag | Required | Description |
@@ -613,17 +613,17 @@ Actions:
 **Example:**
 
 ```bash
-hoyeon-cli state sync --spec ./spec.json --state ./state.json
+sr-harness-cli state sync --spec ./spec.json --state ./state.json
 ```
 
 ---
 
 ### session
 
-Manage session state stored at `~/.hoyeon/{session-id}/state.json`.
+Manage session state stored at `~/.sr-harness/{session-id}/state.json`.
 
 ```
-hoyeon-cli session <subcommand> [options]
+sr-harness-cli session <subcommand> [options]
 ```
 
 ---
@@ -633,7 +633,7 @@ hoyeon-cli session <subcommand> [options]
 Update session state.
 
 ```
-hoyeon-cli session set --sid <session-id> [--spec <path>] [--key <k> --value <v>] [--json '{...}']
+sr-harness-cli session set --sid <session-id> [--spec <path>] [--key <k> --value <v>] [--json '{...}']
 ```
 
 | Flag | Required | Description |
@@ -649,9 +649,9 @@ Multiple update modes can be combined in a single call. Creates the session dire
 **Example:**
 
 ```bash
-hoyeon-cli session set --sid abc123 --spec .hoyeon/specs/foo/spec.json
-hoyeon-cli session set --sid abc123 --key tmp_dir --value /tmp/run-1
-hoyeon-cli session set --sid abc123 --json '{"rulph": {"round": 0}}'
+sr-harness-cli session set --sid abc123 --spec .sr-harness/specs/foo/spec.json
+sr-harness-cli session set --sid abc123 --key tmp_dir --value /tmp/run-1
+sr-harness-cli session set --sid abc123 --json '{"rulph": {"round": 0}}'
 ```
 
 ---
@@ -661,7 +661,7 @@ hoyeon-cli session set --sid abc123 --json '{"rulph": {"round": 0}}'
 Read session state.
 
 ```
-hoyeon-cli session get --sid <session-id>
+sr-harness-cli session get --sid <session-id>
 ```
 
 | Flag | Required | Description |
@@ -673,7 +673,7 @@ Outputs the full session state as formatted JSON. Exits with code 1 if no state 
 **Example:**
 
 ```bash
-hoyeon-cli session get --sid abc123
+sr-harness-cli session get --sid abc123
 ```
 
 ---
@@ -683,7 +683,7 @@ hoyeon-cli session get --sid abc123
 Manage feedback files.
 
 ```
-hoyeon-cli feedback <subcommand> [options]
+sr-harness-cli feedback <subcommand> [options]
 ```
 
 ---
@@ -693,7 +693,7 @@ hoyeon-cli feedback <subcommand> [options]
 Create a new feedback file with an auto-incrementing ID.
 
 ```
-hoyeon-cli feedback create "<message>" [--dir <path>]
+sr-harness-cli feedback create "<message>" [--dir <path>]
 ```
 
 | Argument / Flag | Required | Description |
@@ -717,8 +717,8 @@ The ID is auto-incremented based on existing files in the directory.
 **Example:**
 
 ```bash
-hoyeon-cli feedback create "Missing acceptance criteria for T3"
-hoyeon-cli feedback create "Scope is too broad" --dir ./project/feedback
+sr-harness-cli feedback create "Missing acceptance criteria for T3"
+sr-harness-cli feedback create "Scope is too broad" --dir ./project/feedback
 ```
 
 ---

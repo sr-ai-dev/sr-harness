@@ -183,3 +183,95 @@ After CLI validate passes, update design documents before presenting to user.
 4. 재제시 → 승인 대기
 
 Pass → advance to L4.
+
+---
+
+## Syscon Robotics Extension: Module-specific Boundary Patterns
+
+> 이 섹션은 시스콘 로보틱스 커스터마이즈. L0에서 결정된 프로파일에 따라 경계 분해 패턴이 분기된다.
+
+### 프로파일별 경계 패턴
+
+기존 hoyeon의 경계 분해 패턴(API↔UI, Service↔Consumer 등)에 추가.
+
+#### web 프로파일: API↔UI (기존 유지)
+
+기존 hoyeon 패턴 그대로 사용.
+
+#### driver 프로파일: HW↔Driver↔ROS
+
+sub-requirement를 **HW 통신 → 드라이버 처리 → ROS 인터페이스** 경계로 분해:
+
+```json
+{"id": "R1", "behavior": "Wheel 속도 제어", "sub": [
+  {"id": "R1.1", "behavior": "UART로 속도 명령 전송",
+   "given": "Wheel Controller가 UART(/dev/ttyUSB0, 115200bps)에 연결됨",
+   "when": "WheelDriver 노드가 /cmd_vel (geometry_msgs/Twist) 수신",
+   "then": "선속도/각속도를 좌우 바퀴 RPM으로 변환하여 UART 패킷 전송"},
+  {"id": "R1.2", "behavior": "Wheel 엔코더 피드백 수신",
+   "given": "Wheel Controller가 100Hz로 엔코더 데이터 전송 중",
+   "when": "UART 수신 버퍼에 엔코더 패킷 도착",
+   "then": "/odom (nav_msgs/Odometry) 계산 후 publish"},
+  {"id": "R1.3", "behavior": "통신 타임아웃 처리",
+   "given": "UART 연결 정상",
+   "when": "500ms 이상 응답 없음",
+   "then": "E-Stop 명령 발행 + /diagnostics에 ERROR 상태 publish"}
+]}
+```
+
+**경계 분해 원칙**: HW 통신 sub-req ↔ ROS 인터페이스 sub-req를 반드시 분리. 한 sub-req에 HW 프로토콜과 ROS 토픽을 섞지 않는다.
+
+#### ros-node 프로파일: Node↔Node (topic/service/action)
+
+sub-requirement를 **노드 간 인터페이스** 경계로 분해:
+
+```json
+{"id": "R2", "behavior": "자율주행 경로 추종", "sub": [
+  {"id": "R2.1", "behavior": "경로 생성 요청",
+   "given": "맵 로드 완료 + localization 수렴 (covariance < threshold)",
+   "when": "/navigate_to_pose (nav2_msgs/NavigateToPose) action 호출",
+   "then": "A* 기반 글로벌 경로 생성 + /plan (nav_msgs/Path) publish"},
+  {"id": "R2.2", "behavior": "로컬 플래너 장애물 회피",
+   "given": "글로벌 경로 존재 + /scan (sensor_msgs/LaserScan) 수신 중",
+   "when": "경로 상 1.5m 이내 장애물 감지",
+   "then": "DWB 로컬 플래너가 회피 경로 생성 + /cmd_vel publish"},
+  {"id": "R2.3", "behavior": "목적지 도착 판정",
+   "given": "로봇이 경로 추종 중",
+   "when": "현재 위치와 목적지 거리 < 0.1m, 각도 차 < 0.1rad",
+   "then": "NavigateToPose action SUCCEEDED 반환"}
+]}
+```
+
+#### cross-product 프로파일: REST↔ROS
+
+sub-requirement를 **SARICS 측 ↔ Bridge ↔ SPX 측** 경계로 분해:
+
+```json
+{"id": "R3", "behavior": "SARICS에서 로봇 미션 전송", "sub": [
+  {"id": "R3.1", "behavior": "미션 생성 API",
+   "given": "SARICS BE가 동작 중",
+   "when": "POST /api/missions {robot_id, destination, priority}",
+   "then": "미션 DB 저장 + 상태 'queued' 반환"},
+  {"id": "R3.2", "behavior": "미션을 로봇으로 전달",
+   "given": "미션 상태 'queued' + 대상 로봇 idle",
+   "when": "미션 디스패처가 큐 폴링",
+   "then": "ROS bridge를 통해 /mission_request (custom_msgs/Mission) publish"},
+  {"id": "R3.3", "behavior": "로봇 미션 수행 상태 보고",
+   "given": "로봇이 미션 수행 중 (core-task 노드)",
+   "when": "core-task가 상태 변경 (navigating → arrived → docking)",
+   "then": "/mission_status publish → ROS bridge → SARICS BE API → FE 실시간 반영"}
+]}
+```
+
+### 경계 자동 제안
+
+L3 진입 시 `meta.product`/`meta.modules`에 따라 경계 패턴을 자동 제안:
+
+| 모듈 조합 | 기본 경계 패턴 |
+|----------|--------------|
+| SARICS BE only | API endpoint ↔ Service (기존) |
+| SARICS BE+FE | API ↔ UI (기존) |
+| core-driver | HW ↔ Driver ↔ ROS topic |
+| core-navigation, localization, docking | Node ↔ Node (topic/service/action) |
+| core-task | ROS action ↔ REST API (cross 경계) |
+| SARICS + SPX | REST ↔ ROS Bridge ↔ ROS |

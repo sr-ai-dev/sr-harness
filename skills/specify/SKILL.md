@@ -125,10 +125,10 @@ Execute layers sequentially. Read each reference file just-in-time.
 
 | Layer | Read File | What | Gate |
 |-------|-----------|------|------|
-| L0 | `${baseDir}/references/L0-L1-context.md` | Mirror → confirmed_goal, non_goals | User confirms mirror |
-| L1 | (same file) | Codebase research → context.research | Auto-advance |
-| L2 | `${baseDir}/references/L2-decisions.md` | Interview → decisions + constraints | CLI validate + L2-reviewer + User approval |
-| L3 | `${baseDir}/references/L3-requirements.md` | Derive requirements + sub from decisions | CLI validate + User approval |
+| L0 | `${baseDir}/references/L0-L1-context.md` | Mirror → confirmed_goal, non_goals → **Product/Module/ROS selection** | User confirms mirror + selection |
+| L1 | (same file) | Knowledge DB load → Codebase research → context.research | Auto-advance |
+| L2 | `${baseDir}/references/L2-decisions.md` | Interview → decisions + constraints (profile-based checkpoints) | CLI validate + L2-reviewer + User approval |
+| L3 | `${baseDir}/references/L3-requirements.md` | Derive requirements + sub from decisions (module-specific boundary patterns) | CLI validate + User approval |
 | L4 | `${baseDir}/references/L4-tasks.md` | Derive tasks + external_deps, Plan Summary | CLI validate + User approval |
 
 ### Session Init (before L0)

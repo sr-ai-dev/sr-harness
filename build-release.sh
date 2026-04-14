@@ -8,8 +8,8 @@
 # 동작:
 #   1. develop 브랜치 기반으로 release/{version} 브랜치 생성
 #   2. .hoyeon → .sr-harness 디렉토리/참조 변환
-#   3. hoyeon-cli → sr-cli CLI 바이너리명 변환
-#   4. @team-attention/hoyeon-cli → @syscon-robotics/sr-cli npm scope 변환
+#   3. hoyeon-cli → sr-harness-cli CLI 바이너리명 변환
+#   4. @team-attention/hoyeon-cli → @syscon-robotics/sr-harness-cli npm scope 변환
 #   5. plugin name hoyeon → sr-harness 변환
 #   6. 잔여 참조 검사 리포트
 
@@ -63,12 +63,12 @@ find . -type f \( -name "*.md" -o -name "*.sh" -o -name "*.json" -o -name "*.js"
 echo "✅ .hoyeon → .sr-harness 완료"
 echo ""
 
-# 3. CLI 바이너리명 변환: hoyeon-cli → sr-cli
-echo "--- [2/5] hoyeon-cli → sr-cli ---"
+# 3. CLI 바이너리명 변환: hoyeon-cli → sr-harness-cli
+echo "--- [2/5] hoyeon-cli → sr-harness-cli ---"
 find . -type f \( -name "*.md" -o -name "*.sh" -o -name "*.json" -o -name "*.js" -o -name "*.ts" \) \
   -not -path "./.git/*" -not -name "build-release.sh" \
-  -exec sed -i '' 's/hoyeon-cli/sr-cli/g' {} +
-echo "✅ hoyeon-cli → sr-cli 완료"
+  -exec sed -i '' 's/hoyeon-cli/sr-harness-cli/g' {} +
+echo "✅ hoyeon-cli → sr-harness-cli 완료"
 echo ""
 
 # 4. npm 패키지 scope 변환: @team-attention → @syscon-robotics

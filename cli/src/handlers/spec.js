@@ -8,41 +8,41 @@ import { writeState } from '../lib/state-io.js';
 
 const SPEC_HELP = `
 Usage:
-  hoyeon-cli spec init <name> --goal "..." <path>   Create a minimal valid spec.json
-  hoyeon-cli spec merge <path> --json '{...}'       Deep-merge a JSON fragment into spec.json
-  hoyeon-cli spec merge <path> --stdin              Read JSON from stdin (heredoc-friendly)
+  sr-harness-cli spec init <name> --goal "..." <path>   Create a minimal valid spec.json
+  sr-harness-cli spec merge <path> --json '{...}'       Deep-merge a JSON fragment into spec.json
+  sr-harness-cli spec merge <path> --stdin              Read JSON from stdin (heredoc-friendly)
                                                     --append: concatenate arrays
                                                     --patch:  ID-based merge (match by id, update in place)
-  hoyeon-cli spec validate <path> [--layer decisions|requirements|tasks] [--json]  Schema validation + coverage checks
-  hoyeon-cli spec plan <path> [--format text|mermaid|json]  Show execution plan with parallel groups
-  hoyeon-cli spec task <task-id> --status <status> [--summary "..."] <path>  Update task status
-  hoyeon-cli spec task <task-id> --get <path>                               Get task details as JSON
-  hoyeon-cli spec status <path>                     Show task completion status (exit 0=done, 1=incomplete)
-  hoyeon-cli spec meta <path>                       Show spec meta (name, goal, non_goals, mode, etc.)
-  hoyeon-cli spec check <path>                      Check internal consistency
-  hoyeon-cli spec amend --reason <feedback-id> --spec <path>  Amend spec.json based on feedback
-  hoyeon-cli spec guide [section]                             Show schema guide for a section
-  hoyeon-cli spec sub <sub-req-id> --get <path>                    Get sub-requirement details as JSON
-  hoyeon-cli spec derive-tasks <path>                Generate task stubs from requirements (fulfills auto-linked)
-  hoyeon-cli spec learning --task <id> --json '{...}' <path>  Add structured learning to context/learnings.json
-  hoyeon-cli spec issue --task <id> --json '{...}' <path>    Add structured issue to context/issues.json
-  hoyeon-cli spec search "query" [--specs-dir .hoyeon/specs] [--limit 10] [--json]  BM25 search across all specs
+  sr-harness-cli spec validate <path> [--layer decisions|requirements|tasks] [--json]  Schema validation + coverage checks
+  sr-harness-cli spec plan <path> [--format text|mermaid|json]  Show execution plan with parallel groups
+  sr-harness-cli spec task <task-id> --status <status> [--summary "..."] <path>  Update task status
+  sr-harness-cli spec task <task-id> --get <path>                               Get task details as JSON
+  sr-harness-cli spec status <path>                     Show task completion status (exit 0=done, 1=incomplete)
+  sr-harness-cli spec meta <path>                       Show spec meta (name, goal, non_goals, mode, etc.)
+  sr-harness-cli spec check <path>                      Check internal consistency
+  sr-harness-cli spec amend --reason <feedback-id> --spec <path>  Amend spec.json based on feedback
+  sr-harness-cli spec guide [section]                             Show schema guide for a section
+  sr-harness-cli spec sub <sub-req-id> --get <path>                    Get sub-requirement details as JSON
+  sr-harness-cli spec derive-tasks <path>                Generate task stubs from requirements (fulfills auto-linked)
+  sr-harness-cli spec learning --task <id> --json '{...}' <path>  Add structured learning to context/learnings.json
+  sr-harness-cli spec issue --task <id> --json '{...}' <path>    Add structured issue to context/issues.json
+  sr-harness-cli spec search "query" [--specs-dir .sr-harness/specs] [--limit 10] [--json]  BM25 search across all specs
 
 Options:
   --help, -h    Show this help message
 
 Examples:
-  hoyeon-cli spec init api-auth --goal "Add JWT auth" .hoyeon/specs/api-auth/spec.json
-  hoyeon-cli spec merge .hoyeon/specs/api-auth/spec.json --json '{"context":{"request":"Add auth"}}'
-  hoyeon-cli spec validate ./spec.json
-  hoyeon-cli spec validate ./spec.json --layer decisions --json
-  hoyeon-cli spec plan ./spec.json
-  hoyeon-cli spec task T1 --status done --summary "implemented" ./spec.json
-  hoyeon-cli spec task T1 --get ./spec.json
-  hoyeon-cli spec status ./spec.json
-  hoyeon-cli spec meta ./spec.json
-  hoyeon-cli spec check ./spec.json
-  hoyeon-cli spec amend --reason fb-001 --spec ./spec.json
+  sr-harness-cli spec init api-auth --goal "Add JWT auth" .sr-harness/specs/api-auth/spec.json
+  sr-harness-cli spec merge .sr-harness/specs/api-auth/spec.json --json '{"context":{"request":"Add auth"}}'
+  sr-harness-cli spec validate ./spec.json
+  sr-harness-cli spec validate ./spec.json --layer decisions --json
+  sr-harness-cli spec plan ./spec.json
+  sr-harness-cli spec task T1 --status done --summary "implemented" ./spec.json
+  sr-harness-cli spec task T1 --get ./spec.json
+  sr-harness-cli spec status ./spec.json
+  sr-harness-cli spec meta ./spec.json
+  sr-harness-cli spec check ./spec.json
+  sr-harness-cli spec amend --reason fb-001 --spec ./spec.json
 `;
 
 function loadSchema() {
@@ -63,7 +63,7 @@ function printGuideHints(errors) {
   if (sections.size > 0) {
     process.stderr.write('\nHint: check schema with:\n');
     for (const s of sections) {
-      process.stderr.write(`  hoyeon-cli spec guide ${s}\n`);
+      process.stderr.write(`  sr-harness-cli spec guide ${s}\n`);
     }
   }
 }
@@ -189,20 +189,20 @@ async function handleInit(args) {
 
   if (!name) {
     process.stderr.write('Error: <name> is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec init <name> --goal "..." <path>\n');
+    process.stderr.write('Usage: sr-harness-cli spec init <name> --goal "..." <path>\n');
     process.exit(1);
   }
 
   if (!parsed.goal) {
     process.stderr.write('Error: --goal "..." is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec init <name> --goal "..." <path>\n');
+    process.stderr.write('Usage: sr-harness-cli spec init <name> --goal "..." <path>\n');
     process.exit(1);
   }
 
   const filePath = parsed._[1];
   if (!filePath) {
     process.stderr.write('Error: <path> is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec init <name> --goal "..." <path>\n');
+    process.stderr.write('Usage: sr-harness-cli spec init <name> --goal "..." <path>\n');
     process.exit(1);
   }
 
@@ -212,7 +212,7 @@ async function handleInit(args) {
   try {
     readFileSync(specPath, 'utf8');
     process.stderr.write(`Error: file already exists: ${specPath}\n`);
-    process.stderr.write('Use "hoyeon-cli spec merge" to update an existing spec.\n');
+    process.stderr.write('Use "sr-harness-cli spec merge" to update an existing spec.\n');
     process.exit(1);
   } catch (err) {
     if (err.code !== 'ENOENT') {
@@ -268,8 +268,8 @@ async function handleMerge(args) {
 
   if (!filePath) {
     process.stderr.write('Error: <path> is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec merge <path> --json \'{...}\' [--append]\n');
-    process.stderr.write('       hoyeon-cli spec merge <path> --stdin [--append]  (read JSON from stdin)\n');
+    process.stderr.write('Usage: sr-harness-cli spec merge <path> --json \'{...}\' [--append]\n');
+    process.stderr.write('       sr-harness-cli spec merge <path> --stdin [--append]  (read JSON from stdin)\n');
     process.exit(1);
   }
 
@@ -289,8 +289,8 @@ async function handleMerge(args) {
     jsonStr = parsed.json;
   } else {
     process.stderr.write('Error: --json \'{...}\' or --stdin is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec merge <path> --json \'{...}\' [--append] [--patch]\n');
-    process.stderr.write('       hoyeon-cli spec merge <path> --stdin [--append] [--patch]\n');
+    process.stderr.write('Usage: sr-harness-cli spec merge <path> --json \'{...}\' [--append] [--patch]\n');
+    process.stderr.write('       sr-harness-cli spec merge <path> --stdin [--append] [--patch]\n');
     process.exit(1);
   }
 
@@ -377,7 +377,7 @@ async function handleValidate(args) {
 
   if (!filePath) {
     process.stderr.write('Error: missing <path> argument\n');
-    process.stderr.write('Usage: hoyeon-cli spec validate <path> [--layer decisions|requirements|tasks] [--json]\n');
+    process.stderr.write('Usage: sr-harness-cli spec validate <path> [--layer decisions|requirements|tasks] [--json]\n');
     process.exit(1);
   }
 
@@ -740,7 +740,7 @@ async function handlePlan(args) {
 
   if (!filePath) {
     process.stderr.write('Error: missing <path> argument\n');
-    process.stderr.write('Usage: hoyeon-cli spec plan <path> [--format text|mermaid|json|slim]\n');
+    process.stderr.write('Usage: sr-harness-cli spec plan <path> [--format text|mermaid|json|slim]\n');
     process.exit(1);
   }
 
@@ -797,13 +797,13 @@ async function handleAmend(args) {
 
   if (!parsed.reason) {
     process.stderr.write('Error: --reason <feedback-id> is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec amend --reason <feedback-id> --spec <path>\n');
+    process.stderr.write('Usage: sr-harness-cli spec amend --reason <feedback-id> --spec <path>\n');
     process.exit(1);
   }
 
   if (!parsed.spec) {
     process.stderr.write('Error: --spec <path> is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec amend --reason <feedback-id> --spec <path>\n');
+    process.stderr.write('Usage: sr-harness-cli spec amend --reason <feedback-id> --spec <path>\n');
     process.exit(1);
   }
 
@@ -868,19 +868,19 @@ async function handleTask(args) {
 
   if (!taskId || taskId.startsWith('--')) {
     process.stderr.write('Error: <task-id> is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec task <task-id> --status <status> [--summary "..."] <path>\n');
-    process.stderr.write('       hoyeon-cli spec task <task-id> --get <path>\n');
+    process.stderr.write('Usage: sr-harness-cli spec task <task-id> --status <status> [--summary "..."] <path>\n');
+    process.stderr.write('       sr-harness-cli spec task <task-id> --get <path>\n');
     process.exit(1);
   }
 
   const parsed = parseArgs(args.slice(1));
 
   // --get mode: read-only task retrieval
-  // Usage: hoyeon-cli spec task <id> --get <path>
+  // Usage: sr-harness-cli spec task <id> --get <path>
   if (parsed.get !== undefined) {
     if (typeof parsed.get !== 'string') {
       process.stderr.write('Error: --get requires <path> argument\n');
-      process.stderr.write('Usage: hoyeon-cli spec task <task-id> --get <path>\n');
+      process.stderr.write('Usage: sr-harness-cli spec task <task-id> --get <path>\n');
       process.exit(1);
     }
     const filePath = parsed.get;
@@ -982,7 +982,7 @@ async function handleStatus(args) {
 
   if (!filePath) {
     process.stderr.write('Error: missing <path> argument\n');
-    process.stderr.write('Usage: hoyeon-cli spec status <path>\n');
+    process.stderr.write('Usage: sr-harness-cli spec status <path>\n');
     process.exit(1);
   }
 
@@ -1013,7 +1013,7 @@ async function handleMeta(args) {
 
   if (!filePath) {
     process.stderr.write('Error: missing <path> argument\n');
-    process.stderr.write('Usage: hoyeon-cli spec meta <path>\n');
+    process.stderr.write('Usage: sr-harness-cli spec meta <path>\n');
     process.exit(1);
   }
 
@@ -1110,7 +1110,7 @@ async function handleCoverage(args) {
 
   if (!filePath) {
     process.stderr.write('Error: missing <path> argument\n');
-    process.stderr.write('Usage: hoyeon-cli spec validate <path> [--layer decisions|requirements|tasks] [--json]\n');
+    process.stderr.write('Usage: sr-harness-cli spec validate <path> [--layer decisions|requirements|tasks] [--json]\n');
     process.stderr.write('Note: "spec coverage" is deprecated — use "spec validate" instead.\n');
     process.exit(1);
   }
@@ -1151,7 +1151,7 @@ async function handleCheck(args) {
 
   if (!filePath) {
     process.stderr.write('Error: missing <path> argument\n');
-    process.stderr.write('Usage: hoyeon-cli spec check <path>\n');
+    process.stderr.write('Usage: sr-harness-cli spec check <path>\n');
     process.exit(1);
   }
 
@@ -1252,9 +1252,9 @@ function generateGuide(section, schemaVersion) {
       lines.push(`  ${name.padEnd(16)} ${info.desc}`);
     }
     lines.push('');
-    lines.push('Usage: hoyeon-cli spec guide <section>');
-    lines.push('       hoyeon-cli spec guide full      (all sections)');
-    lines.push('       hoyeon-cli spec guide root      (top-level structure)');
+    lines.push('Usage: sr-harness-cli spec guide <section>');
+    lines.push('       sr-harness-cli spec guide full      (all sections)');
+    lines.push('       sr-harness-cli spec guide root      (top-level structure)');
     return lines.join('\n');
   }
 
@@ -1277,7 +1277,7 @@ function generateGuide(section, schemaVersion) {
 
   const info = SECTIONS[section];
   if (!info) {
-    return `Error: unknown section '${section}'. Run 'hoyeon-cli spec guide' to see available sections.`;
+    return `Error: unknown section '${section}'. Run 'sr-harness-cli spec guide' to see available sections.`;
   }
 
   if (info.custom === 'merge') {
@@ -1455,16 +1455,16 @@ function formatMergeGuide() {
     '',
     '  (default) — replace',
     '    Arrays are replaced entirely. Objects are deep-merged.',
-    '    hoyeon-cli spec merge <path> --json \'{"tasks":[...]}\'',
+    '    sr-harness-cli spec merge <path> --json \'{"tasks":[...]}\'',
     '',
     '  --append — concatenate arrays',
     '    New array items are appended to existing arrays.',
-    '    hoyeon-cli spec merge <path> --json \'{"tasks":[{"id":"T2",...}]}\' --append',
+    '    sr-harness-cli spec merge <path> --json \'{"tasks":[{"id":"T2",...}]}\' --append',
     '',
     '  --patch — ID-based merge',
     '    Array items with matching "id" are updated in place.',
     '    Items with new ids are appended. Non-array fields deep-merge normally.',
-    '    hoyeon-cli spec merge <path> --json \'{"tasks":[{"id":"T1","status":"done"}]}\' --patch',
+    '    sr-harness-cli spec merge <path> --json \'{"tasks":[{"id":"T1","status":"done"}]}\' --patch',
     '',
     '  --append and --patch are mutually exclusive.',
     '',
@@ -1491,7 +1491,7 @@ async function handleDeriveTasks(args) {
   const filePath = args[0];
   if (!filePath) {
     process.stderr.write('Error: <path> is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec derive-tasks <path>\n');
+    process.stderr.write('Usage: sr-harness-cli spec derive-tasks <path>\n');
     process.exit(1);
   }
 
@@ -1537,7 +1537,7 @@ async function handleSub(args) {
 
   if (!subId || subId.startsWith('--')) {
     process.stderr.write('Error: <sub-id> is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec sub <sub-id> --get <path>\n');
+    process.stderr.write('Usage: sr-harness-cli spec sub <sub-id> --get <path>\n');
     process.exit(1);
   }
 
@@ -1545,13 +1545,13 @@ async function handleSub(args) {
 
   if (parsed.get === undefined) {
     process.stderr.write('Error: --get <path> is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec sub <sub-id> --get <path>\n');
+    process.stderr.write('Usage: sr-harness-cli spec sub <sub-id> --get <path>\n');
     process.exit(1);
   }
 
   if (typeof parsed.get !== 'string') {
     process.stderr.write('Error: --get requires <path> argument\n');
-    process.stderr.write('Usage: hoyeon-cli spec sub <sub-id> --get <path>\n');
+    process.stderr.write('Usage: sr-harness-cli spec sub <sub-id> --get <path>\n');
     process.exit(1);
   }
 
@@ -1619,7 +1619,7 @@ async function handleRequirement(args) {
     const resolvedPath = typeof parsed.status === 'string' ? parsed.status : parsed._[0];
     if (!resolvedPath) {
       process.stderr.write('Error: <path> is required\n');
-      process.stderr.write('Usage: hoyeon-cli spec requirement --status <path> [--json]\n');
+      process.stderr.write('Usage: sr-harness-cli spec requirement --status <path> [--json]\n');
       process.exit(1);
     }
     const specData = loadSpec(resolve(resolvedPath));
@@ -1645,8 +1645,8 @@ async function handleRequirement(args) {
 
   if (!subId) {
     process.stderr.write('Error: <sub-id> or --status flag is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec requirement --status <path>\n');
-    process.stderr.write('       hoyeon-cli spec requirement <id> --get <path>\n');
+    process.stderr.write('Usage: sr-harness-cli spec requirement --status <path>\n');
+    process.stderr.write('       sr-harness-cli spec requirement <id> --get <path>\n');
     process.exit(1);
   }
 
@@ -1725,8 +1725,8 @@ async function handleLearning(args) {
   const taskId = parsed.task;
   if (!taskId) {
     process.stderr.write('Error: --task <task-id> is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec learning --task T1 --json \'{"problem":"...","cause":"...","rule":"...","tags":[...]}\' <path>\n');
-    process.stderr.write('   or: hoyeon-cli spec learning --task T1 --stdin <path> << \'EOF\'\n');
+    process.stderr.write('Usage: sr-harness-cli spec learning --task T1 --json \'{"problem":"...","cause":"...","rule":"...","tags":[...]}\' <path>\n');
+    process.stderr.write('   or: sr-harness-cli spec learning --task T1 --stdin <path> << \'EOF\'\n');
     process.exit(1);
   }
 
@@ -1827,8 +1827,8 @@ async function handleIssue(args) {
   const taskId = parsed.task;
   if (!taskId) {
     process.stderr.write('Error: --task <task-id> is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec issue --task T1 --json \'{"type":"blocker","description":"..."}\' <path>\n');
-    process.stderr.write('   or: hoyeon-cli spec issue --task T1 --stdin <path> << \'EOF\'\n');
+    process.stderr.write('Usage: sr-harness-cli spec issue --task T1 --json \'{"type":"blocker","description":"..."}\' <path>\n');
+    process.stderr.write('   or: sr-harness-cli spec issue --task T1 --stdin <path> << \'EOF\'\n');
     process.exit(1);
   }
 
@@ -1931,11 +1931,11 @@ async function handleSearch(args) {
 
   if (!query) {
     process.stderr.write('Error: search query is required\n');
-    process.stderr.write('Usage: hoyeon-cli spec search "query" [--specs-dir .hoyeon/specs] [--limit 10] [--json]\n');
+    process.stderr.write('Usage: sr-harness-cli spec search "query" [--specs-dir .sr-harness/specs] [--limit 10] [--json]\n');
     process.exit(1);
   }
 
-  const specsDir = resolve(parsed['specs-dir'] || '.hoyeon/specs');
+  const specsDir = resolve(parsed['specs-dir'] || '.sr-harness/specs');
   const limit = parseInt(parsed.limit || '10', 10);
 
   if (!existsSync(specsDir)) {
@@ -2164,7 +2164,7 @@ export default async function spec(args) {
     await handleDeriveTasks(args.slice(1));
   } else {
     process.stderr.write(`Error: unknown spec subcommand '${subcommand}'\n`);
-    process.stderr.write(`Run 'hoyeon-cli spec --help' for usage.\n`);
+    process.stderr.write(`Run 'sr-harness-cli spec --help' for usage.\n`);
     process.exit(1);
   }
 }

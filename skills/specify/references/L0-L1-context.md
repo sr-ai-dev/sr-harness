@@ -22,10 +22,10 @@ Then `AskUserQuestion`: "Does this match your intent?"
 
 ### Merge
 
-Run `hoyeon-cli spec guide context --schema v1` and `spec guide meta --schema v1` to check fields, then:
+Run `sr-harness-cli spec guide context --schema v1` and `spec guide meta --schema v1` to check fields, then:
 
 ```bash
-hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin << 'EOF'
+sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin << 'EOF'
 {constructed JSON matching guide output — confirmed_goal in context, non_goals in meta}
 EOF
 ```
@@ -69,12 +69,12 @@ Task(subagent_type="ux-reviewer",
 
 Also search past learnings:
 ```bash
-hoyeon-cli spec search "[goal keywords]" --json --limit 5
+sr-harness-cli spec search "[goal keywords]" --json --limit 5
 ```
 
 ### Merge
 
-Run `hoyeon-cli spec guide context --schema v1` to check fields, then merge research via `--stdin`.
+Run `sr-harness-cli spec guide context --schema v1` to check fields, then merge research via `--stdin`.
 
 ### Gate
 
@@ -155,7 +155,7 @@ AskUserQuestion(
 선택 결과를 spec.json meta에 저장:
 
 ```bash
-hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin << 'EOF'
+sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin << 'EOF'
 {"meta": {"product": "spx", "modules": ["core-driver", "core-navigation"], "ros_version": "ros2"}}
 EOF
 ```

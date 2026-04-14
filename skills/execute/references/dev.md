@@ -148,12 +148,12 @@ Work in the current directory (session CWD — already set to worktree if applic
 TDD Mode: {IF tdd: "ON" ELSE: "OFF"}
 
 ## Step 1: Read your task spec
-Run: `hoyeon-cli spec task {task_id} --get {spec_path}`
+Run: `sr-harness-cli spec task {task_id} --get {spec_path}`
 This returns JSON with: action, fulfills, depends_on, and other task fields.
 
 ## Step 2: Resolve dependencies (if any)
 If your task has `depends_on`, check that those tasks are done:
-Run: `hoyeon-cli spec task {dep_id} --get {spec_path}`
+Run: `sr-harness-cli spec task {dep_id} --get {spec_path}`
 Review their `summary` to understand what was produced.
 
 ## Step 3: Read context files
@@ -192,7 +192,7 @@ Do NOT produce these patterns in your implementation:
 For each learning discovered during implementation, save via CLI:
 
 ```bash
-hoyeon-cli spec learning --task {task_id} --stdin {spec_path} << 'EOF'
+sr-harness-cli spec learning --task {task_id} --stdin {spec_path} << 'EOF'
 {
   "problem": "what went wrong or was unexpected",
   "cause": "why it happened",
@@ -208,7 +208,7 @@ EOF
 For each issue discovered during implementation, save via CLI:
 
 ```bash
-hoyeon-cli spec issue --task {task_id} --stdin {spec_path} << 'EOF'
+sr-harness-cli spec issue --task {task_id} --stdin {spec_path} << 'EOF'
 {
   "type": "failed_approach|out_of_scope|blocker",
   "description": "what went wrong or what is out of scope"
@@ -244,13 +244,13 @@ TDD Mode: {IF tdd: "ON" ELSE: "OFF"}
 ## Your tasks (implement in order)
 {FOR EACH task in tasks:}
 ### {task.id}
-Run: `hoyeon-cli spec task {task.id} --get {spec_path}`
+Run: `sr-harness-cli spec task {task.id} --get {spec_path}`
 Implement as described. After completing each:
-  hoyeon-cli spec task {task.id} --status done --summary '...' {spec_path}
+  sr-harness-cli spec task {task.id} --status done --summary '...' {spec_path}
 
 ## Step 2: Resolve dependency outputs (if any)
 If any task has `depends_on[]`, check completed dependency summaries for context:
-Run: `hoyeon-cli spec task {dep_task_id} --get {spec_path}`
+Run: `sr-harness-cli spec task {dep_task_id} --get {spec_path}`
 Use its `summary` field to understand what was produced.
 
 ## Step 3: Read context files
@@ -289,7 +289,7 @@ Do NOT produce these patterns in your implementation:
 For each learning discovered during implementation, save via CLI:
 
 ```bash
-hoyeon-cli spec learning --task {task_id} --stdin {spec_path} << 'EOF'
+sr-harness-cli spec learning --task {task_id} --stdin {spec_path} << 'EOF'
 {
   "problem": "what went wrong or was unexpected",
   "cause": "why it happened",
@@ -302,7 +302,7 @@ EOF
 For each issue discovered during implementation, save via CLI:
 
 ```bash
-hoyeon-cli spec issue --task {task_id} --stdin {spec_path} << 'EOF'
+sr-harness-cli spec issue --task {task_id} --stdin {spec_path} << 'EOF'
 {
   "type": "failed_approach|out_of_scope|blocker",
   "description": "what went wrong or what is out of scope"
@@ -384,8 +384,8 @@ ELSE:  # no-commit mode
 ## Phase 1: Execute Loop
 
 > **Compaction recovery**: `session-compact-hook.sh` re-injects skill name + state.json path.
-> Read state.json to get spec_path, then use `hoyeon-cli spec plan` to rebuild task state.
-> Workers self-read task details via `hoyeon-cli spec task <id> --get` and context files.
+> Read state.json to get spec_path, then use `sr-harness-cli spec plan` to rebuild task state.
+> Workers self-read task details via `sr-harness-cli spec task <id> --get` and context files.
 
 ### Sandbox Task Dispatch
 
@@ -401,7 +401,7 @@ IF plan contains tasks with ID starting with "T_SANDBOX" or "T_SV":
   IF capability is null:
     print("WARNING: Sandbox tasks exist but no sandbox_capability set. Skipping sandbox tasks.")
     FOR EACH sandbox_task in plan WHERE id starts with "T_SANDBOX" or "T_SV":
-      Bash("hoyeon-cli spec task {sandbox_task.id} --status done --summary 'Skipped — no sandbox capability' {spec_path}")
+      Bash("sr-harness-cli spec task {sandbox_task.id} --status done --summary 'Skipped — no sandbox capability' {spec_path}")
       TaskUpdate(taskId=sandbox_task.tracking_id, status="completed")
   ELSE:
     # Sandbox capability confirmed — T_SANDBOX and T_SV tasks will be dispatched
@@ -528,7 +528,7 @@ function dispatch_derived_task(derive_result, spec_path):
                  prompt=TaskGet(fw).description)
 
   # 3. On completion, mark spec task done
-  Bash("hoyeon-cli spec task {task_id} --status done --summary '{result.summary}' {spec_path}")
+  Bash("sr-harness-cli spec task {task_id} --status done --summary '{result.summary}' {spec_path}")
   TaskUpdate(taskId=fw, status="completed")
 
   return {task_id: task_id, worker: fw, commit: fc}
@@ -550,7 +550,7 @@ function dispatch_fv_fix(derive_result, spec_path):
   result = Agent(subagent_type="worker", description="Verify fix: {task_id}",
                  prompt=TaskGet(fw).description)
 
-  Bash("hoyeon-cli spec task {task_id} --status done --summary '{result.summary ?? \"Verify fix applied\"}' {spec_path}")
+  Bash("sr-harness-cli spec task {task_id} --status done --summary '{result.summary ?? \"Verify fix applied\"}' {spec_path}")
   TaskUpdate(taskId=fw, status="completed")
 ```
 
@@ -580,14 +580,14 @@ Agent(
 IF result.status == "DONE":
   # For grouped workers, update all task statuses
   FOR EACH task_id in group.tasks.map(t => t.id):
-    Bash("hoyeon-cli spec task {task_id} --status in_progress {spec_path}")
+    Bash("sr-harness-cli spec task {task_id} --status in_progress {spec_path}")
   TaskUpdate(taskId, status="completed")
 
 ELIF result.status == "BLOCKED":
   # Scope blocker detected — create derived fix task
   log_to_audit("BLOCKED: {task_ids} — {result.scope_blockers.type}: {result.scope_blockers.reason}")
 
-  derive_result = Bash("""hoyeon-cli spec derive \
+  derive_result = Bash("""sr-harness-cli spec derive \
     --parent {blocked_task_id} \
     --source worker \
     --trigger scope_blocker \
@@ -604,7 +604,7 @@ ELIF result.status == "BLOCKED":
   TaskUpdate(taskId=tracking.commit, addBlocks=[rw])
 
   # Update spec.json status
-  Bash("hoyeon-cli spec task {blocked_task_id} --status blocked {spec_path}")
+  Bash("sr-harness-cli spec task {blocked_task_id} --status blocked {spec_path}")
   TaskUpdate(taskId=taskId, status="completed")  # original worker done (blocked)
 
 ELIF result.status == "FAILED":
@@ -618,7 +618,7 @@ ELIF result.status == "FAILED":
     # Record failure as issue so retry worker knows what to avoid (all tasks in group)
     FOR EACH tid in task_ids:
       escaped_summary = JSON_escape(result.summary ?? "unknown error")
-      Bash("""hoyeon-cli spec issue --task {tid} --stdin {spec_path} << 'EOF'
+      Bash("""sr-harness-cli spec issue --task {tid} --stdin {spec_path} << 'EOF'
 {"type": "failed_approach", "description": "Worker failed: {escaped_summary}. Avoid this approach on retry."}
 EOF""")
 
@@ -646,7 +646,7 @@ EOF""")
     IF answer == "Abort": HALT
     ELSE:
       FOR EACH tid in task_ids:
-        Bash("hoyeon-cli spec task {tid} --status done --summary 'Skipped after failed retry' {spec_path}")
+        Bash("sr-harness-cli spec task {tid} --status done --summary 'Skipped after failed retry' {spec_path}")
       TaskUpdate(taskId=taskId, status="completed")
 ```
 
@@ -706,7 +706,7 @@ ELSE:
     FOR EACH failure in result.failures:
       parent_task_id = failure.task_id ?? last_planned_task_id
 
-      derive_result = Bash("""hoyeon-cli spec derive \
+      derive_result = Bash("""sr-harness-cli spec derive \
         --parent {parent_task_id} \
         --source verify \
         --trigger verify_failure \
@@ -817,9 +817,9 @@ TaskUpdate(taskId=rp, status="completed")
 ### File Structure
 
 ```
-.hoyeon/specs/{name}/context/
-  learnings.json      — structured learnings (orchestrator creates empty [], workers append via hoyeon-cli spec learning)
-  issues.json         — structured issues (orchestrator creates empty [], workers append via hoyeon-cli spec issue)
+.sr-harness/specs/{name}/context/
+  learnings.json      — structured learnings (orchestrator creates empty [], workers append via sr-harness-cli spec learning)
+  issues.json         — structured issues (orchestrator creates empty [], workers append via sr-harness-cli spec issue)
   audit.md            — scope blockers, verify events (orchestrator creates empty, appends)
   round-summaries.json — per-round completion summaries (orchestrator creates empty [], appends after each round)
 ```
@@ -855,7 +855,7 @@ Details: {summary}
 2. **Always use cli** — `spec plan`, `spec task`, `spec merge`, `spec check`
 3. **Two turns for task setup** — Turn 1: all TaskCreate, Turn 2: all TaskUpdate
 4. **Dual tracking** — both spec.json (via `spec task`) and TaskList (via TaskUpdate)
-5. **Workers self-read everything** — Workers use `hoyeon-cli spec task --get` and Read context files themselves. Orchestrator does NOT read spec.json or context files during dispatch. Orchestrator only writes audit.md.
+5. **Workers self-read everything** — Workers use `sr-harness-cli spec task --get` and Read context files themselves. Orchestrator does NOT read spec.json or context files during dispatch. Orchestrator only writes audit.md.
 6. **Description = recipe** — TaskCreate description contains the full self-read recipe (CLI commands, context paths, output format). At dispatch time, orchestrator just passes `TaskGet(id).description` as the Agent prompt.
 7. **Task grouping** — related tasks (same module/directory) are grouped into a single worker to reduce agent count. Tasks with dependencies on each other cannot be grouped.
 8. **Round-level commit** — instead of per-task commits, all changes from a round are committed together via a single git-master dispatch after all workers in that round complete.
@@ -880,8 +880,8 @@ Details: {summary}
 - [ ] Worker BLOCKED status handled (scope fix derived task + re-worker)
 - [ ] Worker FAILED → bounded retry (max 1), then escalate to user
 - [ ] Round summaries collected after each round (round-summaries.json)
-- [ ] All spec tasks have `status: "done"` (via `hoyeon-cli spec task`)
-- [ ] `hoyeon-cli spec check` passes at end
+- [ ] All spec tasks have `status: "done"` (via `sr-harness-cli spec task`)
+- [ ] `sr-harness-cli spec check` passes at end
 - [ ] Residual commit handled
 - [ ] Verify recipe dispatched based on `verify_depth` (light/standard/thorough)
 - [ ] Scope blocker events logged in audit.md

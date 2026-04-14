@@ -99,7 +99,7 @@ You are not the leader and must not perform leader orchestration actions.
    {"taskId": "ID", "status": "in_progress", "owner": "{worker_name}"}
 
 2. WORK: Execute the task.
-   - Read task spec: hoyeon-cli spec task {task_id} --get {spec_path}
+   - Read task spec: sr-harness-cli spec task {task_id} --get {spec_path}
    - Read context: {CONTEXT_DIR}/learnings.json, {CONTEXT_DIR}/issues.json (if exist)
    - Implement using Read, Write, Edit, Bash, Grep, Glob
    - Respect constraints from spec
@@ -108,14 +108,14 @@ You are not the leader and must not perform leader orchestration actions.
 
 3. COMPLETE: When done, mark the task completed:
    {"taskId": "ID", "status": "completed"}
-   Update spec: hoyeon-cli spec task {task_id} --status done --summary '...' {spec_path}
+   Update spec: sr-harness-cli spec task {task_id} --status done --summary '...' {spec_path}
 
 4. CONTEXT: Write learnings/issues via CLI:
-   hoyeon-cli spec learning --task {task_id} --stdin {spec_path} << 'EOF'
+   sr-harness-cli spec learning --task {task_id} --stdin {spec_path} << 'EOF'
    {"problem": "...", "cause": "...", "rule": "...", "tags": [...]}
    EOF
 
-   hoyeon-cli spec issue --task {task_id} --stdin {spec_path} << 'EOF'
+   sr-harness-cli spec issue --task {task_id} --stdin {spec_path} << 'EOF'
    {"type": "failed_approach|out_of_scope|blocker", "description": "..."}
    EOF
 
@@ -155,12 +155,12 @@ You are a Worker in TEAM mode. Implement task {task_id}.
 Work in the current directory (session CWD).
 
 ## Step 1: Read your task spec
-Run: `hoyeon-cli spec task {task_id} --get {spec_path}`
+Run: `sr-harness-cli spec task {task_id} --get {spec_path}`
 This returns JSON with: action, fulfills, depends_on.
 
 ## Step 2: Resolve dependency inputs (if any)
 If your task has depends_on, fetch each dependency:
-Run: `hoyeon-cli spec task {dep_id} --get {spec_path}`
+Run: `sr-harness-cli spec task {dep_id} --get {spec_path}`
 Use its outputs to understand what was produced.
 
 ## Step 3: Read context files
@@ -193,7 +193,7 @@ Do NOT produce these patterns in your implementation:
 For each learning discovered during implementation, save via CLI:
 
 ```bash
-hoyeon-cli spec learning --task {task_id} --stdin {spec_path} << 'EOF'
+sr-harness-cli spec learning --task {task_id} --stdin {spec_path} << 'EOF'
 {
   "problem": "what went wrong or was unexpected",
   "cause": "why it happened",
@@ -209,7 +209,7 @@ EOF
 For each issue discovered during implementation, save via CLI:
 
 ```bash
-hoyeon-cli spec issue --task {task_id} --stdin {spec_path} << 'EOF'
+sr-harness-cli spec issue --task {task_id} --stdin {spec_path} << 'EOF'
 {
   "type": "failed_approach|out_of_scope|blocker",
   "description": "what went wrong or what is out of scope"
@@ -360,7 +360,7 @@ ELIF verify result == FAIL:
     fix_tasks = []
 
     FOR EACH failure in verify_result.failures:
-      derive_result = Bash("""hoyeon-cli spec derive \
+      derive_result = Bash("""sr-harness-cli spec derive \
         --parent {failure.related_task_id ?? last_task_id} \
         --source verify \
         --trigger verify_fix \
@@ -508,9 +508,9 @@ TaskUpdate(taskId=report_task, status="completed")
 ### File Structure
 
 ```
-.hoyeon/specs/{name}/context/
-  learnings.json — structured learnings (lead creates empty [], workers append via hoyeon-cli spec learning)
-  issues.json   — structured issues (lead creates empty [], workers append via hoyeon-cli spec issue)
+.sr-harness/specs/{name}/context/
+  learnings.json — structured learnings (lead creates empty [], workers append via sr-harness-cli spec learning)
+  issues.json   — structured issues (lead creates empty [], workers append via sr-harness-cli spec issue)
   audit.md      — scope blockers, verify events, reassignments (lead creates empty, appends)
 ```
 
@@ -574,7 +574,7 @@ Action: {what was done — derive, reassign, halt}
 5. **No per-task commit** -- TEAM mode uses end-of-execution commit (or round-level if configured). Workers MUST NOT run git commands.
 6. **Shutdown protocol is mandatory** -- always send shutdown_request to every worker and wait for shutdown_response before calling TeamDelete. No orphaned workers.
 7. **Two turns for task setup** -- Turn 1: all TaskCreate, Turn 2: all TaskUpdate (same as AGENT mode).
-8. **Workers self-read everything** -- workers use `hoyeon-cli spec task --get` and read context files themselves. Lead does NOT read spec.json or context files during dispatch.
+8. **Workers self-read everything** -- workers use `sr-harness-cli spec task --get` and read context files themselves. Lead does NOT read spec.json or context files during dispatch.
 9. **Description = recipe** -- TaskCreate description contains the full self-read recipe. At dispatch time, the worker preamble plus description provide all instructions.
 10. **Adaptation updates spec.json** -- new fix tasks go through `spec derive` (handles ID generation, origin=derived, derived_from, depends_on automatically).
 11. **Max 5 workers** -- `N = min(ceil(parallel_tasks / 2), 5)`. More workers add coordination overhead without proportional throughput.
@@ -592,8 +592,8 @@ Action: {what was done — derive, reassign, halt}
 - [ ] Lead monitors via SendMessage (no polling)
 - [ ] Watchdog: 5min status check, 10min reassign
 - [ ] Failed tasks reassigned (not halted) -- halt after 2+ failures on same task
-- [ ] All spec tasks have `status: "done"` (via `hoyeon-cli spec task`)
-- [ ] `hoyeon-cli spec check` passes at end
+- [ ] All spec tasks have `status: "done"` (via `sr-harness-cli spec task`)
+- [ ] `sr-harness-cli spec check` passes at end
 - [ ] Verify recipe executed by lead directly (not team worker — verify spawns sub-agents)
 - [ ] Fix loop bounded by max 3 attempts
 - [ ] Shutdown: shutdown_request sent to all workers, shutdown_response received

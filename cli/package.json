@@ -1,10 +1,10 @@
 {
-  "name": "@team-attention/hoyeon-cli",
+  "name": "@syscon-robotics/sr-harness-cli",
   "version": "1.5.4",
   "type": "module",
   "description": "Developer CLI for managing dev workflow state",
   "bin": {
-    "hoyeon-cli": "./dist/cli.js"
+    "sr-harness-cli": "./dist/cli.js"
   },
   "files": [
     "dist/",

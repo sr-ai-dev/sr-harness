@@ -61,7 +61,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 
 | Script | Type | Purpose |
 |--------|------|---------|
-| `cli-version-sync.sh` | SessionStart | Auto-sync hoyeon-cli npm version with plugin version |
+| `cli-version-sync.sh` | SessionStart | Auto-sync sr-harness-cli npm version with plugin version |
 | `session-compact-hook.sh` | SessionStart | Unified compact recovery — outputs skill name + state.json path |
 | `ultrawork-init-hook.sh` | UserPromptSubmit | Initialize ultrawork pipeline state when `/ultrawork` is typed |
 | `skill-session-init.sh` | UserPromptSubmit + PreToolUse[Skill] | Initialize session state for specify/execute skills |
@@ -79,7 +79,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 | `rv-validator.sh` | Stop | Run re-validation pass on stop |
 | `rulph-stop.sh` | Stop | Handle rulph loop termination |
 | `ralph-stop.sh` | Stop | Ralph loop DoD verification + prompt re-injection |
-| `skill-session-cleanup.sh` | SessionEnd | Clean up session dir (`rm -rf ~/.hoyeon/{session_id}/`) |
+| `skill-session-cleanup.sh` | SessionEnd | Clean up session dir (`rm -rf ~/.sr-harness/{session_id}/`) |
 
 ### Hook Development Notes
 
@@ -89,7 +89,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
   2. `.claude/settings.json` — project-level registration (uses `.claude/scripts/...`)
   3. `CLAUDE.md` — add entry to the Active Hooks table above
 - A hook script that is not registered in settings will **not fire** — creating the file alone is not enough
-- Run `hoyeon-cli settings validate` to verify all hook paths are correct after changes
+- Run `sr-harness-cli settings validate` to verify all hook paths are correct after changes
 - Hook behavior gotchas are documented in commit history and session learnings
 
 ## Git Branching & Release
@@ -119,7 +119,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 
 - Plugin version is in `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `cli/package.json`
 - **Bump all three files** in a single commit on `develop` before merging to `main`
-- CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
+- CLI version (`@syscon-robotics/sr-harness-cli`) is always synced with plugin version
 
 ## Recent Changes (v1.5.4)
 
@@ -349,25 +349,25 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 ## Previous Changes (v0.8.1)
 
 - fix(hooks): remove deleted rph-cleanup.sh from hooks.json SessionEnd
-- refactor: replace `node cli/dist/cli.js` with `hoyeon-cli` globally
+- refactor: replace `node cli/dist/cli.js` with `sr-harness-cli` globally
 - chore: sync cli version to 0.8.0 and update release flow
 
 ## CLI spec guide Reference
 
-When constructing `spec merge` JSON, **always run `hoyeon-cli spec guide <section>` first** to verify field names, types, and structure. This prevents merge validation failures.
+When constructing `spec merge` JSON, **always run `sr-harness-cli spec guide <section>` first** to verify field names, types, and structure. This prevents merge validation failures.
 
 Available guide sections:
 
 | Command | Shows |
 |---------|-------|
-| `hoyeon-cli spec guide meta` | meta fields (goal, non_goals, mode) |
-| `hoyeon-cli spec guide context` | context fields (confirmed_goal, research, decisions, known_gaps) |
-| `hoyeon-cli spec guide constraints` | constraints field structure (id, rule) |
-| `hoyeon-cli spec guide requirements` | requirements fields (id, behavior, sub[]) |
-| `hoyeon-cli spec guide sub` | Sub-requirement fields (id, behavior, given, when, then) |
-| `hoyeon-cli spec guide tasks` | task fields (id, action, type, status, depends_on, fulfills) |
-| `hoyeon-cli spec guide external` | external_dependencies (pre_work, post_work) |
-| `hoyeon-cli spec guide merge` | merge modes (replace vs `--append` vs `--patch`) |
+| `sr-harness-cli spec guide meta` | meta fields (goal, non_goals, mode) |
+| `sr-harness-cli spec guide context` | context fields (confirmed_goal, research, decisions, known_gaps) |
+| `sr-harness-cli spec guide constraints` | constraints field structure (id, rule) |
+| `sr-harness-cli spec guide requirements` | requirements fields (id, behavior, sub[]) |
+| `sr-harness-cli spec guide sub` | Sub-requirement fields (id, behavior, given, when, then) |
+| `sr-harness-cli spec guide tasks` | task fields (id, action, type, status, depends_on, fulfills) |
+| `sr-harness-cli spec guide external` | external_dependencies (pre_work, post_work) |
+| `sr-harness-cli spec guide merge` | merge modes (replace vs `--append` vs `--patch`) |
 
 **Key conventions:**
 - **File-based JSON passing** — write JSON to `/tmp/spec-merge.json` via heredoc (`<< 'EOF'`), pass via `--json "$(cat /tmp/spec-merge.json)"`. Never pass JSON directly as CLI argument (zsh glob expansion corrupts `[`, `{`, `$`)
@@ -379,7 +379,7 @@ Available guide sections:
 
 **Learning** — Workers record structured learnings via CLI (auto-maps task→requirements):
 ```bash
-hoyeon-cli spec learning --task T1 --stdin <spec_path> << 'EOF'
+sr-harness-cli spec learning --task T1 --stdin <spec_path> << 'EOF'
 {"problem": "...", "cause": "...", "rule": "...", "tags": [...]}
 EOF
 # Saves to: context/learnings.json (structured, searchable)
@@ -388,7 +388,7 @@ EOF
 
 **Issue** — Workers record structured issues via CLI:
 ```bash
-hoyeon-cli spec issue --task T1 --stdin <spec_path> << 'EOF'
+sr-harness-cli spec issue --task T1 --stdin <spec_path> << 'EOF'
 {"type": "failed_approach|out_of_scope|blocker", "description": "..."}
 EOF
 # Saves to: context/issues.json (structured)
@@ -397,9 +397,9 @@ EOF
 
 **Search** — BM25 search across all specs (requirements, sub-requirements, constraints, learnings):
 ```bash
-hoyeon-cli spec search "sqlite fts5"                    # human-readable output
-hoyeon-cli spec search "auth redirect" --json --limit 5  # JSON for agents
-hoyeon-cli spec search "empty cart" --specs-dir .dev/specs
+sr-harness-cli spec search "sqlite fts5"                    # human-readable output
+sr-harness-cli spec search "auth redirect" --json --limit 5  # JSON for agents
+sr-harness-cli spec search "empty cart" --specs-dir .dev/specs
 ```
 
 **History** — Spec mutation history is automatically written to `context/history.json` (not in spec.json).

@@ -41,7 +41,7 @@ specify 승인 게이트 내:
 ### Step 1: spec.json 로드
 
 ```
-1. .hoyeon/specs/ 디렉토리에서 spec 목록 확인
+1. .sr-harness/specs/ 디렉토리에서 spec 목록 확인
 2. spec이 1개 → 자동 로드
 3. spec이 2개+ → 사용자에게 선택 질문
 ```
@@ -102,9 +102,9 @@ spec.json 매핑 + 수정
 
 | 피드백 유형 | spec.json 조작 | CLI 명령 |
 |-----------|---------------|---------|
-| 기존 항목 수정 | `--patch` | `hoyeon-cli spec merge --stdin --patch` |
-| 새 항목 추가 | `--append` | `hoyeon-cli spec merge --stdin --append` |
-| 항목 삭제 + 재작성 | no flag (전체 교체) | `hoyeon-cli spec merge --stdin` |
+| 기존 항목 수정 | `--patch` | `sr-harness-cli spec merge --stdin --patch` |
+| 새 항목 추가 | `--append` | `sr-harness-cli spec merge --stdin --append` |
+| 항목 삭제 + 재작성 | no flag (전체 교체) | `sr-harness-cli spec merge --stdin` |
 
 **ID 기반 역추적:**
 - "D3" → `context.decisions[2]`
@@ -154,7 +154,7 @@ spec.json 매핑 + 수정
 재렌더링 후 spec.json 무결성 확인:
 
 ```bash
-hoyeon-cli spec validate .hoyeon/specs/{name}/spec.json
+sr-harness-cli spec validate .sr-harness/specs/{name}/spec.json
 ```
 
 validate 실패 시 사용자에게 보고하고 수정 제안.

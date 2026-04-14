@@ -210,7 +210,7 @@ IF len(tools) > 0:
     scaffold_required: false,
     sources: {browser: browser_source, terminal: terminal_source, desktop: desktop_source}
   }
-  Bash("hoyeon-cli spec merge {spec_path} --stdin << 'EOF'
+  Bash("sr-harness-cli spec merge {spec_path} --stdin << 'EOF'
   {\"context\": {\"sandbox_capability\": {\"tools\": [...], \"scaffold_required\": false}}}
   EOF")
   print("Sandbox capability merged: {tools}")

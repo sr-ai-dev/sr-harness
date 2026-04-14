@@ -5,7 +5,7 @@
 **All you need is requirements.**
 의도에서 요구사항을 도출하고, 모든 도출 과정을 검증하며, 추적 가능한 코드를 만들어내는 Claude Code 플러그인 — 계획을 직접 작성할 필요가 없습니다.
 
-[![npm](https://img.shields.io/npm/v/@team-attention/hoyeon-cli)](https://www.npmjs.com/package/@team-attention/hoyeon-cli)
+[![npm](https://img.shields.io/npm/v/@syscon-robotics/sr-harness-cli)](https://www.npmjs.com/package/@syscon-robotics/sr-harness-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 [빠른 시작](#빠른-시작) · [철학](#요구사항은-작성하는-것이-아니다) · [도출 체인](#도출-체인) · [명령어](#명령어) · [에이전트](#스물한-개의-사고)
@@ -66,7 +66,7 @@ Goal → Decisions → Requirements → Sub-requirements → Tasks
 
 - **`spec.json`이 단일 진실 공급원** — 모든 에이전트가 같은 구조화된 스펙에서 읽고 쓴다. 어떤 에이전트도 자체적으로 컨텍스트를 만들어내지 않는다. 대화 안에만 존재하는 정보는 없다. 스펙은 컨텍스트 윈도우, 압축, 에이전트 핸드오프를 넘어 살아남는 공유 메모리다.
 
-- **CLI 강제 구조** — `hoyeon-cli`는 `spec.json`에 대한 모든 병합을 검증한다. 필드명, 타입, 필수 관계 — 모두 LLM이 데이터를 보기 전에 프로그래밍적으로 검사된다. CLI는 구조를 제안하지 않는다; 잘못된 구조를 **거부**한다.
+- **CLI 강제 구조** — `sr-harness-cli`는 `spec.json`에 대한 모든 병합을 검증한다. 필드명, 타입, 필수 관계 — 모두 LLM이 데이터를 보기 전에 프로그래밍적으로 검사된다. CLI는 구조를 제안하지 않는다; 잘못된 구조를 **거부**한다.
 
 - **계약으로서의 도출 체인** — Goal → Decisions → Requirements → Sub-requirements → Tasks는 연결되어 있다. 각 레이어는 상위 레이어를 참조한다. 하위 요구사항은 요구사항으로 추적되고, 태스크는 `fulfills`를 통해 요구사항으로 추적된다. 체인이 끊기면 게이트가 차단한다. 이것의 의미: **유효한 요구사항이 있으면, 시스템은 결과를 만들어낸다** — LLM의 개별 출력이 달라지더라도 결정론적으로 라우팅된다.
 
@@ -424,7 +424,7 @@ You:  /execute
 ```bash
 # 플러그인 설치
 claude plugin add team-attention/hoyeon
-npm install -g @team-attention/hoyeon-cli
+npm install -g @syscon-robotics/sr-harness-cli
 
 # 시작 — 요구사항을 도출하고 실행
 /specify "add dark mode toggle to settings page"
@@ -441,13 +441,13 @@ Claude Code에서 `/`를 입력하면 사용 가능한 모든 스킬을 볼 수 
 
 ## CLI
 
-`hoyeon-cli`는 spec.json 검증과 세션 상태를 관리한다:
+`sr-harness-cli`는 spec.json 검증과 세션 상태를 관리한다:
 
 ```bash
-hoyeon-cli spec init "project-name"        # 새 스펙 생성
-hoyeon-cli spec merge spec.json --json ...  # 검증된 병합
-hoyeon-cli spec check spec.json             # 완전성 확인
-hoyeon-cli spec guide <section>             # 필드 구조 보기
+sr-harness-cli spec init "project-name"        # 새 스펙 생성
+sr-harness-cli spec merge spec.json --json ...  # 검증된 병합
+sr-harness-cli spec check spec.json             # 완전성 확인
+sr-harness-cli spec guide <section>             # 필드 구조 보기
 ```
 
 전체 명령어 레퍼런스는 [docs/cli.md](docs/cli.md) 참조.

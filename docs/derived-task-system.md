@@ -69,7 +69,7 @@ T3.final_verify-1 first final verify fix for T3
 ### `spec derive` — Create a derived task
 
 ```bash
-hoyeon-cli spec derive \
+sr-harness-cli spec derive \
   --parent T1 \
   --source verify \
   --trigger retry \
@@ -88,14 +88,14 @@ hoyeon-cli spec derive \
 
 **Depth-1 enforcement:**
 ```bash
-hoyeon-cli spec derive --parent T1.retry-1 ...
+sr-harness-cli spec derive --parent T1.retry-1 ...
 # → Error: Parent must be a planned task (depth-1 enforcement)
 ```
 
 ### `spec drift` — Analyze plan vs reality
 
 ```bash
-hoyeon-cli spec drift spec.json
+sr-harness-cli spec drift spec.json
 ```
 
 ```json
@@ -183,7 +183,7 @@ Two DAGs must stay in sync:
 
 | DAG | Owner | Purpose |
 |-----|-------|---------|
-| spec.json | `hoyeon-cli` | Source of truth — task definitions, status, provenance |
+| spec.json | `sr-harness-cli` | Source of truth — task definitions, status, provenance |
 | TaskList | Claude Code | Execution tracking — dispatching workers, blocking/unblocking |
 
 `spec derive` updates spec.json automatically. The orchestrator must create corresponding TaskCreate/TaskUpdate entries. Two shared helper functions handle this:

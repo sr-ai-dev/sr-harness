@@ -3,13 +3,13 @@ import { resolve, dirname, join } from 'path';
 
 const SETTINGS_HELP = `
 Usage:
-  hoyeon-cli settings validate   Validate .claude/settings.json hook configuration
+  sr-harness-cli settings validate   Validate .claude/settings.json hook configuration
 
 Options:
   --help, -h    Show this help message
 
 Examples:
-  hoyeon-cli settings validate
+  sr-harness-cli settings validate
 `;
 
 const VALID_EVENT_TYPES = new Set([
@@ -192,7 +192,7 @@ export default async function settings(args) {
     await handleValidate();
   } else {
     process.stderr.write(`Error: unknown settings subcommand '${subcommand}'\n`);
-    process.stderr.write(`Run 'hoyeon-cli settings --help' for usage.\n`);
+    process.stderr.write(`Run 'sr-harness-cli settings --help' for usage.\n`);
     process.exit(1);
   }
 }

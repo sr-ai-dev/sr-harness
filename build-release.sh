@@ -176,7 +176,54 @@ git commit -m "build: transform naming hoyeon → sr-harness (${VERSION})"
 echo ""
 echo "=== 빌드 완료: ${RELEASE_BRANCH} ==="
 echo ""
-echo "다음 단계:"
-echo "  1. 잔여 참조 검토 (의도적 참조 확인)"
-echo "  2. push: git push origin ${RELEASE_BRANCH}"
-echo "  3. develop으로 복귀: git checkout develop"
+
+# 9. Push release 브랜치
+echo "--- [Push] release 브랜치 push ---"
+git push origin "${RELEASE_BRANCH}" 2>&1
+echo "✅ push 완료"
+echo ""
+
+# 10. develop으로 복귀
+echo "--- [Checkout] develop 복귀 ---"
+git checkout develop 2>&1
+echo "✅ develop 복귀"
+echo ""
+
+# 11. Marketplace + Cache 동기화
+MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/syscon-robotics"
+CACHE_DIR="$HOME/.claude/plugins/cache/syscon-robotics/sr-harness/1.5.4"
+
+if [ -d "$MARKETPLACE_DIR" ]; then
+  echo "--- [Sync] marketplace → release pull ---"
+  cd "$MARKETPLACE_DIR"
+  git fetch origin 2>&1
+  git checkout "${RELEASE_BRANCH}" 2>&1
+  echo "✅ marketplace: ${RELEASE_BRANCH}"
+  echo ""
+
+  if [ -d "$CACHE_DIR" ]; then
+    echo "--- [Sync] cache 동기화 ---"
+    rsync -av --delete --exclude='.git' "$MARKETPLACE_DIR/" "$CACHE_DIR/" 2>&1 | tail -3
+    echo "✅ cache 동기화 완료"
+  else
+    echo "⚠ cache 디렉토리 없음: $CACHE_DIR"
+    echo "  수동 생성 필요: mkdir -p $CACHE_DIR"
+  fi
+  echo ""
+
+  # 원래 디렉토리로 복귀
+  cd - > /dev/null
+else
+  echo "⚠ marketplace 디렉토리 없음: $MARKETPLACE_DIR"
+  echo "  push는 완료됨. marketplace/cache는 수동 동기화 필요."
+fi
+
+echo "============================================"
+echo "  ✅ 전체 완료"
+echo "  release: ${RELEASE_BRANCH}"
+echo "  marketplace: ${RELEASE_BRANCH}"
+echo "  cache: 동기화 완료"
+echo "  현재 브랜치: develop"
+echo "============================================"
+echo ""
+echo "새 Claude Code 세션을 시작하면 변경사항이 반영됩니다."

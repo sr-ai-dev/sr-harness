@@ -150,7 +150,7 @@ The plugin also ships standalone skills (council, bugfix, ralph, scope, etc.) th
 | Script | Type | Matcher | Purpose |
 |--------|------|---------|---------|
 | `session-compact-hook.sh` | SessionStart | `compact` | Recover skill name and state.json path after context compaction |
-| `skill-session-cleanup.sh` | SessionEnd | (all) | Clean up session directory (`~/.hoyeon/{session_id}/`) |
+| `skill-session-cleanup.sh` | SessionEnd | (all) | Clean up session directory (`~/.sr-harness/{session_id}/`) |
 | `skill-hint-hook.sh` | UserPromptSubmit | (all) | Surface relevant skill suggestions based on user input |
 | `ultrawork-init-hook.sh` | UserPromptSubmit | (all) | Initialize ultrawork pipeline state when `/ultrawork` is typed |
 | `skill-session-init.sh` | UserPromptSubmit + PreToolUse | (all) / `Skill` | Initialize session state for specify/execute skills |
@@ -171,7 +171,7 @@ The plugin also ships standalone skills (council, bugfix, ralph, scope, etc.) th
 
 ### Spec-Driven Development
 
-All implementation flows through `spec.json` -- a schema-validated contract that contains tasks, acceptance criteria, requirements, constraints, and verification strategy. The CLI (`hoyeon-cli`) owns spec creation and mutation; skills never hand-write JSON. This guarantees structural validity and enables machine-readable task orchestration.
+All implementation flows through `spec.json` -- a schema-validated contract that contains tasks, acceptance criteria, requirements, constraints, and verification strategy. The CLI (`sr-harness-cli`) owns spec creation and mutation; skills never hand-write JSON. This guarantees structural validity and enables machine-readable task orchestration.
 
 ### Hook-Guarded Writes
 

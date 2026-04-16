@@ -7,7 +7,7 @@ chromux controls the real Chrome browser via raw CDP. Each session is an indepen
 Resolve the chromux binary path (run once, remember the output):
 
 ```bash
-CX=$(command -v chromux 2>/dev/null || echo "") && [ -n "$CX" ] && echo "CHROMUX=$CX" || (npx @team-attention/chromux help >/dev/null 2>&1 && echo "CHROMUX=npx @team-attention/chromux" || echo "MISSING")
+CX=$(command -v chromux 2>/dev/null || echo "") && [ -n "$CX" ] && echo "CHROMUX=$CX" || (npx @syscon-robotics/chromux help >/dev/null 2>&1 && echo "CHROMUX=npx @syscon-robotics/chromux" || echo "MISSING")
 ```
 
 Launch Chrome (skip if already running):

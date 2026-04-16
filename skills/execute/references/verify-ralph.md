@@ -47,10 +47,10 @@ FOR EACH constraint in spec.constraints ?? []:
 Write the DoD file and register ralph state for the Stop hook.
 
 ```
-Bash: SESSION_ID="[session ID]" && mkdir -p "$HOME/.hoyeon/$SESSION_ID/files"
+Bash: SESSION_ID="[session ID]" && mkdir -p "$HOME/.sr-harness/$SESSION_ID/files"
 
 # Write DoD file
-Write DoD file to $HOME/.hoyeon/$SESSION_ID/files/ralph-dod.md:
+Write DoD file to $HOME/.sr-harness/$SESSION_ID/files/ralph-dod.md:
 
   # Definition of Done (from spec sub-requirements)
 
@@ -61,9 +61,9 @@ Write DoD file to $HOME/.hoyeon/$SESSION_ID/files/ralph-dod.md:
   ...
 
 # Register ralph namespace in session state
-Bash: hoyeon-cli session set --sid "$SESSION_ID" --json "$(jq -n \
+Bash: sr-harness-cli session set --sid "$SESSION_ID" --json "$(jq -n \
   --arg prompt "Verify and fix spec: {spec_path} — goal: {spec.meta.goal}" \
-  --arg dod_file "$HOME/.hoyeon/$SESSION_ID/files/ralph-dod.md" \
+  --arg dod_file "$HOME/.sr-harness/$SESSION_ID/files/ralph-dod.md" \
   --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg spec_path "{spec_path}" \
   '{ralph: {prompt: $prompt, iteration: 0, max_iterations: 10, dod_file: $dod_file, created_at: $created_at, spec_path: $spec_path}}')"
@@ -88,7 +88,7 @@ Agent(
 Parse the result and map to DoD items:
 
 ```
-DOD_FILE = "$HOME/.hoyeon/$SESSION_ID/files/ralph-dod.md"
+DOD_FILE = "$HOME/.sr-harness/$SESSION_ID/files/ralph-dod.md"
 
 IF result.status == "VERIFIED":
   # All checks passed — check off ALL DoD items
@@ -122,7 +122,7 @@ ELIF result.status == "FAILED":
   FOR EACH failure in result (goal, constraints, requirements, deliverables):
     IF failure.status == "FAIL":
       # Create fix task via spec derive
-      derive_result = Bash("""hoyeon-cli spec derive \
+      derive_result = Bash("""sr-harness-cli spec derive \
         --parent {failure.task_id ?? last_task_id} \
         --source verify-ralph \
         --trigger ralph_verify \
@@ -132,7 +132,7 @@ ELIF result.status == "FAILED":
 
       # Execute fix
       Agent(subagent_type="worker", prompt=WORKER_DESCRIPTION(derive_result.created))
-      Bash("hoyeon-cli spec task {derive_result.created} --status done {spec_path}")
+      Bash("sr-harness-cli spec task {derive_result.created} --status done {spec_path}")
 
   # Commit fixes
   IF work_mode != "no-commit":
@@ -170,7 +170,7 @@ FOR EACH item in verifier_results:
     Bash: sed -i '' "s/- \[ \] \[{item.sub_req_id}\]/- [x] [{item.sub_req_id}]/" "$DOD_FILE"
   ELIF item.status == "FAIL":
     # Fix the failure
-    derive_result = Bash("""hoyeon-cli spec derive \
+    derive_result = Bash("""sr-harness-cli spec derive \
       --parent {find_task_for_sub_req(item.sub_req_id)} \
       --source verify-ralph \
       --trigger ralph_loop \
@@ -179,7 +179,7 @@ FOR EACH item in verifier_results:
       {spec_path}""")
 
     Agent(subagent_type="worker", prompt=WORKER_DESCRIPTION(derive_result.created))
-    Bash("hoyeon-cli spec task {derive_result.created} --status done {spec_path}")
+    Bash("sr-harness-cli spec task {derive_result.created} --status done {spec_path}")
 
 # Commit iteration fixes
 IF work_mode != "no-commit":

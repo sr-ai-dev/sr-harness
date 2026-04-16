@@ -21,7 +21,7 @@ allowed-tools:
 Generate a spec.json (v1 schema) through a structured derivation chain.
 Each layer builds on the previous — no skipping, no out-of-order merges.
 
-Before starting, run `hoyeon-cli spec guide full --schema v1` to see the complete schema.
+Before starting, run `sr-harness-cli spec guide full --schema v1` to see the complete schema.
 
 ---
 
@@ -30,12 +30,12 @@ Before starting, run `hoyeon-cli spec guide full --schema v1` to see the complet
 1. **CLI is the writer** — `spec init`, `spec merge`, `spec validate`. Never hand-write spec.json.
 2. **Stdin merge** — Pass JSON via heredoc stdin. No temp files.
    ```bash
-   hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin << 'EOF'
+   sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin << 'EOF'
    {"context": {"decisions": [...]}}
    EOF
    ```
-3. **Guide before merge** — Run `hoyeon-cli spec guide <section> --schema v1` before constructing JSON. Guide output is the source of truth.
-4. **Validate at layer transitions** — `hoyeon-cli spec validate .hoyeon/specs/{name}/spec.json` once per layer (before advancing), not after every merge.
+3. **Guide before merge** — Run `sr-harness-cli spec guide <section> --schema v1` before constructing JSON. Guide output is the source of truth.
+4. **Validate at layer transitions** — `sr-harness-cli spec validate .sr-harness/specs/{name}/spec.json` once per layer (before advancing), not after every merge.
 5. **One merge per section** — Never merge multiple sections in parallel.
 6. **Merge failure** — Read error → run guide → fix JSON → retry (max 2). Don't retry with same JSON.
 7. **--append for arrays** — When adding to existing arrays (decisions). **No flag** for first-time writes.
@@ -55,7 +55,7 @@ At each approval gate (L2, L3, L4), generate human-readable design documents fro
 ### Document Location
 
 ```
-.hoyeon/specs/{name}/
+.sr-harness/specs/{name}/
 ├── spec.json              ← SSoT (existing)
 ├── requirements.md        ← Generated at L3, updated at L4
 ├── design.md              ← Generated at L2 (partial), grown at L3/L4 (full 9-section)
@@ -134,15 +134,15 @@ Execute layers sequentially. Read each reference file just-in-time.
 ### Session Init (before L0)
 
 ```bash
-hoyeon-cli spec init {name} --goal "{goal}" --type dev --schema v1 --interaction {interaction} \
-  .hoyeon/specs/{name}/spec.json
+sr-harness-cli spec init {name} --goal "{goal}" --type dev --schema v1 --interaction {interaction} \
+  .sr-harness/specs/{name}/spec.json
 ```
 
 `{name}` = kebab-case from goal. `{interaction}` = interactive (default) or autopilot (with `--autopilot` flag).
 
 ```bash
 SESSION_ID="[from UserPromptSubmit hook]"
-hoyeon-cli session set --sid $SESSION_ID --spec ".hoyeon/specs/{name}/spec.json"
+sr-harness-cli session set --sid $SESSION_ID --spec ".sr-harness/specs/{name}/spec.json"
 ```
 
 ---
@@ -153,7 +153,7 @@ Three approval gates (L2, L3, L4). Each follows this pattern:
 
 ### Gate Sequence
 
-1. **CLI validate** — `hoyeon-cli spec validate`
+1. **CLI validate** — `sr-harness-cli spec validate`
 2. **Render documents** — Generate/update design.md, requirements.md, tasks.md per Rendering Schedule
 3. **Present documents** — Show the rendered markdown documents to user (not raw spec.json)
 4. **Ask for approval** — User reviews the documents
@@ -179,15 +179,15 @@ Autopilot mode: skip user approval (except Plan Summary at L4). Documents are st
 
 ## Checklist Before Stopping
 
-- [ ] spec.json at `.hoyeon/specs/{name}/spec.json`
-- [ ] `hoyeon-cli spec validate` passes
+- [ ] spec.json at `.sr-harness/specs/{name}/spec.json`
+- [ ] `sr-harness-cli spec validate` passes
 - [ ] `context.confirmed_goal` populated
 - [ ] `meta.non_goals` populated (empty `[]` if none)
 - [ ] `context.decisions[]` populated
 - [ ] Every requirement has at least 1 sub-requirement
 - [ ] Every task has `fulfills[]`
-- [ ] **design.md** at `.hoyeon/specs/{name}/design.md` — 9 sections complete
-- [ ] **requirements.md** at `.hoyeon/specs/{name}/requirements.md`
-- [ ] **tasks.md** at `.hoyeon/specs/{name}/tasks.md`
+- [ ] **design.md** at `.sr-harness/specs/{name}/design.md` — 9 sections complete
+- [ ] **requirements.md** at `.sr-harness/specs/{name}/requirements.md`
+- [ ] **tasks.md** at `.sr-harness/specs/{name}/tasks.md`
 - [ ] Plan Summary presented to user
 - [ ] `meta.approved_by` and `meta.approved_at` written after approval

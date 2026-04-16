@@ -59,7 +59,7 @@ GitHub: team-attention/hoyeon (commit c631634)
 
 ```json
 "enabledPlugins": {
-  "hoyeon@team-attention-dev": true
+  "hoyeon@syscon-robotics-dev": true
 }
 ```
 
@@ -75,7 +75,7 @@ GitHub: team-attention/hoyeon (commit c631634)
 ├── skills/                  ← 28개 스킬 (각 디렉토리에 SKILL.md)
 ├── agents/                  ← 21개 에이전트 (각 .md 파일)
 ├── hooks/                   ← Hook 스크립트
-├── cli/                     ← hoyeon-cli 소스
+├── cli/                     ← sr-harness-cli 소스
 ├── .claude/
 │   ├── settings.json        ← Hook 등록 + 권한 정의
 │   └── skill-rules.json     ← 스킬 규칙
@@ -106,8 +106,8 @@ plugin.json의 version:    "1.5.4"                   ← 버전
 전체 식별 체계:
 
 ```
-settings.json        →  enabledPlugins: { "hoyeon@team-attention-dev": true }
-installed_plugins    →  plugins: { "hoyeon@team-attention-dev": [...] }
+settings.json        →  enabledPlugins: { "hoyeon@syscon-robotics-dev": true }
+installed_plugins    →  plugins: { "hoyeon@syscon-robotics-dev": [...] }
 캐시 경로             →  cache/team-attention-dev/hoyeon/1.5.4/
 스킬 접두사           →  hoyeon:specify, hoyeon:execute, hoyeon:bugfix ...
 에이전트 접두사       →  hoyeon:worker, hoyeon:debugger, hoyeon:code-reviewer ...
@@ -378,7 +378,7 @@ sr-mngt-ws/.claude/
 - **세션 시작 시**: 각 스킬/에이전트의 `name + description`만 등록된다. SKILL.md/agent 문서 전문이 전부 자동 주입되는 것은 아니다.
 - **호출 시**: `/specify`, `/execute` 같은 슬래시 명령 또는 Skill/Agent 호출이 일어날 때 해당 문서 전문이 현재 세션 컨텍스트에 들어온다.
 - **compact 후**: CLAUDE.md와 Rules는 재로드되지만, 이미 주입된 SKILL.md 전문은 요약 대상이다. 따라서 세부 절차 기억은 약해질 수 있다.
-- **hoyeon의 보완 장치**: `session-compact-hook.sh`가 `~/.hoyeon/{session_id}/state.json`을 읽어 "어떤 스킬을 하던 중이었는지"와 상태 파일 경로를 다시 알려준다. 즉 워크플로우 복구는 가능하지만, 스킬 본문 전체가 무손실로 살아남는다고 보기는 어렵다.
+- **hoyeon의 보완 장치**: `session-compact-hook.sh`가 `~/.sr-harness/{session_id}/state.json`을 읽어 "어떤 스킬을 하던 중이었는지"와 상태 파일 경로를 다시 알려준다. 즉 워크플로우 복구는 가능하지만, 스킬 본문 전체가 무손실로 살아남는다고 보기는 어렵다.
 
 실무적으로는 `/specify` 뒤에 compact가 일어나도 **이미 spec.json / design.md / requirements.md / tasks.md까지 저장된 뒤라면 손해가 크지 않다.** hoyeon이 `spec.json`을 compact와 handoff를 버티는 공유 메모리로 설계했기 때문이다. 반대로 **L2-L4 인터뷰/수정 루프 도중 compact가 나면**, 질문 맥락이나 세부 규칙 기억이 일부 옅어져 다음 단계의 정밀도가 조금 떨어질 수 있다.
 
@@ -608,7 +608,7 @@ L4 완료 → CLI validate
 | 렌더링 ≠ 복사 | spec.json은 뼈대만 제공. 문서는 brainstorming 9섹션 표준으로 **생성** |
 | ID 가시성 | 모든 문서에 D1, R1.1, T1 등 spec.json ID를 표시하여 역방향 매핑 |
 | 수정 루프 | 사용자가 문서 지적 → spec.json --patch/--append → 문서 재생성 |
-| 문서 위치 | `.hoyeon/specs/{name}/` (spec.json과 동일 디렉토리) |
+| 문서 위치 | `.sr-harness/specs/{name}/` (spec.json과 동일 디렉토리) |
 | 9섹션 표준 | brainstorming 스킬의 작성 원칙 그대로 적용 (3관점 아키텍처, 실제 파일명, JSON 예시 등) |
 
 ### 6.3 수정된 파일
@@ -712,7 +712,7 @@ Step 5: 문서 레이어 추가 (Phase 3) ⬚
 | 문서 | 내용 |
 |------|------|
 | `01_priority1-comparison.md` | 핵심 워크플로우 비교 |
-| `01-1_hoyeon-cli-role.md` | hoyeon-cli 역할 |
+| `01-1_sr-harness-cli-role.md` | sr-harness-cli 역할 |
 | `02_priority2-comparison.md` | 실행/검증 비교 |
 | `03_priority3-comparison.md` | 보조 스킬 비교 + 종합 |
 | `04_global-claude-md-draft.md` | 글로벌 CLAUDE.md 개편안 |

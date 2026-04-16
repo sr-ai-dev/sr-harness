@@ -64,7 +64,7 @@ FOR EACH round in plan.rounds:
 
   # Mark all in_progress (both spec and Claude Code tracking)
   FOR EACH task in runnable:
-    Bash("hoyeon-cli spec task {task.id} --status in_progress {spec_path}")
+    Bash("sr-harness-cli spec task {task.id} --status in_progress {spec_path}")
     TaskUpdate(taskId=task.tracking_id, status="in_progress")
 
   FOR EACH task in runnable (single message, run_in_background=true if len > 1):
@@ -86,7 +86,7 @@ FOR EACH round in plan.rounds:
   FOR EACH task in runnable:
     result = await task completion
     IF result indicates success:
-      Bash("hoyeon-cli spec task {task.id} --status done --summary '{result.summary}' {spec_path}")
+      Bash("sr-harness-cli spec task {task.id} --status done --summary '{result.summary}' {spec_path}")
       TaskUpdate(taskId=task.tracking_id, status="completed")
     ELSE:
       print("Task {task.id} FAILED: {result.reason}")
@@ -191,7 +191,7 @@ IF fv_failed:
 - [ ] All TaskCreate in single turn (Turn 1), all TaskUpdate in single turn (Turn 2)
 - [ ] All tasks dispatched in DAG order from `plan.rounds`
 - [ ] Each task handled flexibly (direct work, Skill, or Agent)
-- [ ] Dual tracking: both spec (via `hoyeon-cli spec task`) and Claude Code (via TaskUpdate)
-- [ ] All spec tasks have `status: "done"` (via `hoyeon-cli spec task`)
+- [ ] Dual tracking: both spec (via `sr-harness-cli spec task`) and Claude Code (via TaskUpdate)
+- [ ] All spec tasks have `status: "done"` (via `sr-harness-cli spec task`)
 - [ ] Final verify worker ran holistic spec verification
 - [ ] Final report output

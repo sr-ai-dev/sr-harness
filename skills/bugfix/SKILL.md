@@ -45,7 +45,7 @@ Phase 1: DIAGNOSE ────────────────────�
   → User confirmation
 
 Phase 2: SPEC GENERATION ──────────────────────────
-  Diagnosis results → spec.json (hoyeon-cli spec init + merge)
+  Diagnosis results → spec.json (sr-harness-cli spec init + merge)
 
 Phase 3: EXECUTE ──────────────────────────────────
   Skill("execute", args=spec_path)
@@ -54,10 +54,10 @@ Phase 3: EXECUTE ─────────────────────
 
 Phase 4: RESULT HANDLING (if HALT) ────────────────
   Retry (max 3) with stagnation detection → Phase 3
-  Circuit breaker → .hoyeon/debug/{slug}.md → suggest /specify
+  Circuit breaker → .sr-harness/debug/{slug}.md → suggest /specify
 
 Phase 5: CLEANUP & REPORT ─────────────────────────
-  Save .hoyeon/debug/{slug}.md → final summary
+  Save .sr-harness/debug/{slug}.md → final summary
 ```
 
 ## Execution Mode
@@ -84,8 +84,8 @@ Extract from user input:
 ```
 SESSION_ID = [from hook — $CLAUDE_SESSION_ID]
 slug = convert bug description to kebab-case (e.g. "null-pointer-in-auth")
-DEBUG_STATE = "$HOME/.hoyeon/$SESSION_ID/debug-state.md"
-hoyeon-cli session set --sid $SESSION_ID --skill bugfix --debug "$DEBUG_STATE"
+DEBUG_STATE = "$HOME/.sr-harness/$SESSION_ID/debug-state.md"
+sr-harness-cli session set --sid $SESSION_ID --skill bugfix --debug "$DEBUG_STATE"
 
 Write(DEBUG_STATE):
 # Debug: {bug description}
@@ -192,10 +192,10 @@ Convert diagnosis results into spec.json format. spec.json is the standard forma
 ### Step 2.1: Initialize
 
 ```
-SPEC_DIR = "$HOME/.hoyeon/$SESSION_ID"
+SPEC_DIR = "$HOME/.sr-harness/$SESSION_ID"
 SPEC_PATH = "$SPEC_DIR/spec.json"
 
-hoyeon-cli spec init fix-{slug} \
+sr-harness-cli spec init fix-{slug} \
   --goal "Fix: {bug description}" \
   --type dev \
   --schema v1 \
@@ -205,11 +205,11 @@ hoyeon-cli spec init fix-{slug} \
 ### Step 2.2: Merge diagnosis into spec
 
 > **⚠️ Merge Convention**: When calling `spec merge`:
-> 1. **Always run `hoyeon-cli spec guide <section>` before constructing merge JSON** to verify field names and types
+> 1. **Always run `sr-harness-cli spec guide <section>` before constructing merge JSON** to verify field names and types
 > 2. **Always use file-based passing**: write JSON to `/tmp/spec-merge.json` via `<< 'EOF'` heredoc, then pass via `--json "$(cat /tmp/spec-merge.json)"`, then `rm /tmp/spec-merge.json`
 > 3. **On merge failure**: run `spec guide <failed-section>`, fix JSON to match schema, retry once
 
-Use `hoyeon-cli spec merge` to populate the spec from diagnosis results. Single merge call.
+Use `sr-harness-cli spec merge` to populate the spec from diagnosis results. Single merge call.
 
 **What to include:**
 
@@ -222,22 +222,22 @@ Use `hoyeon-cli spec merge` to populate the spec from diagnosis results. Single 
   - If debugger found **similar issues**: add T2 (`depends_on: ["T1"]`) to fix those locations — T2 must include `type: "work"`, `status: "pending"`, and `fulfills`
 - **constraints**: minimal diff rule, root cause targeting rule (id + rule)
 - **requirements**: Generate from debugger diagnosis. Each requirement describes a behavior that was broken:
-  1. Run `hoyeon-cli spec guide requirements` to check field structure
+  1. Run `sr-harness-cli spec guide requirements` to check field structure
   2. Construct JSON with `requirements[]` (id, behavior, sub[])
      - Convert debugger's reproduction steps → behavior description for each sub-requirement
      - Use optional GWT fields (given, when, then) when precondition/action/outcome is clear
      - If debugger identified edge cases, add additional sub-requirements
-  3. Merge via `hoyeon-cli spec merge ${SPEC_PATH} --json "$(cat /tmp/spec-merge.json)"`
+  3. Merge via `sr-harness-cli spec merge ${SPEC_PATH} --json "$(cat /tmp/spec-merge.json)"`
   - This enables Final Verify to check requirement sub-requirements, preventing regression
 
 ### Step 2.3: Validate & Register
 
 ```bash
 # Always use agent dispatch + standard verify for thorough investigation
-hoyeon-cli spec merge ${SPEC_PATH} --json '{"meta": {"mode": {"dispatch": "agent", "work": "branch", "verify": "standard"}}}'
+sr-harness-cli spec merge ${SPEC_PATH} --json '{"meta": {"mode": {"dispatch": "agent", "work": "branch", "verify": "standard"}}}'
 
-hoyeon-cli spec validate ${SPEC_PATH}
-hoyeon-cli session set --sid $SESSION_ID --spec "$SPEC_PATH"
+sr-harness-cli spec validate ${SPEC_PATH}
+sr-harness-cli session set --sid $SESSION_ID --spec "$SPEC_PATH"
 ```
 
 If validation fails, fix the JSON and retry once.
@@ -281,7 +281,7 @@ When execute HALTs.
 ```
 # Extract failure reason from execute's HALT output
 # or read from context dir's audit.md, issues.json
-CONTEXT_DIR = ".hoyeon/specs/fix-{slug}/context"
+CONTEXT_DIR = ".sr-harness/specs/fix-{slug}/context"
 failure_reason = {execute HALT output or last triage result from audit.md}
 ```
 
@@ -331,15 +331,15 @@ Append to DEBUG_STATE ## Attempts section:
 Update DEBUG_STATE: attempt: {attempt}
 
 # 3. Add failure context to spec.json
-#    Run `hoyeon-cli spec guide context` to check known_gaps structure
+#    Run `sr-harness-cli spec guide context` to check known_gaps structure
 #    Construct JSON with `context.known_gaps[]` (gap, severity, mitigation)
 #    Merge via:
-hoyeon-cli spec merge ${SPEC_PATH} --json "$(cat /tmp/spec-merge.json)"
+sr-harness-cli spec merge ${SPEC_PATH} --json "$(cat /tmp/spec-merge.json)"
 
 # 4. Reset task status
-hoyeon-cli spec task T1 --status pending ${SPEC_PATH}
+sr-harness-cli spec task T1 --status pending ${SPEC_PATH}
 {IF T2 exists AND T2 not done:}
-hoyeon-cli spec task T2 --status pending ${SPEC_PATH}
+sr-harness-cli spec task T2 --status pending ${SPEC_PATH}
 
 # 5. Re-invoke execute
 → Phase 3
@@ -357,9 +357,9 @@ Max attempts exceeded. Present escalation options to user.
 **First, save attempt records:**
 
 ```
-Bash: mkdir -p .hoyeon/debug
+Bash: mkdir -p .sr-harness/debug
 
-Write to .hoyeon/debug/{slug}.md:
+Write to .sr-harness/debug/{slug}.md:
   # Bugfix Report: {description}
   Date: {timestamp}
   Status: ESCALATED
@@ -387,7 +387,7 @@ AskUserQuestion:
   - "Switch to /specify (full planning)"
     → "spec.json and debug report are available:
        Spec: {SPEC_PATH}
-       Report: .hoyeon/debug/{slug}.md
+       Report: .sr-harness/debug/{slug}.md
        /specify can reference this context for deeper analysis."
   - "Try once more"
     → attempt += 1, go to Phase 3 (no circuit breaker reset)
@@ -403,9 +403,9 @@ After execute completes successfully.
 ### Step 5.1: Save Debug Report
 
 ```
-Bash: mkdir -p .hoyeon/debug
+Bash: mkdir -p .sr-harness/debug
 
-Write to .hoyeon/debug/{slug}.md:
+Write to .sr-harness/debug/{slug}.md:
   # Bugfix Report: {description}
   Date: {timestamp}
   Status: RESOLVED
@@ -435,7 +435,7 @@ print("""
 **Root Cause**: {file:line — 1-line description}
 **Attempts**: {count}
 **Spec**: {SPEC_PATH}
-**Report**: .hoyeon/debug/{slug}.md
+**Report**: .sr-harness/debug/{slug}.md
 """)
 ```
 
@@ -461,7 +461,7 @@ AskUserQuestion:
 ```
 /bugfix (diagnose + spec.json + execute)
    ↓ circuit breaker (3 failures)
-   ↓ spec.json + .hoyeon/debug/{slug}.md saved
+   ↓ spec.json + .sr-harness/debug/{slug}.md saved
 /specify (spec.json enrichment, leveraging existing diagnosis context)
    ↓
 /execute (enriched spec execution)
@@ -481,7 +481,7 @@ Since spec.json is the standard format, `/specify` can read and enrich the exist
 | 3 | **/execute** (Skill) | existing | always | spec.json-based execution (worker, verify, commit, review) |
 | 5 | **/qa** (Skill) | existing | user opts in | Browser/app QA verification of the fix |
 
-Phase 2 (SPEC GENERATION) and Phase 4 (RESULT HANDLING) are handled directly by bugfix without agents (hoyeon-cli calls + judgment logic).
+Phase 2 (SPEC GENERATION) and Phase 4 (RESULT HANDLING) are handled directly by bugfix without agents (sr-harness-cli calls + judgment logic).
 
 ---
 

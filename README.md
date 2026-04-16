@@ -5,7 +5,7 @@ English | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](READM
 **All you need is requirements.**
 A Claude Code plugin that derives requirements from your intent, verifies every derivation, and delivers traced code — without you writing a plan.
 
-[![npm](https://img.shields.io/npm/v/@team-attention/hoyeon-cli)](https://www.npmjs.com/package/@team-attention/hoyeon-cli)
+[![npm](https://img.shields.io/npm/v/@syscon-robotics/sr-harness-cli)](https://www.npmjs.com/package/@syscon-robotics/sr-harness-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 [Quick Start](#quick-start) · [Philosophy](#requirements-are-not-written) · [The Chain](#the-derivation-chain) · [Commands](#commands) · [Agents](#twenty-one-minds)
@@ -66,7 +66,7 @@ Three mechanisms enforce this:
 
 - **`spec.json` as single source of truth** — Every agent reads from and writes to the same structured spec. No agent invents its own context. No information lives only in a conversation. The spec is the shared memory that survives context windows, compaction, and agent handoffs.
 
-- **CLI-enforced structure** — `hoyeon-cli` validates every merge to `spec.json`. Field names, types, required relationships — all checked programmatically before the LLM ever sees the data. The CLI doesn't suggest structure; it **rejects** invalid structure.
+- **CLI-enforced structure** — `sr-harness-cli` validates every merge to `spec.json`. Field names, types, required relationships — all checked programmatically before the LLM ever sees the data. The CLI doesn't suggest structure; it **rejects** invalid structure.
 
 - **Derivation chain as contract** — Goal → Decisions → Requirements → Sub-requirements → Tasks are linked. Each layer references the one above it. A sub-requirement traces to a requirement. A task traces to requirements via `fulfills`. If the chain breaks, the gate blocks. This means: **if you have valid requirements, the system will produce a result** — deterministically routed, even if the LLM's individual outputs vary.
 
@@ -427,7 +427,7 @@ See [docs/architecture.md](docs/architecture.md) for the full pipeline diagram.
 ```bash
 # Install the plugin
 claude plugin add team-attention/hoyeon
-npm install -g @team-attention/hoyeon-cli
+npm install -g @syscon-robotics/sr-harness-cli
 
 # Start — derive requirements and execute
 /specify "add dark mode toggle to settings page"
@@ -444,13 +444,13 @@ Type `/` in Claude Code to see all available skills.
 
 ## CLI
 
-`hoyeon-cli` manages spec.json validation and session state:
+`sr-harness-cli` manages spec.json validation and session state:
 
 ```bash
-hoyeon-cli spec init "project-name"        # Create new spec
-hoyeon-cli spec merge spec.json --json ...  # Validated merge
-hoyeon-cli spec check spec.json             # Verify completeness
-hoyeon-cli spec guide <section>             # Show field structure
+sr-harness-cli spec init "project-name"        # Create new spec
+sr-harness-cli spec merge spec.json --json ...  # Validated merge
+sr-harness-cli spec check spec.json             # Verify completeness
+sr-harness-cli spec guide <section>             # Show field structure
 ```
 
 See [docs/cli.md](docs/cli.md) for the full command reference.

@@ -79,14 +79,20 @@ find . -type f \( -name "*.md" -o -name "*.sh" -o -name "*.json" -o -name "*.js"
 echo "✅ @team-attention → @syscon-robotics 완료"
 echo ""
 
-# 5. Plugin name 변환
+# 5. Plugin name 변환 (plugin.json + marketplace.json)
 echo "--- [4/5] plugin name: hoyeon → sr-harness ---"
 PLUGIN_JSON=".claude-plugin/plugin.json"
+MARKETPLACE_JSON=".claude-plugin/marketplace.json"
 if [ -f "$PLUGIN_JSON" ]; then
   sed -i '' 's/"name": "hoyeon"/"name": "sr-harness"/g' "$PLUGIN_JSON"
-  # author도 변환
   sed -i '' 's/"name": "team-attention"/"name": "syscon-robotics"/g' "$PLUGIN_JSON"
   echo "  $PLUGIN_JSON 업데이트됨"
+fi
+if [ -f "$MARKETPLACE_JSON" ]; then
+  sed -i '' 's/"name": "team-attention-dev"/"name": "syscon-robotics-dev"/g' "$MARKETPLACE_JSON"
+  sed -i '' 's/"name": "hoyeon"/"name": "sr-harness"/g' "$MARKETPLACE_JSON"
+  sed -i '' 's/"name": "team-attention"/"name": "syscon-robotics"/g' "$MARKETPLACE_JSON"
+  echo "  $MARKETPLACE_JSON 업데이트됨"
 fi
 echo "✅ plugin name 변환 완료"
 echo ""
@@ -152,10 +158,15 @@ else
 fi
 echo ""
 
-# 7-4. plugin.json 확인
+# 7-4. plugin.json + marketplace.json 확인
 echo "--- plugin.json 확인 ---"
 if [ -f "$PLUGIN_JSON" ]; then
   cat "$PLUGIN_JSON"
+fi
+echo ""
+echo "--- marketplace.json 확인 ---"
+if [ -f "$MARKETPLACE_JSON" ]; then
+  cat "$MARKETPLACE_JSON"
 fi
 echo ""
 
@@ -183,13 +194,21 @@ git push --force origin "${RELEASE_BRANCH}" 2>&1
 echo "✅ push 완료"
 echo ""
 
-# 10. develop으로 복귀
+# 10. main 브랜치 업데이트 (배포용)
+echo "--- [Main] release → main 병합 ---"
+git checkout main 2>&1
+git merge "${RELEASE_BRANCH}" --no-ff -m "Release ${VERSION}" 2>&1
+git push origin main 2>&1
+echo "✅ main 업데이트 완료"
+echo ""
+
+# 11. develop으로 복귀
 echo "--- [Checkout] develop 복귀 ---"
 git checkout develop 2>&1
 echo "✅ develop 복귀"
 echo ""
 
-# 11. Marketplace + Cache 동기화
+# 12. Marketplace + Cache 동기화
 MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/syscon-robotics"
 CACHE_DIR="$HOME/.claude/plugins/cache/syscon-robotics/sr-harness/1.5.4"
 
@@ -221,9 +240,11 @@ fi
 echo "============================================"
 echo "  ✅ 전체 완료"
 echo "  release: ${RELEASE_BRANCH}"
+echo "  main: ${VERSION} (배포용)"
 echo "  marketplace: ${RELEASE_BRANCH}"
 echo "  cache: 동기화 완료"
 echo "  현재 브랜치: develop"
 echo "============================================"
 echo ""
+echo "사용자 설치: claude plugin add sr-ai-dev/sr-harness"
 echo "새 Claude Code 세션을 시작하면 변경사항이 반영됩니다."

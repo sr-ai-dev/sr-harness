@@ -179,7 +179,7 @@ echo ""
 
 # 9. Push release 브랜치
 echo "--- [Push] release 브랜치 push ---"
-git push origin "${RELEASE_BRANCH}" 2>&1
+git push --force origin "${RELEASE_BRANCH}" 2>&1
 echo "✅ push 완료"
 echo ""
 

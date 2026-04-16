@@ -47,7 +47,7 @@ Run all checks in a **single Bash call**:
 ```bash
 # Session dir init
 SESSION_ID="[CLAUDE_SESSION_ID from UserPromptSubmit hook]"
-RESEARCH_DIR="$HOME/.hoyeon/$SESSION_ID/research"
+RESEARCH_DIR="$HOME/.sr-harness/$SESSION_ID/research"
 mkdir -p "$RESEARCH_DIR"
 echo "RESEARCH_DIR=$RESEARCH_DIR"
 
@@ -55,7 +55,7 @@ echo "RESEARCH_DIR=$RESEARCH_DIR"
 command -v gemini && echo "GEMINI_AVAILABLE=true" || echo "GEMINI_AVAILABLE=false"
 
 # Chromux check — resolve path literally, remember the output
-CX=$(command -v chromux 2>/dev/null || echo "") && [ -n "$CX" ] && echo "CHROMUX=$CX" || (npx @team-attention/chromux help >/dev/null 2>&1 && echo "CHROMUX=npx @team-attention/chromux" || echo "CHROMUX=MISSING")
+CX=$(command -v chromux 2>/dev/null || echo "") && [ -n "$CX" ] && echo "CHROMUX=$CX" || (npx @syscon-robotics/chromux help >/dev/null 2>&1 && echo "CHROMUX=npx @syscon-robotics/chromux" || echo "CHROMUX=MISSING")
 ```
 
 **Remember `RESEARCH_DIR`, `GEMINI_AVAILABLE`, and `CHROMUX` literally.** You will inline them
@@ -186,12 +186,12 @@ In the SAME message as all Agent calls, dispatch Gemini as a background Bash:
 
 ```
 Bash(run_in_background=true):
-  /absolute/path/to/script/gemini-research.sh "<full research query>" "$HOME/.hoyeon/SESSION_ID/research" 300
+  /absolute/path/to/script/gemini-research.sh "<full research query>" "$HOME/.sr-harness/SESSION_ID/research" 300
 ```
 
 Note: Inline `SESSION_ID` and the script path literally. The script path is:
 `.claude/skills/deep-research/scripts/gemini-research.sh`
-(resolve relative to the plugin root — check with `command -v hoyeon-cli` to find the root
+(resolve relative to the plugin root — check with `command -v sr-harness-cli` to find the root
 or use the absolute path directly).
 
 Gemini will write findings to `$RESEARCH_DIR/gemini-deep-research.md`.

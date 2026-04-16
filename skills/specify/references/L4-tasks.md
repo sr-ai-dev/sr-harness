@@ -5,7 +5,7 @@
 ### Step 1: Scaffold from requirements
 
 ```bash
-hoyeon-cli spec derive-tasks .hoyeon/specs/{name}/spec.json
+sr-harness-cli spec derive-tasks .sr-harness/specs/{name}/spec.json
 ```
 
 Auto-generates task stubs with `fulfills[]` correctly linked to every requirement.
@@ -79,7 +79,7 @@ In the third case, the task must have `depends_on` pointing to the task that bui
 ### Step 3: Patch via merge
 
 ```bash
-hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin --patch << 'EOF'
+sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin --patch << 'EOF'
 {"tasks": [
   {"id": "T1", "action": "Scaffolding: DB + router + common config", "fulfills": ["R0"], "depends_on": []},
   {"id": "T2", "action": "Project creation flow: POST /projects + new page + redirect", "fulfills": ["R1"], "depends_on": ["T1"]}
@@ -98,21 +98,82 @@ EOF
 ### External Dependencies
 
 Scan tasks and decisions for actions outside of code.
-Run `hoyeon-cli spec guide external --schema v1`, then merge.
+Run `sr-harness-cli spec guide external --schema v1`, then merge.
 If none: merge `{"external_dependencies": {"pre_work": [], "post_work": []}}`.
 
 ### L4 Gate
 
 ```bash
-hoyeon-cli spec validate .hoyeon/specs/{name}/spec.json --layer tasks
+sr-harness-cli spec validate .sr-harness/specs/{name}/spec.json --layer tasks
 ```
+
+### L4 Document Rendering
+
+After CLI validate passes, complete all design documents.
+
+**Read spec.json** to get: `tasks[]` with `fulfills[]` and `depends_on[]`, plus all L2/L3 data.
+
+**Generate `tasks.md`** at `.sr-harness/specs/{name}/tasks.md`:
+
+```markdown
+# Tasks — {project name}
+
+## DAG Overview
+{ASCII DAG showing task dependencies}
+
+## Task List
+
+### T1. {action} [infra]
+- **Fulfills**: R0
+- **Depends on**: (없음)
+- **Files**: {예상 생성/수정 파일}
+
+### T2. {action} [vertical]
+- **Fulfills**: R1, R1.1, R1.2
+- **Depends on**: T1
+- **Files**: {예상 생성/수정 파일}
+
+...
+
+## Requirement Coverage Matrix
+
+| Requirement | Sub | Task | Status |
+|-------------|-----|------|--------|
+| R1 | R1.1 | T2 | covered |
+| R1 | R1.2 | T2 | covered |
+| R2 | R2.1 | T3 | covered |
+...
+```
+
+**Complete `design.md`** — 나머지 섹션 생성:
+
+#### §5 시퀀스 다이어그램 (from tasks + requirements)
+- tasks의 depends_on 관계 + requirements의 GWT 시나리오 기반
+- 주요 사용자 흐름별 시퀀스 다이어그램 (Mermaid 또는 ASCII)
+- **실제 파일명/클래스명 사용** (추상 이름 금지)
+- 각 다이어그램에 단계별 설명 표 동반
+
+#### §7 API 엔드포인트 요약 (from requirements + tasks, 해당 시)
+- 전체 엔드포인트 표: `| Method | Path | Description | Task |`
+- API가 없는 프로젝트면 이 섹션 생략
+
+#### §8 테스트 구조 (from sub-requirements GWT)
+- sub_requirements의 GWT를 테스트 케이스로 매핑
+- 테스트 파일별 표: `| 파일 | 테스트 | 검증 대상 (Sub-req ID) |`
+- 격리 전략 (mock/stub/real DB 등)
+
+#### §9 확장 포인트 (from non_goals)
+- non_goals를 향후 확장 가능성으로 재해석
+- 각 확장 포인트의 구체적 추가 방법 (어떤 파일, 어떤 인터페이스를 확장)
+
+**Present all documents to user** — 완성된 design.md, requirements.md, tasks.md 전체를 보여주고 User Approval Protocol 실행.
 
 ### Plan Summary
 
 After gate passes, present the full plan:
 
 ```
-spec.json ready! .hoyeon/specs/{name}/spec.json
+spec.json ready! .sr-harness/specs/{name}/spec.json
 
 Goal
 ────────────────────────────────────────
@@ -153,7 +214,7 @@ Post-work
 {post_work items or "(none)"}
 ```
 
-Run `hoyeon-cli spec plan` for DAG visualization.
+Run `sr-harness-cli spec plan` for DAG visualization.
 
 ### Final Approval
 

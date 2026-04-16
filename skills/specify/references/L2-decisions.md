@@ -245,10 +245,10 @@ After each round, merge that round's decisions immediately. Do NOT batch decisio
 
 **Rationale must include rejected alternatives**: When writing the `rationale` field, mention alternatives that were considered and why they were rejected (e.g., `"REST over GraphQL (team unfamiliar) and gRPC (browser incompatible)"`). This prevents workers from re-evaluating already-rejected approaches during execution.
 
-Run `hoyeon-cli spec guide context --schema v1` to check field types, then:
+Run `sr-harness-cli spec guide context --schema v1` to check field types, then:
 
 ```bash
-hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin --append << 'EOF'
+sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin --append << 'EOF'
 {decisions array matching guide output — include status field}
 EOF
 ```
@@ -261,7 +261,7 @@ Collect constraints naturally during the interview — things that must NOT be v
 
 Sources: user statements, L1 research findings, inversion probe answers.
 
-Run `hoyeon-cli spec guide constraints --schema v1`, then merge at L2 end.
+Run `sr-harness-cli spec guide constraints --schema v1`, then merge at L2 end.
 If no constraints: merge `"constraints": []` explicitly.
 
 ### Known Gaps
@@ -269,7 +269,7 @@ If no constraints: merge `"constraints": []` explicitly.
 If things couldn't be decided (pending decisions that need investigation):
 
 ```bash
-hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin --append << 'EOF'
+sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin --append << 'EOF'
 {"context": {"known_gaps": ["Performance target TBD"]}}
 EOF
 ```
@@ -285,7 +285,7 @@ After Inversion Probe, before presenting approval to user:
 3. Merge via `spec merge --stdin --append`
 
 ```bash
-hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin --append << 'EOF'
+sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin --append << 'EOF'
 {"context": {"known_gaps": [
   "L2 unresolved: Data Model — Level/stage data format",
   "L2 provisional: Core Behavior — Character movement model (answer: 'free movement' — no physics detail)"
@@ -323,7 +323,221 @@ Return: PASS or NEEDS_FIX with specific issues.
 ### L2 Gate
 
 ```bash
-hoyeon-cli spec validate .hoyeon/specs/{name}/spec.json --layer decisions
+sr-harness-cli spec validate .sr-harness/specs/{name}/spec.json --layer decisions
 ```
 
+### L2 Document Rendering
+
+After CLI validate passes, generate design documents before presenting to user.
+
+**Read spec.json** to get: `confirmed_goal`, `non_goals`, `decisions[]`, `constraints[]`, `context.research`.
+
+**Generate `design.md`** at `.sr-harness/specs/{name}/design.md` with these sections:
+
+#### §1 시스템 개요 (from confirmed_goal)
+- 목적 2-3문장 (confirmed_goal 확장)
+- 기술 스택 표: decisions에서 기술 선택 추출 → `| 분류 | 기술 | 용도 |`
+
+#### §2 아키텍처 — 초안 (from context.research)
+- 2.1 배포 구조: L1 research 기반 ASCII 배포도 + 프로세스 표
+- 2.2 정적 구조: 예상 모듈 관계도 + 역할 표 (L3에서 보강 예정이므로 초안 명시)
+- 2.3 동적 흐름: 주요 요청 경로 초안 (L3에서 보강 예정)
+
+#### §6 핵심 설계 결정 (from decisions[])
+- 각 decision을 독립 섹션으로 확장:
+  - **D{n}. {question}** — 제목
+  - **결정**: answer
+  - **근거**: rationale (반드시 rejected alternatives 포함)
+  - **대안 비교**: 2-3 alternatives와 트레이드오프 표
+  - **코드 예시**: 결정에 따른 구현 방향 코드 스니펫 (3-10줄)
+- constraints도 별도 섹션으로 표시
+
+#### §3~§5, §7~§9
+- "L3/L4에서 생성 예정" placeholder 표시 (빈 섹션 아님, 명시적 예고)
+
+**Generate `requirements.md` 초안** at `.sr-harness/specs/{name}/requirements.md`:
+- §1 배경/목표: confirmed_goal
+- §2 비목표: non_goals
+- §3 요구사항: "L3에서 생성 예정"
+- known_gaps가 있으면 별도 표시
+
+**Present documents to user** — design.md와 requirements.md를 보여주고 User Approval Protocol 실행.
+
+사용자가 Revise 선택 시:
+1. 사용자가 문서의 특정 부분(예: "§6의 D3") 지적
+2. 해당 decision을 spec.json에서 `--patch`로 수정
+3. design.md 해당 섹션 재생성
+4. 재제시 → 승인 대기
+
 Pass → advance to L3.
+
+---
+
+## Syscon Robotics Extension: Profile-based Checkpoints
+
+> 이 섹션은 시스콘 로보틱스 커스터마이즈. L0에서 결정된 프로파일에 따라 체크포인트 차원이 분기된다.
+
+### 프로파일별 차원 구성
+
+L0에서 `meta.product`와 `meta.modules`로 프로파일이 결정된다. 프로파일에 따라 기본 5차원에 추가 차원이 활성화된다.
+
+#### web 프로파일 (SARICS-NX) — 기본 5차원 유지
+
+기존 hoyeon과 동일. 추가 차원 없음.
+
+```
+Core 25% | Scope 20% | Error 20% | Data 15% | Impl 20%
+```
+
+#### driver 프로파일 (SPX core-driver) — +1 차원
+
+```
+Core 20% | Scope 15% | Error 20% | Data 10% | Impl 15% | HW Interface 20%
+```
+
+**HW Interface 차원 체크포인트:**
+
+```
+- [ ] 통신 프로토콜 및 데이터 포맷 결정 (CAN frame ID, UART baud rate 등)
+- [ ] 데이터 수집 주기 및 레이턴시 요구사항
+- [ ] HW 초기화 시퀀스 (전원 인가 → 레지스터 설정 → 통신 확인)
+- [ ] HW 에러 감지 및 복구 전략 (watchdog, heartbeat)
+- [ ] 드라이버↔ROS 노드 인터페이스 (topic/service 정의)
+```
+
+#### ros-node 프로파일 (SPX core-*) — +1 차원
+
+```
+Core 20% | Scope 15% | Error 20% | Data 15% | Impl 10% | ROS Interface 20%
+```
+
+**ROS Interface 차원 체크포인트 (ROS 버전별 분기):**
+
+ROS1 (`meta.ros_version == "ros1"`):
+```
+- [ ] Pub/Sub 토픽 목록 및 메시지 타입
+- [ ] Service 서버/클라이언트 정의
+- [ ] 파라미터 구조 (rosparam, dynamic_reconfigure)
+- [ ] roslaunch 구성 및 노드 그래프
+- [ ] 다른 core-* 모듈과의 인터페이스 계약
+```
+
+ROS2 (`meta.ros_version == "ros2"`):
+```
+- [ ] Pub/Sub 토픽 목록 및 메시지 타입
+- [ ] Service/Action 서버/클라이언트 정의
+- [ ] QoS 프로파일 (reliable vs best-effort, history depth)
+- [ ] 노드 lifecycle 관리 (configure/activate/deactivate)
+- [ ] composition 사용 여부 (component container)
+- [ ] 다른 core-* 모듈과의 인터페이스 계약
+```
+
+#### cross-product 프로파일 (SARICS↔SPX) — +2 차원
+
+```
+Core 15% | Scope 15% | Error 15% | Data 10% | Impl 10% | Integration 20% | Safety 15%
+```
+
+**Integration 차원 체크포인트:**
+```
+- [ ] SARICS↔SPX 통신 인터페이스 (REST, WebSocket, ROS bridge)
+- [ ] 데이터 흐름 방향 및 변환 (JSON↔ROS msg)
+- [ ] 상태 동기화 전략 (polling vs push)
+- [ ] 통신 단절 시 독립 동작 범위
+```
+
+**Safety 차원 체크포인트:**
+```
+- [ ] E-Stop 명령 전파 경로 (SARICS → SPX)
+- [ ] 센서 이상 시 안전 모드 전환 기준
+- [ ] 비상 상황 로봇 동작 정의 (정지, 감속, 복귀)
+- [ ] 안전 관련 로그/알림 체계
+```
+
+#### infra 프로파일 — 축소 3차원
+
+```
+Core 35% | Scope 30% | Impl 35%
+```
+
+Error/Edge, Data Model, 추가 차원 비활성.
+
+### Knowledge DB 기반 체크포인트 자동 해결
+
+Knowledge DB(`.sr-harness/knowledge/`)에 해당 모듈의 지식 파일이 있으면, L2 Step 0에서 체크포인트를 자동 resolve:
+
+```
+Knowledge DB에서 확인:
+  core-driver.md § HW Interfaces: "Wheel — UART — /dev/ttyUSB0 — 115200"
+  → HW Interface 차원의 "통신 프로토콜" 체크포인트 auto-resolve (assumed: true)
+  
+  core-driver.md § Error Handling: "watchdog 500ms → E-Stop"
+  → Error/Edge 차원의 "HW 에러 감지" 체크포인트 auto-resolve (assumed: true)
+```
+
+자동 해결된 항목은 `assumed: true`로 표시. Inversion Probe에서 재검증.
+
+### ROS 버전 분기 체크포인트
+
+`meta.ros_version`에 따라 Implementation 차원에 자동 추가:
+
+ROS1:
+```
+- [ ] catkin 빌드 호환성 (기존 workspace 의존)
+- [ ] dynamic_reconfigure 사용 여부
+- [ ] rostopic/rosservice 인터페이스 설계
+```
+
+ROS2:
+```
+- [ ] QoS 프로파일 결정 (reliable vs best-effort)
+- [ ] lifecycle 노드 사용 여부 (managed vs unmanaged)
+- [ ] composition 사용 여부 (component container)
+- [ ] ROS2 action 사용 여부 (장시간 작업)
+```
+
+### Unknown/Unknown Detection 추가 Tier
+
+기존 3-tier에 프로파일별 추가:
+
+#### Tier 4: 모듈 간 인터페이스 Check (driver, ros-node, cross-product)
+
+```
+모든 결정에 대해:
+  "이 결정이 다른 core-* 모듈에 영향을 주는가?"
+  → 영향이 있는데 해당 모듈의 인터페이스가 미정의 → 체크포인트 추가
+
+Knowledge DB의 Interfaces 섹션이 있으면 자동 교차 검증:
+  D3: "IMU 데이터를 sensor_msgs/Imu로 100Hz publish"
+  Knowledge DB: core-localization이 /imu/data를 subscribe
+  → 토픽명/메시지타입/주기 일치 여부 자동 확인
+```
+
+#### Tier 5: Safety Implication Check (cross-product, driver)
+
+```
+모든 결정에 대해:
+  "이 결정이 실패했을 때 로봇/사람 안전에 영향이 있는가?"
+  → E-Stop 전파, 긴급 정지, fallback 동작 정의 여부 확인
+  → 미정의면 Safety 차원에 체크포인트 추가
+```
+
+### 시나리오 질문 도메인 특화
+
+인터뷰 질문을 시스콘 도메인 용어와 실제 시나리오로 생성:
+
+```
+driver 프로파일:
+  "로봇이 주행 중 Wheel Controller의 UART 응답이 500ms 이상 없습니다.
+   즉시 E-Stop을 발행할까요, 재연결을 시도할까요, 감속 후 정지할까요?"
+
+ros-node 프로파일:
+  "core-localization의 위치추정 covariance가 임계값을 초과했습니다.
+   navigation을 일시 정지할까요, 마지막 신뢰 위치로 복귀할까요?"
+
+cross-product 프로파일:
+  "SARICS에서 미션을 전송했지만 로봇이 5초 내 응답하지 않습니다.
+   미션을 재전송할까요, 다른 로봇에 배정할까요, 관제자에게 알림할까요?"
+```
+
+Knowledge DB의 Error Handling / Common Changes 정보가 풍부할수록 더 구체적인 시나리오 질문 생성 가능.

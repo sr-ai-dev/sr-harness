@@ -1,5 +1,5 @@
 /**
- * Shared test utilities for hoyeon-cli tests.
+ * Shared test utilities for sr-harness-cli tests.
  *
  * Provides:
  *   - loadFixture(name)       — read a JSON fixture from tests/fixtures/
@@ -33,7 +33,7 @@ export function loadFixture(name) {
  * @returns {{ path: string, cleanup: () => void }}
  */
 export function createTempSpec(data) {
-  const tmpDir = mkdtempSync(join(tmpdir(), 'hoyeon-cli-test-'));
+  const tmpDir = mkdtempSync(join(tmpdir(), 'sr-harness-cli-test-'));
   const specPath = join(tmpDir, 'spec.json');
   writeFileSync(specPath, JSON.stringify(data, null, 2));
   return {
@@ -44,7 +44,7 @@ export function createTempSpec(data) {
 }
 
 /**
- * Run the hoyeon-cli via child_process.execFileSync.
+ * Run the sr-harness-cli via child_process.execFileSync.
  * @param {string[]} args - CLI arguments (e.g. ['spec', 'validate', '/path/to/spec.json'])
  * @param {object} [opts] - options: { cwd, env, expectFail }
  * @returns {{ stdout: string, stderr: string, status: number }}

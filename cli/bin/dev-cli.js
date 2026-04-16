@@ -5,15 +5,15 @@ import feedbackHandler from '../src/handlers/feedback.js';
 import settingsHandler from '../src/handlers/settings-validate.js';
 
 const USAGE = `
-hoyeon-cli — Developer workflow CLI
+sr-harness-cli — Developer workflow CLI
 
 Usage:
-  hoyeon-cli <subcommand> [options]
+  sr-harness-cli <subcommand> [options]
 
 Subcommands:
   spec      Manage spec/plan state
   state     Read or update workflow state
-  session   Manage session state (~/.hoyeon/{sid}/)
+  session   Manage session state (~/.sr-harness/{sid}/)
   feedback  Manage feedback files
 
 Options:
@@ -21,9 +21,9 @@ Options:
   --version     Show version
 
 Examples:
-  hoyeon-cli spec --help
-  hoyeon-cli state --help
-  hoyeon-cli feedback --help
+  sr-harness-cli spec --help
+  sr-harness-cli state --help
+  sr-harness-cli feedback --help
 `;
 
 const SUBCOMMANDS = {
@@ -46,7 +46,7 @@ async function main() {
     // VERSION is injected by esbuild --define at build time
     // Falls back to 'dev' when running directly from source
     const version = typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__ : 'dev';
-    process.stdout.write(`hoyeon-cli v${version}\n`);
+    process.stdout.write(`sr-harness-cli v${version}\n`);
     process.exit(0);
   }
 
@@ -54,7 +54,7 @@ async function main() {
 
   if (!Object.prototype.hasOwnProperty.call(SUBCOMMANDS, subcommand)) {
     process.stderr.write(`Error: unknown subcommand '${subcommand}'\n`);
-    process.stderr.write(`Run 'hoyeon-cli --help' for usage.\n`);
+    process.stderr.write(`Run 'sr-harness-cli --help' for usage.\n`);
     process.exit(1);
   }
 

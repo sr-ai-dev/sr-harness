@@ -74,7 +74,7 @@ TaskUpdate(taskId=fv, addBlocks=[rp])
 The orchestrator executes each task directly — no Agent spawning, no subagents.
 
 > **Compaction recovery**: `session-compact-hook.sh` re-injects skill name + state.json path.
-> Read state.json to get spec_path, then use `hoyeon-cli spec plan` to rebuild task state.
+> Read state.json to get spec_path, then use `sr-harness-cli spec plan` to rebuild task state.
 
 ### Execute Loop
 
@@ -85,7 +85,7 @@ FOR EACH task in plan (dependency order, excluding done):
   TaskUpdate(taskId=task_ids[task.id].tracking, status="in_progress")
 
   # 2. Read task spec
-  task_spec = Bash("hoyeon-cli spec task {task.id} --get {spec_path}")
+  task_spec = Bash("sr-harness-cli spec task {task.id} --get {spec_path}")
 
   # 3. Read context files (if they exist)
   learnings = Read("{CONTEXT_DIR}/learnings.json")   # may not exist yet
@@ -112,15 +112,15 @@ FOR EACH task in plan (dependency order, excluding done):
   build_check()
 
   # 6. Update spec task status
-  Bash("hoyeon-cli spec task {task.id} --status done --summary '...' {spec_path}")
+  Bash("sr-harness-cli spec task {task.id} --status done --summary '...' {spec_path}")
   TaskUpdate(taskId=task_ids[task.id].tracking, status="completed")
 
   # 7. Write learnings/issues via CLI if any discovered
-  #    hoyeon-cli spec learning --task {task.id} --stdin {spec_path} << 'EOF'
+  #    sr-harness-cli spec learning --task {task.id} --stdin {spec_path} << 'EOF'
   #    {"problem":"...","cause":"...","rule":"...","tags":[...]}
   #    EOF
   #
-  #    hoyeon-cli spec issue --task {task.id} --stdin {spec_path} << 'EOF'
+  #    sr-harness-cli spec issue --task {task.id} --stdin {spec_path} << 'EOF'
   #    {"type":"...","description":"..."}
   #    EOF
 ```
@@ -136,8 +136,8 @@ IF build/lint check fails:
   RE_VERIFY()
 
 IF fix cannot be applied (out of scope):
-  Bash("hoyeon-cli spec task {task.id} --status blocked {spec_path}")
-  Bash("""hoyeon-cli spec issue --task {task.id} --stdin {spec_path} << 'EOF'
+  Bash("sr-harness-cli spec task {task.id} --status blocked {spec_path}")
+  Bash("""sr-harness-cli spec issue --task {task.id} --stdin {spec_path} << 'EOF'
   {"type":"blocker","description":"..."}
   EOF""")
   TaskUpdate(taskId=task_ids[task.id].tracking, status="completed")
@@ -257,7 +257,7 @@ TaskUpdate(taskId=rp, status="completed")
 
 1. **Orchestrator does ALL work directly** — use Edit, Write, Bash, Read, Grep, Glob. No Agent(), no TaskCreate for workers.
 2. **NO subagent spawning** — no Worker agents, no git-master agents, no code-reviewer agents. The orchestrator is the sole executor.
-3. **spec.json is the source of truth** — always use `hoyeon-cli spec task` for status tracking, `hoyeon-cli spec plan` for plan state.
+3. **spec.json is the source of truth** — always use `sr-harness-cli spec task` for status tracking, `sr-harness-cli spec plan` for plan state.
 4. **Context files still used** — read `learnings.json` and `issues.json` before each task, write learnings/issues via CLI after.
 5. **Direct fix pattern** — when build/lint fails, fix directly instead of deriving new tasks. The orchestrator already has full context.
 6. **Single commit** — all changes committed together (not per-task). Only one commit for the entire DIRECT execution.
@@ -272,13 +272,13 @@ TaskUpdate(taskId=rp, status="completed")
 
 - [ ] All TaskCreate tracking entries created in single turn (Turn 1)
 - [ ] All TaskUpdate dependencies set in single turn (Turn 2)
-- [ ] Each task read via `hoyeon-cli spec task {id} --get`
+- [ ] Each task read via `sr-harness-cli spec task {id} --get`
 - [ ] Context files read before execution (learnings.json, issues.json)
 - [ ] All work done directly (Edit/Write/Bash/Read/Grep/Glob) — no Agent spawning
 - [ ] Behavioral check against fulfills[] sub-requirements GWT
 - [ ] Build/lint/typecheck passes
-- [ ] All spec tasks have `status: "done"` (via `hoyeon-cli spec task`)
-- [ ] `hoyeon-cli spec check` passes at end
+- [ ] All spec tasks have `status: "done"` (via `sr-harness-cli spec task`)
+- [ ] `sr-harness-cli spec check` passes at end
 - [ ] Changes committed (if work_mode != "no-commit")
 - [ ] Verify recipe executed per selected depth
 - [ ] Learnings/issues written via CLI

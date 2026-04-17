@@ -13,7 +13,7 @@
 |---|---|---|
 | **입력** | requirements.md + design.md (마크다운) | L2 Decisions (spec.json 내 구조화된 JSON) |
 | **산출물** | tasks.md (마크다운) | spec.json의 requirements[] + tasks[] (JSON) |
-| **도구** | 수작업 마크다운 작성 | `hoyeon-cli spec derive-requirements`, `derive-tasks`, `merge --patch` |
+| **도구** | 수작업 마크다운 작성 | `sr-harness-cli spec derive-requirements`, `derive-tasks`, `merge --patch` |
 
 ### 상세 차이
 

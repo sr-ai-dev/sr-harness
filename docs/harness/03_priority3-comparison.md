@@ -13,7 +13,7 @@
 |---|---|---|
 | **목적** | 근본 원인 먼저 찾은 뒤 수정하라 (방법론) | 진단 → spec.json 생성 → /execute로 수정 (파이프라인) |
 | **본질** | **행동 규칙** (4단계 프로세스) | **자동화된 파이프라인** (에이전트 병렬 디스패치 + CLI) |
-| **산출물** | 없음 (규칙 준수 여부만) | spec.json + debug report (.hoyeon/debug/) |
+| **산출물** | 없음 (규칙 준수 여부만) | spec.json + debug report (.sr-harness/debug/) |
 
 ### 상세 차이
 
@@ -25,9 +25,9 @@
 | **반복** | 3회 실패 시 아키텍처 재검토 | 3회 실패 시 circuit breaker → /specify 에스컬레이션 |
 | **stagnation 감지** | 수동 ("3+ fixes failed" 규칙) | 자동 (SPINNING/OSCILLATION/NO_PROGRESS 패턴 감지) |
 | **에스컬레이션** | "사용자와 논의" | spec.json 보존 → /specify로 에스컬레이션 (컨텍스트 유지) |
-| **지식 보존** | 없음 | .hoyeon/debug/{slug}.md + learnings.json |
+| **지식 보존** | 없음 | .sr-harness/debug/{slug}.md + learnings.json |
 | **QA 후속** | 없음 | Phase 5.3에서 /qa 제안 |
-| **외부 도구 의존** | 없음 | hoyeon-cli (spec init, merge, validate) |
+| **외부 도구 의존** | 없음 | sr-harness-cli (spec init, merge, validate) |
 
 ### 핵심 차이: 규칙 vs 파이프라인
 

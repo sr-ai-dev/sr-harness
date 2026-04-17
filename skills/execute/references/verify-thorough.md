@@ -74,7 +74,7 @@ Wait for all agents to complete.
 
 IF ANY agent reports FAIL:
   FOR EACH failure:
-    derive_result = Bash("""hoyeon-cli spec derive \
+    derive_result = Bash("""sr-harness-cli spec derive \
       --parent {related_task_id} \
       --source verify-thorough \
       --trigger integration_verification \
@@ -166,7 +166,7 @@ ELSE:
 
   IF merged.fail > 0:
     FOR EACH failed_item in merged.failed_items:
-      derive_result = Bash("""hoyeon-cli spec derive \
+      derive_result = Bash("""sr-harness-cli spec derive \
         --parent {related_task_id} \
         --source verify-thorough \
         --trigger runtime_verification \

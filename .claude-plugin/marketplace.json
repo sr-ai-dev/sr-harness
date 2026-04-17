@@ -1,17 +1,17 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "team-attention-dev",
+  "name": "syscon-robotics-dev",
   "description": "Development workflow automation: specify → open → execute pipeline with parallel research agents, hook-based guards, and PR state management",
   "owner": {
-    "name": "team-attention"
+    "name": "syscon-robotics"
   },
   "plugins": [
     {
-      "name": "hoyeon",
+      "name": "sr-harness",
       "description": "Development workflow automation: specify → open → execute pipeline with parallel research agents, hook-based guards, and PR state management",
       "version": "1.5.4",
       "author": {
-        "name": "team-attention"
+        "name": "syscon-robotics"
       },
       "source": "./",
       "category": "productivity"

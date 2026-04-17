@@ -5,7 +5,7 @@
 ### Step 1: Scaffold from requirements
 
 ```bash
-hoyeon-cli spec derive-tasks .hoyeon/specs/{name}/spec.json
+sr-harness-cli spec derive-tasks .sr-harness/specs/{name}/spec.json
 ```
 
 Auto-generates task stubs with `fulfills[]` correctly linked to every requirement.
@@ -79,7 +79,7 @@ In the third case, the task must have `depends_on` pointing to the task that bui
 ### Step 3: Patch via merge
 
 ```bash
-hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin --patch << 'EOF'
+sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin --patch << 'EOF'
 {"tasks": [
   {"id": "T1", "action": "Scaffolding: DB + router + common config", "fulfills": ["R0"], "depends_on": []},
   {"id": "T2", "action": "Project creation flow: POST /projects + new page + redirect", "fulfills": ["R1"], "depends_on": ["T1"]}
@@ -98,13 +98,13 @@ EOF
 ### External Dependencies
 
 Scan tasks and decisions for actions outside of code.
-Run `hoyeon-cli spec guide external --schema v1`, then merge.
+Run `sr-harness-cli spec guide external --schema v1`, then merge.
 If none: merge `{"external_dependencies": {"pre_work": [], "post_work": []}}`.
 
 ### L4 Gate
 
 ```bash
-hoyeon-cli spec validate .hoyeon/specs/{name}/spec.json --layer tasks
+sr-harness-cli spec validate .sr-harness/specs/{name}/spec.json --layer tasks
 ```
 
 ### L4 Document Rendering
@@ -113,7 +113,7 @@ After CLI validate passes, complete all design documents.
 
 **Read spec.json** to get: `tasks[]` with `fulfills[]` and `depends_on[]`, plus all L2/L3 data.
 
-**Generate `tasks.md`** at `.hoyeon/specs/{name}/tasks.md`:
+**Generate `tasks.md`** at `.sr-harness/specs/{name}/tasks.md`:
 
 ```markdown
 # Tasks — {project name}
@@ -173,7 +173,7 @@ After CLI validate passes, complete all design documents.
 After gate passes, present the full plan:
 
 ```
-spec.json ready! .hoyeon/specs/{name}/spec.json
+spec.json ready! .sr-harness/specs/{name}/spec.json
 
 Goal
 ────────────────────────────────────────
@@ -214,7 +214,7 @@ Post-work
 {post_work items or "(none)"}
 ```
 
-Run `hoyeon-cli spec plan` for DAG visualization.
+Run `sr-harness-cli spec plan` for DAG visualization.
 
 ### Final Approval
 

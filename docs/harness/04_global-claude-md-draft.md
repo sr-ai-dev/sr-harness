@@ -145,7 +145,7 @@ hoyeon 플러그인이 없는 프로젝트에서 복잡한 작업 시:
 | EnterPlanMode | `[PlanMode: 진입]` |
 | AskUserQuestion | `[승인 요청]` |
 | MCP 도구 | `[MCP: actionbook]` |
-| hoyeon-cli | `[CLI: spec merge]` |
+| sr-harness-cli | `[CLI: spec merge]` |
 
 목적: 사용자가 Claude Code의 고급 기능 활용 상황을 실시간으로 파악하고 학습할 수 있도록 한다.
 

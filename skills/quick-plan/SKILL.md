@@ -242,7 +242,7 @@ Only runs when user explicitly chooses to execute.
 
 ```bash
 SESSION_ID="[session ID from UserPromptSubmit hook]"
-SESSION_DIR="$HOME/.hoyeon/$SESSION_ID"
+SESSION_DIR="$HOME/.sr-harness/$SESSION_ID"
 SPEC_PATH="$SESSION_DIR/spec.json"
 ```
 
@@ -253,7 +253,7 @@ Determine the plan type based on task composition from Phase 5:
 - If **all tasks have `type: plain`** → use `--type plain` (lightweight skill-only pipeline)
 
 ```bash
-hoyeon-cli spec init {plan-name} --goal "{user's goal}" --type dev|plain --schema v1 ${SPEC_PATH}
+sr-harness-cli spec init {plan-name} --goal "{user's goal}" --type dev|plain --schema v1 ${SPEC_PATH}
 ```
 
 `{plan-name}`: derive from user's goal (kebab-case, max 30 chars).
@@ -271,13 +271,13 @@ Rules:
 - Keep it minimal — no gap analysis, no multi-sub-requirement requirements
 
 > **⚠️ Merge Convention**: All `spec merge --json '...'` examples below show JSON inline for readability. In practice:
-> 1. **Always run `hoyeon-cli spec guide <section>` before constructing merge JSON** to verify field names and types
+> 1. **Always run `sr-harness-cli spec guide <section>` before constructing merge JSON** to verify field names and types
 > 2. **Always use file-based passing**: write JSON to `/tmp/spec-merge.json` via `<< 'EOF'` heredoc, then pass via `--json "$(cat /tmp/spec-merge.json)"`, then `rm /tmp/spec-merge.json`
 > 3. **On merge failure**: run `spec guide <failed-section>`, fix JSON to match schema, retry once
 
 ```bash
 # 1. Check field structure
-hoyeon-cli spec guide requirements
+sr-harness-cli spec guide requirements
 
 # 2. Construct JSON with requirements.id, requirements.behavior, requirements.sub[]
 #    Each sub-requirement needs: id, behavior
@@ -289,7 +289,7 @@ hoyeon-cli spec guide requirements
 cat > /tmp/spec-merge.json << 'EOF'
 { "requirements": [ ... ] }
 EOF
-hoyeon-cli spec merge ${SPEC_PATH} --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
+sr-harness-cli spec merge ${SPEC_PATH} --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
 ```
 
 This ensures:
@@ -302,7 +302,7 @@ Merge the context gathered during planning. Content is **type-aware**:
 
 ```bash
 # 1. Check field structure
-hoyeon-cli spec guide context
+sr-harness-cli spec guide context
 
 # 2. Construct JSON with context fields:
 #    - confirmed_goal: user's confirmed goal statement
@@ -314,7 +314,7 @@ hoyeon-cli spec guide context
 cat > /tmp/spec-merge.json << 'EOF'
 { "context": { "confirmed_goal": "...", "decisions": [...], "known_gaps": [...], "research": [...] } }
 EOF
-hoyeon-cli spec merge ${SPEC_PATH} --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
+sr-harness-cli spec merge ${SPEC_PATH} --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
 ```
 
 **known_gaps to always capture** (at minimum):
@@ -331,7 +331,7 @@ Do NOT call merge per task (without `--append`, each call overwrites the previou
 
 ```bash
 # 1. Check field structure
-hoyeon-cli spec guide tasks
+sr-harness-cli spec guide tasks
 
 # 2. Construct JSON with all tasks in a single array
 #    Each task needs: id, action, type, status, depends_on, fulfills
@@ -342,7 +342,7 @@ hoyeon-cli spec guide tasks
 cat > /tmp/spec-merge.json << 'EOF'
 { "tasks": [ { "id": "T1", ... }, { "id": "T2", ... } ] }
 EOF
-hoyeon-cli spec merge ${SPEC_PATH} --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
+sr-harness-cli spec merge ${SPEC_PATH} --json "$(cat /tmp/spec-merge.json)" && rm /tmp/spec-merge.json
 ```
 
 Map from plan:
@@ -358,7 +358,7 @@ After all tasks are merged, check for sandbox sub-requirements and generate infr
 ```bash
 # Auto-generates T_SANDBOX (infra prep) + T_SV1~N (per-sub-requirement verification) tasks
 # No-ops if no execution_env: sandbox sub-requirements exist
-hoyeon-cli spec sandbox-tasks ${SPEC_PATH}
+sr-harness-cli spec sandbox-tasks ${SPEC_PATH}
 ```
 
 This command scans all sub-requirements for `execution_env: "sandbox"` and automatically creates the required infra and per-sub-requirement verification tasks with correct `depends_on` wiring.
@@ -368,13 +368,13 @@ This command scans all sub-requirements for `execution_env: "sandbox"` and autom
 Update the session state to point to the generated spec:
 
 ```bash
-hoyeon-cli session set --sid $SESSION_ID --spec "$SPEC_PATH"
+sr-harness-cli session set --sid $SESSION_ID --spec "$SPEC_PATH"
 ```
 
 #### 9.5 Validate
 
 ```bash
-hoyeon-cli spec validate ${SPEC_PATH}
+sr-harness-cli spec validate ${SPEC_PATH}
 ```
 
 If validation fails, fix and retry once.
@@ -389,5 +389,5 @@ Then invoke the `/execute` skill to begin execution.
 
 - Do NOT directly execute tasks — delegate to `/execute` skill after spec.json generation
 - Do NOT create teams or spawn agents — only propose the structure
-- Do NOT modify project files — only write to ~/.hoyeon/{session}/
+- Do NOT modify project files — only write to ~/.sr-harness/{session}/
 - If a task is ambiguous, flag it and suggest clarification

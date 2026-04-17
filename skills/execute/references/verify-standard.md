@@ -127,7 +127,7 @@ IF result.counts.fail > 0:
 
   # Create fix tasks for FAIL items
   FOR EACH failed in failures:
-    derive_result = Bash("""hoyeon-cli spec derive \
+    derive_result = Bash("""sr-harness-cli spec derive \
       --parent {related_task_id} \
       --source verify-standard \
       --trigger semantic_verification \
@@ -195,7 +195,7 @@ IF cr_result.status == "AUTO_PASS" OR cr_result.verdict == "SHIP":
 
 IF cr_result.verdict == "NEEDS_FIXES":
   FOR EACH fix_item in cr_result.fix_items:
-    derive_result = Bash("""hoyeon-cli spec derive \
+    derive_result = Bash("""sr-harness-cli spec derive \
       --parent {related_task_id} \
       --source verify-standard \
       --trigger code_review \

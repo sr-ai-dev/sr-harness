@@ -20,7 +20,7 @@ allowed-tools:
 validate_prompt: |
   Must contain Phase 1 (DoD Collection) and Phase 2 (Work Execution).
   Must use AskUserQuestion for DoD confirmation.
-  Must write state via hoyeon-cli session set with .ralph namespace.
+  Must write state via sr-harness-cli session set with .ralph namespace.
   Must write DoD file to session files directory.
   Must include prompt storage for Stop hook re-injection.
 ---
@@ -93,7 +93,7 @@ After user confirms, initialize the loop state and write the DoD file.
 **Write DoD file** — create the checklist as a markdown file:
 
 ```
-Bash: SESSION_ID="[session ID from hook]" && mkdir -p "$HOME/.hoyeon/$SESSION_ID/files" && cat > "$HOME/.hoyeon/$SESSION_ID/files/ralph-dod.md" << 'DODEOF'
+Bash: SESSION_ID="[session ID from hook]" && mkdir -p "$HOME/.sr-harness/$SESSION_ID/files" && cat > "$HOME/.sr-harness/$SESSION_ID/files/ralph-dod.md" << 'DODEOF'
 # Definition of Done
 
 - [ ] [criterion 1]
@@ -109,9 +109,9 @@ DODEOF
 Bash: SESSION_ID="[session ID from hook]" && PROMPT=$(cat << 'PROMPTEOF'
 [The user's ORIGINAL request/prompt — exactly as they typed it, before any processing]
 PROMPTEOF
-) && hoyeon-cli session set --sid "$SESSION_ID" --json "$(jq -n \
+) && sr-harness-cli session set --sid "$SESSION_ID" --json "$(jq -n \
   --arg prompt "$PROMPT" \
-  --arg dod_file "$HOME/.hoyeon/$SESSION_ID/files/ralph-dod.md" \
+  --arg dod_file "$HOME/.sr-harness/$SESSION_ID/files/ralph-dod.md" \
   --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   '{ralph: {prompt: $prompt, iteration: 0, max_iterations: 10, dod_file: $dod_file, created_at: $created_at}}')"
 ```

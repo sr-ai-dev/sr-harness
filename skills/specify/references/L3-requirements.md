@@ -5,7 +5,7 @@
 ### Step 1: Scaffold from decisions
 
 ```bash
-hoyeon-cli spec derive-requirements .hoyeon/specs/{name}/spec.json
+sr-harness-cli spec derive-requirements .sr-harness/specs/{name}/spec.json
 ```
 
 This auto-generates requirement stubs linked to every decision.
@@ -24,10 +24,10 @@ The scaffold is a **starting point, not a constraint**. The 1:1 decision→requi
 
 As long as `spec validate` passes at the L3 gate (every requirement has at least one sub-req), the structure is valid.
 
-Run `hoyeon-cli spec guide requirements --schema v1` to check field types, then patch:
+Run `sr-harness-cli spec guide requirements --schema v1` to check field types, then patch:
 
 ```bash
-hoyeon-cli spec merge .hoyeon/specs/{name}/spec.json --stdin --patch << 'EOF'
+sr-harness-cli spec merge .sr-harness/specs/{name}/spec.json --stdin --patch << 'EOF'
 {"requirements": [
   {"id": "R1", "behavior": "User can log in with email and password", "sub": [
     {"id": "R1.1", "behavior": "Valid login returns JWT", "given": "A registered user with valid credentials", "when": "POST /login with correct email and password", "then": "Returns 200 with JWT in response body"},
@@ -116,7 +116,7 @@ Print ALL requirements and sub-requirements as text (show everything, do not tru
 ### L3 Gate
 
 ```bash
-hoyeon-cli spec validate .hoyeon/specs/{name}/spec.json --layer requirements
+sr-harness-cli spec validate .sr-harness/specs/{name}/spec.json --layer requirements
 ```
 
 ### L3 Document Rendering
@@ -125,7 +125,7 @@ After CLI validate passes, update design documents before presenting to user.
 
 **Read spec.json** to get: `requirements[]` with `sub[]` (GWT), plus all L2 data.
 
-**Update `requirements.md`** at `.hoyeon/specs/{name}/requirements.md`:
+**Update `requirements.md`** at `.sr-harness/specs/{name}/requirements.md`:
 
 ```markdown
 # Requirements — {project name}

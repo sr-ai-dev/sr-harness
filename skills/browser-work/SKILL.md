@@ -30,7 +30,7 @@ If the orchestrator walks through one cycle first and builds a "map," the agent 
 
 ```bash
 SESSION_ID="[CLAUDE_SESSION_ID from UserPromptSubmit hook]"
-WORK_DIR="$HOME/.hoyeon/$SESSION_ID"
+WORK_DIR="$HOME/.sr-harness/$SESSION_ID"
 mkdir -p "$WORK_DIR"
 echo "WORK_DIR=$WORK_DIR"
 ```
@@ -40,7 +40,7 @@ echo "WORK_DIR=$WORK_DIR"
 Resolve chromux path. **Remember the output literally** — you'll inline it in every command.
 
 ```bash
-CX=$(command -v chromux 2>/dev/null || echo "") && [ -n "$CX" ] && echo "CHROMUX=$CX" || (npx @team-attention/chromux help >/dev/null 2>&1 && echo "CHROMUX=npx @team-attention/chromux" || echo "MISSING")
+CX=$(command -v chromux 2>/dev/null || echo "") && [ -n "$CX" ] && echo "CHROMUX=$CX" || (npx @syscon-robotics/chromux help >/dev/null 2>&1 && echo "CHROMUX=npx @syscon-robotics/chromux" || echo "MISSING")
 ```
 
 If `MISSING`, report error and stop.
@@ -181,7 +181,7 @@ After the agent completes:
 
 | Situation | Response |
 |-----------|----------|
-| chromux not found | Report error, suggest `npm i -g @team-attention/chromux` |
+| chromux not found | Report error, suggest `npm i -g @syscon-robotics/chromux` |
 | Site requires login | Check if chromux profile has saved login. If not, tell user to log in manually first |
 | CAPTCHA during recon | Stop recon, note in guide, delegate with extra caution |
 | Agent fails despite guide | Resume agent with corrections, or re-do recon with more detail |
@@ -189,4 +189,4 @@ After the agent completes:
 
 ## Cleanup
 
-Guide files persist in `~/.hoyeon/{sid}/` for reference. No auto-cleanup — user can review or reuse.
+Guide files persist in `~/.sr-harness/{sid}/` for reference. No auto-cleanup — user can review or reuse.

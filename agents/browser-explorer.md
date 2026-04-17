@@ -31,15 +31,15 @@ Only the Bash tool is available.
 Resolve the chromux command string. **You must inline the resolved command and session ID in every Bash call** because shell variables do not persist across separate Bash tool calls.
 
 ```bash
-CX=$(command -v chromux 2>/dev/null || echo "") && [ -n "$CX" ] && echo "CHROMUX=$CX" || (npx @team-attention/chromux help >/dev/null 2>&1 && echo "CHROMUX=npx @team-attention/chromux" || echo "MISSING")
+CX=$(command -v chromux 2>/dev/null || echo "") && [ -n "$CX" ] && echo "CHROMUX=$CX" || (npx @syscon-robotics/chromux help >/dev/null 2>&1 && echo "CHROMUX=npx @syscon-robotics/chromux" || echo "MISSING")
 ```
 
 - If `CHROMUX=/absolute/path/to/chromux` → Use that exact path in all subsequent commands
-- If `CHROMUX=npx @team-attention/chromux` → Use that full string as the command prefix
-- If `MISSING` → Report error: "chromux not installed. Run: npm i -g @team-attention/chromux"
+- If `CHROMUX=npx @syscon-robotics/chromux` → Use that full string as the command prefix
+- If `MISSING` → Report error: "chromux not installed. Run: npm i -g @syscon-robotics/chromux"
 
 **CRITICAL**: Each Bash tool call runs in a **fresh shell**. Variables like `$CX` and `$S` do NOT persist. You must:
-1. Inline the full chromux command (e.g., `/Users/you/.local/bin/chromux` or `npx @team-attention/chromux`)
+1. Inline the full chromux command (e.g., `/Users/you/.local/bin/chromux` or `npx @syscon-robotics/chromux`)
 2. Inline the session ID as a literal string (e.g., `exp-ab12`)
 
 Launch Chrome (skip if already running). Omit `--headless` unless the caller explicitly requested headless mode:

@@ -197,7 +197,7 @@ echo ""
 # 10. main 브랜치 업데이트 (배포용)
 echo "--- [Main] release → main 병합 ---"
 git checkout main 2>&1
-git merge "${RELEASE_BRANCH}" --no-ff -m "Release ${VERSION}" 2>&1
+git merge -X theirs "${RELEASE_BRANCH}" --no-ff -m "Release ${VERSION}" 2>&1
 git push origin main 2>&1
 echo "✅ main 업데이트 완료"
 echo ""
@@ -216,7 +216,8 @@ if [ -d "$MARKETPLACE_DIR" ]; then
   echo "--- [Sync] marketplace → release pull ---"
   cd "$MARKETPLACE_DIR"
   git fetch origin 2>&1
-  git checkout "${RELEASE_BRANCH}" 2>&1
+  git checkout "${RELEASE_BRANCH}" 2>/dev/null || git checkout -b "${RELEASE_BRANCH}" "origin/${RELEASE_BRANCH}" 2>&1
+  git reset --hard "origin/${RELEASE_BRANCH}" 2>&1
   echo "✅ marketplace: ${RELEASE_BRANCH}"
   echo ""
 

@@ -19,7 +19,8 @@ allowed-tools:
 # /knowledge — Knowledge DB Manager
 
 시스콘 로보틱스 모듈별 지식 DB를 관리한다.
-Knowledge DB는 `/specify` L1 단계에서 풀 스캔 대신 사전 구축된 지식을 로드하는 데 사용된다.
+Knowledge DB는 `/specify` Phase 0.5 (Context Research) 단계에서 풀 코드베이스 스캔을 보완하거나 대체하는 사전 구축 지식으로 활용된다.
+brownfield 작업 시 `/specify`가 `qa-log.md`의 `where.sr_modules` 정보를 참고하여 해당 모듈 파일을 직접 Read할 수 있다.
 
 ---
 

@@ -121,7 +121,16 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v1.6.0)
+## Recent Changes (v1.6.0-sr.1)
+
+- feat(specify): SR Context Detection integrated into Step 0.1 Mirror — keyword-based auto-detection of sr_product/sr_modules/sr_ros_version/sr_profile without dropdown prompts
+- feat(specify): SR Profile depth calibration (Step 0.4D) — driver/ros-node/cross-product profiles adjust research axis weights
+- feat(specify): tech-extractor boundary pattern injection per sr_profile (Phase 2 system prompt)
+- feat(blueprint): Phase 4.5 Design Document Generation — 9-section design.md produced after plan approval (§1 시스템개요…§9 확장포인트), with SR Profile section overrides
+- feat(spec-review): v2 pipeline sync — requirements.md direct Edit, plan.json via hoyeon-cli plan merge, design.md/contracts.md direct Edit with cascading sync rules
+- feat(knowledge): description update — Phase 0.5 Context Research integration, brownfield qa-log.md sr_modules pattern
+
+## Previous Changes (v1.6.0)
 
 ### CLI Rename (hoyeon-cli2 → hoyeon-cli)
 - **BREAKING**: npm package renamed `@team-attention/hoyeon-cli2` → `@team-attention/hoyeon-cli` (v1 slot reclaimed now that v1 CLI is retired)

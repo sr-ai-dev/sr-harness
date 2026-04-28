@@ -210,7 +210,7 @@ echo ""
 
 # 12. Marketplace + Cache 동기화
 MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/syscon-robotics"
-CACHE_DIR="$HOME/.claude/plugins/cache/syscon-robotics/sr-harness/1.5.4"
+CACHE_DIR="$HOME/.claude/plugins/cache/syscon-robotics/sr-harness/1.6.0-sr.1"
 
 if [ -d "$MARKETPLACE_DIR" ]; then
   echo "--- [Sync] marketplace → release pull ---"

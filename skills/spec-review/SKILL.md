@@ -2,10 +2,10 @@
 name: spec-review
 description: |
   "/spec-review", "spec review", "스펙 리뷰", "문서 리뷰",
-  "설계 문서 수정", "spec 수정", "요구사항 수정",
-  "design.md 수정해줘", "requirements.md 변경"
-  Gate 밖에서 spec.json + 문서 동기화 수정.
-  specify 세션 없이도 문서 기반 피드백 → spec.json 수정 → 관련 문서 재렌더링.
+  "설계 문서 수정", "requirements 수정", "요구사항 수정",
+  "design.md 수정해줘", "requirements.md 변경", "plan 수정"
+  Gate 밖에서 v2 파이프라인 문서(requirements.md / plan.json / design.md) 동기화 수정.
+  specify/blueprint 세션 없이도 문서 기반 피드백을 반영하고 관련 파일을 동기화한다.
 allowed-tools:
   - Read
   - Write
@@ -16,29 +16,47 @@ allowed-tools:
   - AskUserQuestion
 ---
 
-# /spec-review — Gate 밖 문서 동기화 리뷰
+# /spec-review — Gate 밖 문서 동기화 리뷰 (v2)
 
-specify 세션의 승인 게이트 밖에서도 **문서 기반 피드백 → spec.json 수정 → 관련 문서 재렌더링**을 수행한다.
+specify/blueprint 승인 게이트 밖에서도 **문서 기반 피드백 → 파일 수정 → 관련 파일 동기화**를 수행한다.
+
+---
+
+## v2 파이프라인 아티팩트 구조
+
+```
+<spec_dir>/
+├── requirements.md   ← /specify 산출물. 요구사항 SSoT. 직접 편집 가능 (마크다운).
+├── plan.json         ← /blueprint 산출물. 태스크/verify/contracts 상태. CLI로만 수정.
+├── contracts.md      ← /blueprint 산출물. cross-module 인터페이스 + 불변식.
+└── design.md         ← /blueprint Phase 4.5 산출물. 아키텍처 문서 (human-only).
+```
+
+**수정 원칙:**
+- `requirements.md` → **직접 Edit** (마크다운 SSoT, CLI 불필요)
+- `plan.json` → **`hoyeon-cli plan merge`** 만 사용 (직접 편집 금지)
+- `contracts.md` → **직접 Edit** (마크다운)
+- `design.md` → **직접 Edit** (human-only, /execute가 읽지 않음)
 
 ---
 
 ## 왜 필요한가
 
 ```
-specify 승인 게이트 내:
-  "D3 수정해줘" → spec.json patch → 문서 재렌더링 → ✅ 동기화
+blueprint 승인 게이트 내:
+  "R-T1.2 수정해줘" → requirements.md 수정 → design.md 재렌더링 → ✅
 
 게이트 밖 (다른 세션, 일반 대화):
-  "design.md §4 수정해줘" → md만 수정 → ❌ spec.json 미반영
+  "design.md §4 수정해줘" → design.md만 수정 → ❌ requirements.md 미반영
 ```
 
-/spec-review는 **언제든지** specify와 동일한 동기화를 제공한다.
+/spec-review는 **언제든지** 파이프라인과 동일한 동기화를 제공한다.
 
 ---
 
 ## 실행 흐름
 
-### Step 1: spec.json 로드
+### Step 1: spec_dir 로드
 
 ```
 1. .hoyeon/specs/ 디렉토리에서 spec 목록 확인
@@ -50,8 +68,8 @@ specify 승인 게이트 내:
 AskUserQuestion(
   question: "리뷰할 spec을 선택해주세요.",
   options: [
-    { label: "wheel-controller-uart-refactor", description: "..." },
-    { label: "narrow-corridor-navigation", description: "..." }
+    { label: "wheel-controller-uart-refactor", description: "requirements.md + plan.json 있음" },
+    { label: "narrow-corridor-navigation", description: "requirements.md만 있음 (blueprint 미실행)" }
   ]
 )
 ```
@@ -60,15 +78,14 @@ AskUserQuestion(
 
 ```
 Spec: wheel-controller-uart-refactor
-Status: L3 완료 (requirements + design 생성됨, tasks 미생성)
+Pipeline stage: blueprint 완료 (requirements + plan + design 있음)
 
 Documents:
-  ✅ design.md (§1~§4, §6)
-  ✅ requirements.md (R1~R4, 12 sub-requirements)
-  ❌ tasks.md (L4 미진행)
-
-Decisions: D1~D5
-Requirements: R1~R4 (12 sub-reqs)
+  ✅ requirements.md  — R-B1~R-B3, R-U1~R-U2, R-T1~R-T4 (18 sub-reqs)
+  ✅ plan.json        — 11 tasks, 2 journeys, 18 verify entries
+  ✅ contracts.md     — 3 interfaces, 2 invariants
+  ✅ design.md        — 9 sections
+  ❌ plan.json        — 없음 (blueprint 미실행)
 ```
 
 ### Step 3: 피드백 수신 루프
@@ -79,85 +96,102 @@ Requirements: R1~R4 (12 sub-reqs)
 사용자 피드백 수신
     ↓
 피드백 유형 분류:
-  ├── Decision 수정     → "D3의 프로토콜을 CAN으로 변경"
-  ├── Requirement 수정  → "R2에 타임아웃 에러 케이스 추가"
-  ├── Requirement 삭제  → "R3.2 삭제해줘"
-  ├── 문서 섹션 수정    → "design.md §4의 시퀀스가 틀렸다"
-  └── 일반 보완 요청    → "에러 핸들링이 전체적으로 부족하다"
+  ├── Sub-requirement 수정   → "R-T1.2의 then을 변경해줘"
+  ├── Sub-requirement 추가   → "R-B2에 인증 실패 케이스 추가"
+  ├── Sub-requirement 삭제   → "R-U1.3 삭제해줘"
+  ├── Parent req 수정        → "R-T1 behavior 문구 변경"
+  ├── contracts 수정         → "invariant 추가해줘"
+  ├── design.md 섹션 수정    → "§4의 시퀀스가 틀렸다"
+  ├── plan.json task 수정    → "T3 action 문구 변경"
+  └── 전반적 보완 요청        → "에러 핸들링이 전체적으로 부족하다"
     ↓
-spec.json 매핑 + 수정
+파일 수정 (아래 규칙 적용)
     ↓
-영향 범위 분석
-    ↓
-관련 문서 재렌더링
+영향 범위 분석 → 관련 파일 동기화
     ↓
 갱신된 내용 제시
     ↓
 [Continue / Done]
 ```
 
-### Step 4: spec.json 수정
+### Step 4: 파일 수정 규칙
 
-피드백을 spec.json 필드에 매핑하여 수정:
+#### requirements.md 수정 (직접 Edit)
 
-| 피드백 유형 | spec.json 조작 | CLI 명령 |
-|-----------|---------------|---------|
-| 기존 항목 수정 | `--patch` | `hoyeon-cli spec merge --stdin --patch` |
-| 새 항목 추가 | `--append` | `hoyeon-cli spec merge --stdin --append` |
-| 항목 삭제 + 재작성 | no flag (전체 교체) | `hoyeon-cli spec merge --stdin` |
+v2 requirements.md 포맷:
+```markdown
+## R-B1: <parent title>
 
-**ID 기반 역추적:**
-- "D3" → `context.decisions[2]`
-- "R2.3" → `requirements[1].sub[2]`
-- "§6" → `context.decisions[]` 전체 (design.md §6 = 설계 결정)
-- "§4" → `requirements[]` (design.md §4 = 기능 상세)
+#### R-B1.1: <sub title>
+- given: <precondition>
+- when: <trigger>
+- then: <expected outcome>
+```
 
-### Step 5: 영향 범위 분석 + 재렌더링
+수정 유형별 처리:
+| 피드백 | 처리 |
+|---|---|
+| sub-req GWT 수정 | `#### R-X<n>.Y:` 해당 블록 Edit |
+| sub-req 추가 | 부모 req 아래 새 `#### R-X<n>.Y:` 블록 추가 |
+| sub-req 삭제 | 해당 블록 삭제, 이후 번호 재정렬 |
+| parent behavior 수정 | `## R-X<n>:` 줄 + behavior 라인 Edit |
 
-수정된 spec.json 필드에서 영향받는 문서를 파악하여 재렌더링:
+#### plan.json 수정 (CLI 경유)
 
-| 수정 대상 | 영향 문서 |
-|----------|---------|
-| `decisions[]` 변경 | design.md §6, §1(기술 스택), §2(아키텍처) |
-| `requirements[]` 변경 | requirements.md, design.md §3, §4 |
-| `requirements[].sub[]` 변경 | requirements.md, design.md §4 |
-| `tasks[]` 변경 | tasks.md, design.md §5, §7, §8 |
-| `constraints[]` 변경 | design.md §6 |
-| `meta.non_goals` 변경 | requirements.md, design.md §9 |
+```bash
+cat > /tmp/sr-plan-patch.json << 'EOF'
+{"tasks": [{"id": "T3", "action": "새로운 action 문구"}]}
+EOF
+hoyeon-cli plan merge <spec_dir> --patch --json "$(cat /tmp/sr-plan-patch.json)"
+```
 
-**재렌더링 규칙:**
-1. 영향받는 문서의 해당 섹션만 재생성 (전체 재생성 아님)
-2. 재생성 시 spec.json의 ID 가시성 규칙 유지 (D1, R1.1 등)
-3. 재생성된 섹션을 기존 문서에 반영 (Edit)
+task status 변경은 `hoyeon-cli plan task <spec_dir> --status T3=done` 사용.
+
+#### contracts.md / design.md 수정 (직접 Edit)
+
+마크다운 파일이므로 해당 섹션을 직접 Edit. 전체 재작성 금지 — 수정된 섹션만.
+
+### Step 5: 영향 범위 분석 + 동기화
+
+수정된 파일에 따라 연쇄 동기화:
+
+| 수정 대상 | 동기화 필요 파일 |
+|---|---|
+| `requirements.md` sub-req GWT | `design.md §4` (해당 기능 상세 섹션) |
+| `requirements.md` parent req | `design.md §4`, `§3` (엔티티 영향 시) |
+| `requirements.md` R-T req | `contracts.md` (인터페이스 영향 시), `design.md §2`, `§6` |
+| `contracts.md` interface/invariant | `design.md §6`, `§2` |
+| `plan.json` task 변경 | `design.md §5` (시퀀스 다이어그램) |
+
+**동기화 규칙:**
+1. 영향받는 문서의 **해당 섹션만** 재생성 (전체 재작성 금지)
+2. 재생성 시 requirements.md ID 가시성 유지 (R-B1.1, R-T2.3 등)
+3. plan.json 수정 후 반드시 `hoyeon-cli plan validate <spec_dir>` 실행
 
 ### Step 6: 결과 제시
 
 ```
 ## 수정 완료
 
-### spec.json 변경
-- D3: answer "UART 115200" → "CAN 250kbps" (--patch)
-- D3: rationale 갱신
+### 파일 변경
+- requirements.md: R-T1.2 then 항목 수정
+- requirements.md: R-B2.4 추가 (인증 실패 케이스)
 
-### 문서 재렌더링
-- design.md §6 D3 섹션 재생성
-- design.md §2.3 동적 흐름 갱신 (D3 참조)
-- requirements.md R2.1, R2.2 갱신 (D3에 연결)
+### 동기화
+- design.md §4 R-T1 섹션 재생성
+- design.md §4 R-B2 섹션에 R-B2.4 추가
 
 [Continue reviewing / Done]
 ```
 
 ---
 
-## Validate (선택)
+## 제약 사항
 
-재렌더링 후 spec.json 무결성 확인:
-
-```bash
-hoyeon-cli spec validate .hoyeon/specs/{name}/spec.json
-```
-
-validate 실패 시 사용자에게 보고하고 수정 제안.
+- **plan.json 직접 편집 금지** — 반드시 `hoyeon-cli plan merge/task` 경유
+- **요구사항 신규 추가 시** — 해당 sub-req를 fulfill하는 task가 plan.json에 없으면 경고 표시
+  ("R-B2.4가 plan.json에 coverage되지 않습니다. /blueprint를 다시 실행하거나 수동으로 task를 추가하세요.")
+- **plan.json validate 실패 시** — 사용자에게 보고, 수정 제안
 
 ---
 
@@ -165,30 +199,29 @@ validate 실패 시 사용자에게 보고하고 수정 제안.
 
 ```bash
 # 다음 날 design.md를 다시 읽다가 문제 발견
-claude "/spec-review"
-> "R2.3의 타임아웃 500ms를 300ms로 변경해줘"
-# → spec.json patch → requirements.md + design.md §4 재렌더링
+/spec-review
+> "R-T1.2의 then에 'E-Stop 발행' 조건 추가해줘"
+# → requirements.md R-T1.2 then Edit → design.md §4 R-T1 섹션 재생성
 
 # 리뷰 미팅 후 피드백 반영
-claude "/spec-review"
-> "D5의 ROS2 bridge 대신 직접 REST 호출로 변경"
-# → spec.json patch → design.md §2, §6 + requirements.md 재렌더링
+/spec-review
+> "contracts.md의 wheel_cmd invariant에 timeout 조건 추가"
+# → contracts.md Edit → design.md §6 재생성
 
-# 여러 항목 연속 수정
-> "R1에 인증 실패 시 재시도 로직 추가해줘"
-# → spec.json append → requirements.md + design.md §4 재렌더링
-> "Done"
+# plan.json task 수정
+/spec-review
+> "T5 action 문구를 더 명확하게 바꿔줘"
+# → hoyeon-cli plan merge --patch → design.md §5 재생성
 ```
 
 ---
 
-## /specify 승인 게이트와의 차이
+## /specify · /blueprint 게이트와의 차이
 
-| | 승인 게이트 (specify 내) | /spec-review |
-|--|------------------------|-------------|
-| 실행 시점 | L2/L3/L4 완료 직후 | **언제든지** |
-| 세션 | specify 세션 안에서만 | 독립 세션 |
-| spec.json 동기화 | 자동 | 자동 |
-| 문서 재렌더링 | 자동 | 자동 |
-| Approve/Abort | 있음 | 없음 (Done만) |
-| 다음 레이어 진행 | Approve 시 | 없음 |
+| | 게이트 내 | /spec-review |
+|--|---|---|
+| 실행 시점 | specify/blueprint 세션 안 | **언제든지** |
+| 세션 | 연속 세션 | 독립 세션 |
+| 파일 동기화 | 자동 | 자동 |
+| 다음 단계 진행 | Approve 시 | 없음 (Done만) |
+| plan.json coverage 체크 | 자동 | 경고만 |

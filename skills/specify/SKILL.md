@@ -251,6 +251,27 @@ Write the derived calibration into `qa-log.md` frontmatter as `depth_calibration
 
 Why: brownfield work depends on existing code that the user may not fully remember. Asking the user "what's the architecture?" when the codebase is right there is wasteful and unreliable. Scan the code first, then interview them on decisions — not facts.
 
+### SR-Harness: KB-first lookup
+
+Run this check BEFORE dispatching agents. If `where.sr_modules` was detected in Step 0.1:
+
+1. Read `.sr-harness/knowledge/index.yaml`
+2. For each module in `where.sr_modules`:
+   - **Module in index.yaml?**
+     - **YES** → compare `commit_sha` with `git rev-parse HEAD` in `source.path`
+       - **MATCH** → Read the module's KB files (`common` + `ros2`/`ros1` if present). Mark module as `kb_loaded`. Skip agent scan for this module.
+       - **MISMATCH** → AskUserQuestion: "KB for {module} is outdated (stale commit). Use existing KB or re-scan?" options: [Use existing, Re-scan now, Skip]
+         - Use existing → load KB files as-is, mark `kb_loaded`
+         - Re-scan now → run `/knowledge scan {module}`, then load result
+         - Skip → fall through to agent dispatch
+     - **NO** → fall through to agent dispatch
+3. If **all** modules are `kb_loaded` → skip "Dispatch subagents in parallel" entirely. Write KB content into `qa-log.md` `## Research` section directly.
+4. If **some** modules are `kb_loaded` → still dispatch agents, but inject the following constraints into each agent prompt:
+   - **Exclude already-known modules**: list `kb_loaded` modules with note "이미 KB로 처리됨 — 스캔 제외"
+   - **Scope to remaining modules only**: agent should investigate only the not-loaded modules
+   - Example prompt suffix: `"제외 대상 (이미 KB 로드됨): spx-driver. 조사 대상: core-navigation"`
+   Write KB content for `kb_loaded` modules + agent findings for the rest into a unified `## Research` section.
+
 ### Dispatch subagents in parallel
 
 ```
@@ -649,6 +670,19 @@ Only after user has explicitly approved the preview:
 5. Pre-work is optional — include only when the interview surfaced actions the user must complete before execution (e.g., "get API key", "run migration"). Mark each item `(blocking)` or `(non-blocking)`. execute will gate on blocking items.
 6. Open Decisions is optional — omit the section if no unresolved decisions
 7. Confirm completion with the user, showing final file path + next step: `/blueprint <spec_dir>/`
+
+### Step 4.5: KB Save (SR-Harness only)
+
+Run only when `where.sr_modules` is set. Execute after Step 4.4 completes.
+
+For each module in `where.sr_modules`:
+1. Open `.sr-harness/knowledge/{product}/{module}.md` — skip if file does not exist
+2. Identify new patterns discovered during this session (interface changes, naming conventions, constraints)
+3. Locate the `## Accumulated Learnings` section by heading text (NOT by number — number is profile-dependent: §7 for non-driver, §9 for driver). Append a new bullet:
+   ```
+   - {date} [specify] {pattern summary}
+   ```
+4. Update `index.yaml`: set `scanned_at` to today's date (do NOT update `commit_sha` — that is only updated by `/knowledge scan`)
 
 ## Output Files
 

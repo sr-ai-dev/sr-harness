@@ -47,7 +47,7 @@ Phase 1: DIAGNOSE ────────────────────�
   → User confirmation (includes triage hint)
 
 Phase 2: REQUIREMENTS GENERATION ──────────────────
-  Diagnosis results → requirements.md (hoyeon-cli req init + Write)
+  Diagnosis results → requirements.md (sr-harness-cli req init + Write)
 
 Phase 3: EXECUTE ──────────────────────────────────
   Skill("execute", args=spec_dir)
@@ -56,10 +56,10 @@ Phase 3: EXECUTE ─────────────────────
 
 Phase 4: RESULT HANDLING (if HALT) ────────────────
   Retry (max 3) with stagnation detection → Phase 3
-  Circuit breaker → .hoyeon/debug/{slug}.md → suggest /specify
+  Circuit breaker → .sr-harness/debug/{slug}.md → suggest /specify
 
 Phase 5: CLEANUP & REPORT ─────────────────────────
-  Save .hoyeon/debug/{slug}.md → final summary
+  Save .sr-harness/debug/{slug}.md → final summary
 ```
 
 ## Execution Mode
@@ -88,8 +88,8 @@ Extract from user input:
 ```
 SESSION_ID = [from hook — $CLAUDE_SESSION_ID]
 slug = convert bug description to kebab-case (e.g. "null-pointer-in-auth")
-DEBUG_STATE = "$HOME/.hoyeon/$SESSION_ID/debug-state.md"
-hoyeon-cli session set --sid $SESSION_ID --json '{"skill":"bugfix","debug":"'"$DEBUG_STATE"'"}'
+DEBUG_STATE = "$HOME/.sr-harness/$SESSION_ID/debug-state.md"
+sr-harness-cli session set --sid $SESSION_ID --json '{"skill":"bugfix","debug":"'"$DEBUG_STATE"'"}'
 
 Write(DEBUG_STATE):
 # Debug: {bug description}
@@ -259,7 +259,7 @@ AskUserQuestion:
 # but debug-state.md contains all Phase 1 findings. Save a skeleton so /specify
 # has a starting point, then exit bugfix.
 
-hoyeon-cli req init ${SPEC_DIR} --type bugfix --goal "Fix: {bug description}"
+sr-harness-cli req init ${SPEC_DIR} --type bugfix --goal "Fix: {bug description}"
 # Append debugger report + blast scan to ${SPEC_DIR}/requirements.md as context
 # (sections: ## Debug Context, ## Blast Radius)
 
@@ -277,9 +277,9 @@ Convert diagnosis results into requirements.md format. requirements.md is the st
 ### Step 2.1: Initialize
 
 ```
-SPEC_DIR = "$HOME/.hoyeon/$SESSION_ID"
+SPEC_DIR = "$HOME/.sr-harness/$SESSION_ID"
 
-hoyeon-cli req init ${SPEC_DIR} --type bugfix --goal "Fix: {bug description}"
+sr-harness-cli req init ${SPEC_DIR} --type bugfix --goal "Fix: {bug description}"
 ```
 
 This creates `${SPEC_DIR}/requirements.md` with a stub template.
@@ -339,7 +339,7 @@ non_goals:
 ### Step 2.3: Register
 
 ```bash
-hoyeon-cli session set --sid $SESSION_ID --spec "$SPEC_DIR"
+sr-harness-cli session set --sid $SESSION_ID --spec "$SPEC_DIR"
 ```
 
 Update debug-state.md with `spec_dir: ${SPEC_DIR}`.
@@ -443,8 +443,8 @@ Update DEBUG_STATE: attempt: {attempt}
 #    directly from bugfix — /execute handles task status and re-derivation.
 #    If you need to reset failed tasks to pending so /execute will re-run them,
 #    do it via the plan CLI:
-#      hoyeon-cli plan list ${SPEC_DIR}
-#      hoyeon-cli plan task ${SPEC_DIR} --status <task-id>=pending
+#      sr-harness-cli plan list ${SPEC_DIR}
+#      sr-harness-cli plan task ${SPEC_DIR} --status <task-id>=pending
 #    In most cases /execute will resume on its own from the existing plan.json.
 
 # 5. Re-invoke execute
@@ -463,9 +463,9 @@ Max attempts exceeded. Present escalation options to user.
 **First, save attempt records:**
 
 ```
-Bash: mkdir -p .hoyeon/debug
+Bash: mkdir -p .sr-harness/debug
 
-Write to .hoyeon/debug/{slug}.md:
+Write to .sr-harness/debug/{slug}.md:
   # Bugfix Report: {description}
   Date: {timestamp}
   Status: ESCALATED
@@ -493,7 +493,7 @@ AskUserQuestion:
   - "Switch to /specify (full planning)"
     → "requirements.md and debug report are available:
        Spec Dir: {SPEC_DIR}
-       Report: .hoyeon/debug/{slug}.md
+       Report: .sr-harness/debug/{slug}.md
        /specify can reference this context for deeper analysis."
   - "Try once more"
     → attempt += 1, go to Phase 3 (no circuit breaker reset)
@@ -509,9 +509,9 @@ After execute completes successfully.
 ### Step 5.1: Save Debug Report
 
 ```
-Bash: mkdir -p .hoyeon/debug
+Bash: mkdir -p .sr-harness/debug
 
-Write to .hoyeon/debug/{slug}.md:
+Write to .sr-harness/debug/{slug}.md:
   # Bugfix Report: {description}
   Date: {timestamp}
   Status: RESOLVED
@@ -541,7 +541,7 @@ print("""
 **Root Cause**: {file:line — 1-line description}
 **Attempts**: {count}
 **Spec Dir**: {SPEC_DIR}
-**Report**: .hoyeon/debug/{slug}.md
+**Report**: .sr-harness/debug/{slug}.md
 """)
 ```
 
@@ -567,7 +567,7 @@ AskUserQuestion:
 ```
 /bugfix (diagnose + requirements.md + execute)
    ↓ circuit breaker (3 failures)
-   ↓ requirements.md + .hoyeon/debug/{slug}.md saved
+   ↓ requirements.md + .sr-harness/debug/{slug}.md saved
 /specify (requirements.md enrichment, leveraging existing diagnosis context)
    ↓
 /execute (enriched requirements execution)
@@ -588,7 +588,7 @@ Since requirements.md is the standard format, `/specify` can read and enrich the
 | 3 | **/execute** (Skill) | existing | always | requirements.md-based execution (worker, verify, commit, review) |
 | 5 | **/qa** (Skill) | existing | user opts in | Browser/app QA verification of the fix |
 
-Phase 2 (REQUIREMENTS GENERATION) and Phase 4 (RESULT HANDLING) are handled directly by bugfix without agents (hoyeon-cli calls + Write tool + judgment logic).
+Phase 2 (REQUIREMENTS GENERATION) and Phase 4 (RESULT HANDLING) are handled directly by bugfix without agents (sr-harness-cli calls + Write tool + judgment logic).
 
 ---
 

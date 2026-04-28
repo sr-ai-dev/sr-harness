@@ -177,10 +177,10 @@ If the user picks none, proceed with base calibration. Otherwise, modifiers will
 ### Step 0.3: Spec Name & Output Setup
 
 - Determine **spec name** (kebab-case, e.g., `user-dashboard`)
-- Decide `spec_dir`: default `.hoyeon/specs/{spec-name}/`
+- Decide `spec_dir`: default `.sr-harness/specs/{spec-name}/`
 - **Bootstrap via cli** — creates the directory AND writes a `requirements.md` stub with the correct frontmatter so /blueprint can read it later:
   ```bash
-  hoyeon-cli req init <spec_dir> --type <greenfield|feature|refactor|bugfix> --goal "<one-line goal>"
+  sr-harness-cli req init <spec_dir> --type <greenfield|feature|refactor|bugfix> --goal "<one-line goal>"
   ```
   Map `WHERE.SITUATION` → `--type`:
   - `greenfield` → `greenfield`
@@ -478,9 +478,9 @@ Run 3 agents **in parallel**:
    - **interaction-extractor** agent with: qa-log.md content + template
    - **tech-extractor** agent with: qa-log.md content + template + SR profile boundary context (see below)
 4. Write outputs to:
-   - `.hoyeon/specs/{spec-name}/reqs-business.md`
-   - `.hoyeon/specs/{spec-name}/reqs-interaction.md`
-   - `.hoyeon/specs/{spec-name}/reqs-tech.md`
+   - `.sr-harness/specs/{spec-name}/reqs-business.md`
+   - `.sr-harness/specs/{spec-name}/reqs-interaction.md`
+   - `.sr-harness/specs/{spec-name}/reqs-tech.md`
 
 ### SR-Harness: tech-extractor boundary context injection
 
@@ -602,7 +602,7 @@ If **Re-interview**: return to Phase 1 with the gap identified.
 Only after user has explicitly approved the preview:
 
 1. Read `${baseDir}/templates/requirements.md` template (cli format)
-2. Overwrite `<spec_dir>/requirements.md` (replacing the stub created by `hoyeon-cli req init` at Phase 0.3). Final shape:
+2. Overwrite `<spec_dir>/requirements.md` (replacing the stub created by `sr-harness-cli req init` at Phase 0.3). Final shape:
    ```markdown
    ---
    type: greenfield | feature | refactor | bugfix
@@ -652,7 +652,7 @@ Only after user has explicitly approved the preview:
 
 ## Output Files
 
-All outputs go to `<spec_dir>/` (default `.hoyeon/specs/{spec-name}/`):
+All outputs go to `<spec_dir>/` (default `.sr-harness/specs/{spec-name}/`):
 
 | File | Phase | Description | Consumed by |
 |------|-------|-------------|-------------|
@@ -666,7 +666,7 @@ All outputs go to `<spec_dir>/` (default `.hoyeon/specs/{spec-name}/`):
 
 ## CLI Dependency
 
-- `hoyeon-cli req init <spec_dir> --type <t> --goal "<g>"` (Phase 0.3) — creates dir + requirements.md stub
+- `sr-harness-cli req init <spec_dir> --type <t> --goal "<g>"` (Phase 0.3) — creates dir + requirements.md stub
 - No other cli commands are called by /specify. Phase 4.3 overwrites `requirements.md` directly via Write tool.
 
 ## Agents Used

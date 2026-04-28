@@ -12,10 +12,10 @@ contracts that a worker benefits from remembering across claims.
 
 **Invariants honored by this mode**:
 - **INV-2**: charter contains only paths + IDs (no inlined GWT / requirements / contracts prose).
-  Workers self-read GWT via `hoyeon-cli plan get` + self-Read of `contracts_path`.
+  Workers self-read GWT via `sr-harness-cli plan get` + self-Read of `contracts_path`.
 - **INV-3**: orchestrator (lead) reads only `plan.json` structural fields via cli.
   Lead never Reads `requirements.md` or `contracts.md` body.
-- **INV-5**: `plan.json` mutations go through `hoyeon-cli plan` only.
+- **INV-5**: `plan.json` mutations go through `sr-harness-cli plan` only.
   `audit.md`, `learnings.json`, `issues.json`, `contracts.md` → direct Read/Write/Edit.
 - **C2**: round-level commit only. Workers never run `git`. The lead batches one commit per
   worker-pool round (all workers idle + no pending unblocked tasks = round boundary).
@@ -31,7 +31,7 @@ frontier. A bucket = set of tasks that share a primary module/file-scope **and**
 a `depends_on` edge with each other.
 
 ```
-pending = Bash("hoyeon-cli plan list {spec_dir} --status pending --json").tasks
+pending = Bash("sr-harness-cli plan list {spec_dir} --status pending --json").tasks
 ready   = pending.filter(t => all(d.status == "done" for d in t.depends_on))
 
 buckets = group_by_module(ready)
@@ -150,7 +150,7 @@ Do NOT run git — lead commits per round (C2).
   Edit {CONTEXT_DIR}/issues.json     (append JSON if blockers)
 
 ## Step 8 — Mark done
-  hoyeon-cli plan task {spec_dir} --status {task_id}=done \
+  sr-harness-cli plan task {spec_dir} --status {task_id}=done \
     --summary '{one-line summary}'
   TaskUpdate(taskId=tracking, status="completed")
 
@@ -204,7 +204,7 @@ State you keep across claims (in-session memory, DO NOT re-read unless invalidat
 
 LOOP:
   1. LIST ready tasks:
-       hoyeon-cli plan list {spec_dir} --status pending --json
+       sr-harness-cli plan list {spec_dir} --status pending --json
      Filter to tasks whose depends_on are all `done`.
      IF empty → emit "standing by" → WAIT for SendMessage wake-up, then restart LOOP.
 
@@ -226,7 +226,7 @@ LOOP:
        highest-priority task from a new module.
 
   3. CLAIM (atomic via cli flock):
-       hoyeon-cli plan task {spec_dir} --status {picked_id}=running
+       sr-harness-cli plan task {spec_dir} --status {picked_id}=running
      IF cli reports "already claimed" → loop back to step 1.
 
   4. EXECUTE the task by following its TaskCreate description (WORKER_DESCRIPTION
@@ -380,7 +380,7 @@ function handle_failed(msg):
   IF retry < 2:
     retry_count[msg.task_id] = retry + 1
     # Return to pending so any worker can re-claim
-    Bash("hoyeon-cli plan task {spec_dir} --status {msg.task_id}=pending")
+    Bash("sr-harness-cli plan task {spec_dir} --status {msg.task_id}=pending")
     # Re-issue TaskCreate with prior_failure_context populated
     TaskCreate(
       subject="{msg.task_id}:Work (retry {retry_count[msg.task_id]})",
@@ -406,7 +406,7 @@ function handle_failed(msg):
 function handle_blocked(msg):
   fix_task_json = derive_fix_task(msg)    # id, action, depends_on, fulfills
   fix_id = fix_task_json.id
-  Bash("hoyeon-cli plan merge {spec_dir} --append --json '{fix_task_json}'")
+  Bash("sr-harness-cli plan merge {spec_dir} --append --json '{fix_task_json}'")
   TaskCreate(
     subject="{fix_id}:Work — fix for {msg.task_id}",
     description=WORKER_DESCRIPTION(
@@ -463,8 +463,8 @@ IF work != "no-commit" AND `git status --porcelain` is not empty:
 - [ ] `WORKER_DESCRIPTION` carries **paths + IDs only** — no inlined GWT / contracts prose (INV-2)
 - [ ] `WORKER_PREAMBLE` includes the persistent claim LOOP with MODULE_CACHE + CONTRACTS_SEEN
 - [ ] PICK step orders by longest-deps-first, then same-module bias (R-F5.1 + R-F5.2)
-- [ ] CLAIM via `hoyeon-cli plan task --status <id>=running` (cli flock = single winner)
-- [ ] Workers self-read GWT via `hoyeon-cli plan get` (never `requirements.md` / `spec.json`)
+- [ ] CLAIM via `sr-harness-cli plan task --status <id>=running` (cli flock = single winner)
+- [ ] Workers self-read GWT via `sr-harness-cli plan get` (never `requirements.md` / `spec.json`)
 - [ ] Worker runs internal self-verify / fix loop up to 2 rounds before reporting FAILED (R-F5.3)
 - [ ] Lead monitors via SendMessage; no sleep/poll (INV-4)
 - [ ] Standing-by workers woken via SendMessage when tasks unblock

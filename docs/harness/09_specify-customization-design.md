@@ -6,6 +6,28 @@
 
 ---
 
+> ## ⚠ 문서 상태 안내 (2026-04-29 추가)
+>
+> **이 문서는 v1.6.0 시점의 설계 스냅샷이다. 현재 구현 상태와 일부 차이가 있다.**
+>
+> **Single Source of Truth (SoT):**
+> - 실제 동작 명세: 각 스킬의 `skills/{name}/SKILL.md`
+>   - `skills/specify/SKILL.md` — Phase 0.5 KB-first lookup, Step 4.5 KB Save
+>   - `skills/knowledge/SKILL.md` — Knowledge DB CRUD + 스키마 + 압축 정책
+>   - `skills/execute/SKILL.md` — Generic Rule #9 (KB write)
+>   - `skills/bugfix/SKILL.md` — Step 5.1b (Error Handling 표 + 학습)
+> - 운영 검토: `docs/harness/12_specify-pipeline-review.md`
+>
+> **차이점 요약 (v1.6.0 → 현재):**
+> - Knowledge DB가 단순 §4 항목에서 풀 시스템으로 확장됨 (스키마 검증, commit_sha 시맨틱, 학습 보존, de-dup, 압축 옵션)
+> - Phase 0.5에 KB-first lookup 분기 추가 (commit_sha match → agent 스캔 생략)
+> - Cross-product KB 스키마 명시 (`product: cross`, `cross_modules` 메타)
+> - 헬퍼 스크립트 `scripts/kb-compact.py` (Accumulated Learnings 압축)
+>
+> 본 문서의 §1~§11은 v1.6.0 설계 의도를 보존하기 위해 그대로 두며, 현재 구현은 위 SoT 파일을 참조한다.
+
+---
+
 ## 1. 시스콘 개발 범위 (Domain Map)
 
 ### 1-1. 제품/모듈 체계

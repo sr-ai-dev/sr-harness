@@ -135,7 +135,7 @@ The plugin also ships standalone skills (council, bugfix, ralph, scope, etc.) th
 
 ## CLI
 
-The plugin ships `hoyeon-cli` (npm: `@team-attention/hoyeon-cli`) for structured data management.
+The plugin ships `sr-harness-cli` (npm: `@syscon-robotics/sr-harness-cli`) for structured data management.
 
 | Command Group | Purpose |
 |---------------|---------|
@@ -147,7 +147,7 @@ The plugin ships `hoyeon-cli` (npm: `@team-attention/hoyeon-cli`) for structured
 
 Key conventions:
 - File-based JSON passing via heredoc (`<< 'EOF'`) to avoid shell glob issues
-- Task status updates: `hoyeon-cli plan task <plan-path> --status <task-id>=<state>`
+- Task status updates: `sr-harness-cli plan task <plan-path> --status <task-id>=<state>`
 - Monotonic done-lock prevents re-opening completed tasks
 
 ---
@@ -156,7 +156,7 @@ Key conventions:
 
 | Script | Type | Purpose |
 |--------|------|---------|
-| `cli-version-sync.sh` | SessionStart | Auto-sync hoyeon-cli npm version with plugin version |
+| `cli-version-sync.sh` | SessionStart | Auto-sync sr-harness-cli npm version with plugin version |
 | `session-compact-hook.sh` | SessionStart | Recover skill name and state.json path after compaction |
 | `ultrawork-init-hook.sh` | UserPromptSubmit | Initialize ultrawork pipeline state when `/ultrawork` is typed |
 | `skill-session-init.sh` | UserPromptSubmit + PreToolUse[Skill] | Initialize session state for specify/execute skills |
@@ -174,7 +174,7 @@ Key conventions:
 | `rv-validator.sh` | Stop | Run re-validation pass on stop |
 | `rulph-stop.sh` | Stop | Handle rulph loop termination |
 | `ralph-stop.sh` | Stop | Ralph loop DoD verification and prompt re-injection |
-| `skill-session-cleanup.sh` | SessionEnd | Clean up session directory (`~/.hoyeon/{session_id}/`) |
+| `skill-session-cleanup.sh` | SessionEnd | Clean up session directory (`~/.sr-harness/{session_id}/`) |
 
 ---
 
@@ -182,7 +182,7 @@ Key conventions:
 
 ### Requirements-Driven Development
 
-All implementation flows through `requirements.md` -- a structured document containing requirements with sub-requirements expressed in GWT (Given/When/Then) format. The CLI (`hoyeon-cli`) manages requirements and plan state. `/blueprint` transforms requirements into an executable `plan.json` with `contracts.md` defining interface boundaries between tasks.
+All implementation flows through `requirements.md` -- a structured document containing requirements with sub-requirements expressed in GWT (Given/When/Then) format. The CLI (`sr-harness-cli`) manages requirements and plan state. `/blueprint` transforms requirements into an executable `plan.json` with `contracts.md` defining interface boundaries between tasks.
 
 ### 3-Axis Configuration (Execute)
 

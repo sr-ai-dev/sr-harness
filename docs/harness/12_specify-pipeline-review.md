@@ -15,7 +15,7 @@ Phase 0: WHERE Grounding
     ├─ Step 0.1: Mirror + SR Context Detection
     ├─ Step 0.2: PROJECT_TYPE × SITUATION × AMBITION
     ├─ Step 0.2b: Risk Modifiers
-    ├─ Step 0.3: spec_dir 생성 (hoyeon-cli req init)
+    ├─ Step 0.3: spec_dir 생성 (sr-harness-cli req init)
     └─ Step 0.4: Axis Depth Calibration (A→B→C→D)
 
 Phase 0.5: Context Research (brownfield only)

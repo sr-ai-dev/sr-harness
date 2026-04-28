@@ -12,7 +12,7 @@
       "Bash(gh pr list:*)",
       "Bash(tmux:*)",
       "Bash(chromux:*)",
-      "Bash(npx @team-attention/chromux:*)"
+      "Bash(npx @syscon-robotics/chromux:*)"
     ]
   },
   "hooks": {

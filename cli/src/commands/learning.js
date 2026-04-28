@@ -5,8 +5,8 @@ import { readPlanIfExists } from '../lib/json-io.js';
 
 const HELP = `
 Usage:
-  hoyeon-cli learning --task <id> --json '{...}' <spec_dir>
-  hoyeon-cli learning --task <id> --stdin <spec_dir> << 'EOF'
+  sr-harness-cli learning --task <id> --json '{...}' <spec_dir>
+  sr-harness-cli learning --task <id> --stdin <spec_dir> << 'EOF'
 
 Add a structured learning entry to <spec_dir>/context/learnings.json.
 Task ID is validated against plan.json if it exists.

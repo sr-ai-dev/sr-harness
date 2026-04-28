@@ -121,7 +121,19 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@syscon-robotics/sr-harness-cli`) is always synced with plugin version
 
-## Recent Changes (v1.6.0-sr.1)
+## Recent Changes (v1.6.0-sr.2)
+
+- feat(knowledge): full Knowledge System integration into specify/execute/bugfix pipeline
+  - knowledge/SKILL.md — section-name anchors, re-scan learning preservation, regex DOTALL pitfall warning, schema validation, commit_sha/source.path semantics, de-dup policy, cross-product schema, --compact option
+  - specify/SKILL.md — Phase 0.5 KB-first lookup (commit_sha match → skip agent scan), partial-load agent prompt guidance, Step 4.5 KB Save
+  - execute/SKILL.md — Generic Rule #9 (worker appends learning to KB on task completion)
+  - bugfix/SKILL.md — Step 5.1b (Error Handling table + Accumulated Learnings)
+- feat(scripts): kb-compact.py helper — moves oldest half of Accumulated Learnings to Archived Learnings (threshold/keep-ratio/dry-run options, line-based heading match)
+- chore(.gitignore): add .sr-harness/ (machine-bound KB runtime data)
+- docs: 12_specify-pipeline-review.md — post-implementation review of v1.6.0-sr.1 pipeline (Critical 2 / High 3 / Medium 5, all resolved)
+- docs: 09_specify-customization-design.md — SoT pointer header (current implementation lives in SKILL.md files)
+
+## Previous Changes (v1.6.0-sr.1)
 
 - feat(specify): SR Context Detection integrated into Step 0.1 Mirror — keyword-based auto-detection of sr_product/sr_modules/sr_ros_version/sr_profile without dropdown prompts
 - feat(specify): SR Profile depth calibration (Step 0.4D) — driver/ros-node/cross-product profiles adjust research axis weights

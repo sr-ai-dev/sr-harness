@@ -654,6 +654,12 @@ R-F14.3).
 6. **Workers self-read** — workers fetch their own task state + context files per `references/worker-charter.md` §2.
 7. **Context files** — `learnings.json`, `audit.md`, `issues.json` in CONTEXT_DIR. Workers append learnings; orchestrator reads them round-to-round.
 8. **Compaction recovery** — `session-compact-hook.sh` re-injects state. Use `sr-harness-cli plan list` to rebuild; done tasks skip on re-entry (R-F8.2; see Resume Behavior above).
+9. **SR-Harness KB write** — When `qa-log.md` or `requirements.md` contains `where.sr_modules`, each worker MUST on task completion:
+   - For each module in `sr_modules`: open `.sr-harness/knowledge/{product}/{module}.md` (skip if file does not exist)
+   - Locate `## Accumulated Learnings` section by **heading text** (NOT by number — §7 for non-driver, §9 for driver)
+   - Append: `- {date} [execute {task_id}] {pattern summary}`
+   - Also call `sr-harness-cli learning --task {id} --stdin <spec_dir>` per Rule #7
+   - Skip the entire KB write if KB file does not exist; NEVER create a new KB file from /execute (use `/knowledge scan` instead)
 
 ## Checklist Before Stopping
 

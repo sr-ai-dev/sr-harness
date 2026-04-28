@@ -208,9 +208,8 @@ git checkout develop 2>&1
 echo "✅ develop 복귀"
 echo ""
 
-# 12. Marketplace + Cache 동기화
+# 12. Marketplace 동기화 (Claude Code는 marketplaces/ 디렉토리에서 직접 로드)
 MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/syscon-robotics"
-CACHE_DIR="$HOME/.claude/plugins/cache/syscon-robotics/sr-harness/1.6.0-sr.1"
 
 if [ -d "$MARKETPLACE_DIR" ]; then
   echo "--- [Sync] marketplace → release pull ---"
@@ -221,21 +220,11 @@ if [ -d "$MARKETPLACE_DIR" ]; then
   echo "✅ marketplace: ${RELEASE_BRANCH}"
   echo ""
 
-  if [ -d "$CACHE_DIR" ]; then
-    echo "--- [Sync] cache 동기화 ---"
-    rsync -av --delete --exclude='.git' "$MARKETPLACE_DIR/" "$CACHE_DIR/" 2>&1 | tail -3
-    echo "✅ cache 동기화 완료"
-  else
-    echo "⚠ cache 디렉토리 없음: $CACHE_DIR"
-    echo "  수동 생성 필요: mkdir -p $CACHE_DIR"
-  fi
-  echo ""
-
   # 원래 디렉토리로 복귀
   cd - > /dev/null
 else
   echo "⚠ marketplace 디렉토리 없음: $MARKETPLACE_DIR"
-  echo "  push는 완료됨. marketplace/cache는 수동 동기화 필요."
+  echo "  push는 완료됨. marketplace는 수동 동기화 필요."
 fi
 
 echo "============================================"
@@ -243,7 +232,6 @@ echo "  ✅ 전체 완료"
 echo "  release: ${RELEASE_BRANCH}"
 echo "  main: ${VERSION} (배포용)"
 echo "  marketplace: ${RELEASE_BRANCH}"
-echo "  cache: 동기화 완료"
 echo "  현재 브랜치: develop"
 echo "============================================"
 echo ""

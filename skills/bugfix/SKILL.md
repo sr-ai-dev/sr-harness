@@ -531,6 +531,28 @@ Update DEBUG_STATE:
   status: resolved
 ```
 
+### Step 5.1b: SR-Harness KB Update (SR-Harness only)
+
+Run only when `sr_modules` is detectable from the bugfix target (e.g., file path under `.playground/` or external module repo, or `where.sr_modules` from qa-log.md).
+
+For each affected module:
+
+1. **Identify the affected module** from debugger's root cause file path:
+   - Match the file path against each module's `source.path` in `.sr-harness/knowledge/index.yaml`
+   - Pick the longest matching prefix
+2. **Open KB file**: `.sr-harness/knowledge/{product}/{module}.md` — skip entire Step 5.1b if file does not exist
+3. **If `## Error Handling` section exists** (driver profile only): append a row to the table:
+   ```
+   | {error type} | {detection method} | {recovery action} | {safety impact} |
+   ```
+4. **Append to `## Accumulated Learnings`** — locate by heading text (NOT by number; §7 for non-driver, §9 for driver):
+   ```
+   - {date} [bugfix] {root cause summary} → {avoidance pattern}
+   ```
+5. Update `index.yaml`: set `scanned_at` to today's date (do NOT touch `commit_sha`)
+
+> NEVER create a new KB file from /bugfix — use `/knowledge scan` instead. /bugfix only appends to existing KB.
+
 ### Step 5.2: Final Summary
 
 ```

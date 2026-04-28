@@ -64,9 +64,9 @@ Goal → Decisions → Requirements → Sub-requirements → Tasks
 
 세 가지 메커니즘이 이를 강제한다:
 
-- **`spec.json`이 단일 진실 공급원** — 모든 에이전트가 같은 구조화된 스펙에서 읽고 쓴다. 어떤 에이전트도 자체적으로 컨텍스트를 만들어내지 않는다. 대화 안에만 존재하는 정보는 없다. 스펙은 컨텍스트 윈도우, 압축, 에이전트 핸드오프를 넘어 살아남는 공유 메모리다.
+- **`requirements.md` + `plan.json`이 구조화된 산출물** — `/specify`가 `requirements.md`를 (무엇을) 생성한다. `/blueprint`가 계약과 태스크 그래프를 포함한 `plan.json`을 (어떻게) 생성한다. 모든 에이전트가 이 공유 산출물에서 읽는다. 어떤 에이전트도 자체적으로 컨텍스트를 만들어내지 않는다. 대화 안에만 존재하는 정보는 없다. 이 산출물들은 컨텍스트 윈도우, 압축, 에이전트 핸드오프를 넘어 살아남는 공유 메모리다.
 
-- **CLI 강제 구조** — `sr-harness-cli`는 `spec.json`에 대한 모든 병합을 검증한다. 필드명, 타입, 필수 관계 — 모두 LLM이 데이터를 보기 전에 프로그래밍적으로 검사된다. CLI는 구조를 제안하지 않는다; 잘못된 구조를 **거부**한다.
+- **CLI 강제 구조** — `sr-harness-cli`는 계획 구조와 태스크 상태 전환을 검증한다. 필드명, 타입, 필수 관계 — 모두 LLM이 데이터를 보기 전에 프로그래밍적으로 검사된다. CLI는 구조를 제안하지 않는다; 잘못된 구조를 **거부**한다.
 
 - **계약으로서의 도출 체인** — Goal → Decisions → Requirements → Sub-requirements → Tasks는 연결되어 있다. 각 레이어는 상위 레이어를 참조한다. 하위 요구사항은 요구사항으로 추적되고, 태스크는 `fulfills`를 통해 요구사항으로 추적된다. 체인이 끊기면 게이트가 차단한다. 이것의 의미: **유효한 요구사항이 있으면, 시스템은 결과를 만들어낸다** — LLM의 개별 출력이 달라지더라도 결정론적으로 라우팅된다.
 
@@ -76,7 +76,7 @@ LLM이 창의적 작업을 한다. 시스템이 그것을 궤도 위에 유지�
 
 > *사람이 확인해야 한다면, 시스템이 자동화에 실패한 것이다.*
 
-`spec.json`의 모든 하위 요구사항은 테스트 가능한 행동 명세이다:
+`requirements.md`의 모든 하위 요구사항은 테스트 가능한 행동 명세이다:
 
 ```json
 {
@@ -113,8 +113,8 @@ LLM이 창의적 작업을 한다. 시스템이 그것을 궤도 위에 유지�
 
 세 가지 메커니즘이 이를 가능하게 한다:
 
-- **`spec learning`** — Worker가 실행 중 구조화된 학습을 기록하고, 해당 요구사항과 태스크에 자동 매핑
-- **`spec search`** — 모든 스펙을 BM25 검색: 요구사항, 하위 요구사항, 제약조건, 학습. 프로젝트 A에서 배운 것이 프로젝트 B의 질문에 반영
+- **구조화된 학습** — Worker가 실행 중 구조화된 학습을 `learnings.json`에 기록하고, 해당 요구사항과 태스크에 자동 매핑
+- **크로스 프로젝트 검색** — 모든 프로젝트를 BM25 검색: 요구사항, 하위 요구사항, 제약조건, 학습. 프로젝트 A에서 배운 것이 프로젝트 B의 질문에 반영
 - **컴파운딩 루프** — 매 /specify 세션이 과거 학습 검색으로 시작. 더 많은 프로젝트 → 더 풍부한 검색 결과 → 더 완전한 요구사항 → 실행 중 더 적은 예외 → 더 나은 학습 → 사이클 반복
 
 결과: **Hoyeon으로 실행하는 열 번째 프로젝트는 첫 번째보다 의미 있게 낫다** — LLM이 개선되어서가 아니라, 지식 기반이 성장했기 때문이다.
@@ -140,8 +140,12 @@ You:  /specify "add dark mode toggle to settings page"
   ├─ docs-researcher checks design system conventions
   └─ ux-reviewer flags potential regression
 
-  → spec.json generated:
-    3 requirements, 8 sub-requirements, 4 tasks — all linked
+  → requirements.md generated:
+    3 requirements, 8 sub-requirements — all linked
+
+You:  /blueprint
+  → plan.json generated:
+    4 tasks with contracts, dependency graph, and fulfills links
 
 You:  /execute
 
@@ -161,10 +165,15 @@ You:  /execute
            → 에이전트들이 코드베이스를 병렬로 조사
            → 레이어별 도출: L0→L1→L2→L3→L4
            → 각 레이어는 CLI 검증 + 에이전트 리뷰로 게이팅
+           → requirements.md 생성
 
-/execute → 오케스트레이터가 spec.json을 읽고 병렬 워커를 디스패치
+/blueprint → 계약 우선 태스크 그래프 계획
+             → 요구사항에서 계약과 함께 태스크 도출
+             → plan.json 생성
+
+/execute → 오케스트레이터가 plan.json을 읽고 병렬 워커를 디스패치
            → Worker가 하위 요구사항 행동 명세에 대해 자체 검증 (--tdd: 테스트 우선)
-           → 다중 모델 코드 리뷰가 합의된 판정을 도출
+           → 코드 리뷰가 교차 이슈를 포착
            → Final Verify가 목표, 제약 조건, 하위 요구사항을 전체적으로 점검
            → 완전한 추적성을 가진 원자적 커밋
 ```
@@ -199,25 +208,9 @@ You:  /execute
 
 둘 다 통과하지 않으면 다음으로 진행할 수 없다. 체인은 가장 약한 고리만큼만 강하다 — 그래서 모든 고리를 검증한다.
 
-### 스펙 계약
+### 파이프라인 계약
 
-`spec.json`이 단일 진실 공급원이다. 모든 것이 여기서 읽고, 모든 것이 여기에 쓴다.
-
-```json
-{
-  "meta": { "goal": "...", "mode": { "depth": "standard" } },
-  "context": { "research": {}, "decisions": [{ "implications": [] }], "assumptions": [] },
-  "requirements": [{
-    "id": "R1",
-    "behavior": "Toggle switches between light and dark theme",
-    "sub": [{
-      "id": "R1.1",
-      "behavior": "Clicking toggle in settings page switches to dark mode"
-    }]
-  }],
-  "tasks": [{ "id": "T1", "action": "...", "fulfills": ["R1"] }]
-}
-```
+`/specify`가 `requirements.md`를 생성한다 — 구조화된 요구사항. `/blueprint`가 `plan.json`을 생성한다 — 계약과 함께하는 태스크 그래프. `/execute`가 `plan.json`을 읽고 워커를 디스패치한다.
 
 증거의 사슬: **requirement → sub-requirement → task (fulfills) → done**. 의도에서 증명까지.
 
@@ -225,7 +218,7 @@ You:  /execute
 
 ## 실행 엔진
 
-오케스트레이터가 `spec.json`을 읽고 병렬 워커 에이전트를 디스패치한다:
+오케스트레이터가 `plan.json`을 읽고 병렬 워커 에이전트를 디스패치한다:
 
 ```
   ┌─────────────────────────────────────────────────────┐
@@ -252,16 +245,16 @@ You:  /execute
 
 워커는 구현하고, 독립 Verifier 에이전트가 태스크별 하위 요구사항을 점검한다 — 판단 없음, 바이패스 없음.
 
-### 스펙은 살아 있다
+### 계획은 살아 있다
 
-> *적응할 수 없는 스펙은 버려질 스펙이다.*
+> *적응할 수 없는 계획은 버려질 계획이다.*
 
-`spec.json`은 계획 시점에 고정된 정적 문서가 아니다. 실행 중에도 진화하는 **살아 있는 계약**이다 — 엄격하고 결정론적인 범위 안에서.
+`plan.json`은 계획 시점에 고정된 정적 문서가 아니다. 실행 중에도 진화하는 **살아 있는 계약**이다 — 엄격하고 결정론적인 범위 안에서.
 
-워커가 실제 코드베이스가 계획의 가정과 다르다는 것을 발견하면, 스펙이 적응한다:
+워커가 실제 코드베이스가 계획의 가정과 다르다는 것을 발견하면, 계획이 적응한다:
 
 ```
-  spec.json at plan time:
+  plan.json at plan time:
     tasks: [T1, T2, T3]           ← 3 planned tasks
 
   Worker T2 hits a blocker:
@@ -269,17 +262,17 @@ You:  /execute
        │
        ▼
   System derives T2-fix:
-    tasks: [T1, T2, T3, T2-fix]   ← spec grows, append-only
+    tasks: [T1, T2, T3, T2-fix]   ← plan grows, append-only
        │
        ▼
   T2-fix executes → T2 retries → passes
     tasks: [T1 ✓, T2 ✓, T3 ✓, T2-fix ✓]
 ```
 
-이것이 **제한된 적응**이다 — 스펙은 성장하지만 변이하지 않는다. 세 가지 규칙이 결정론을 유지한다:
+이것이 **제한된 적응**이다 — 계획은 성장하지만 변이하지 않는다. 세 가지 규칙이 결정론을 유지한다:
 
 - **추가 전용** — 기존 태스크는 절대 수정되지 않고, 새 태스크만 추가된다. 원래 계획은 감사 추적으로 그대로 유지된다.
-- **깊이 1 제한** — 파생된 태스크는 추가 태스크를 파생할 수 없다. 한 단계의 적응만 허용하며, 연쇄적 확장은 없다. 이것은 스펙이 통제 불능의 복잡성으로 빠지는 것을 방지한다.
+- **깊이 1 제한** — 파생된 태스크는 추가 태스크를 파생할 수 없다. 한 단계의 적응만 허용하며, 연쇄적 확장은 없다. 이것은 계획이 통제 불능의 복잡성으로 빠지는 것을 방지한다.
 - **서킷 브레이커** — 경로당 최대 재시도 횟수를 초과하면 사용자에게 에스컬레이션한다. 시스템은 언제 시도를 멈추고 도움을 요청해야 하는지 안다.
 
 핵심 통찰: **실행 중에 요구사항은 변하지 않는다 — 태스크만 변한다.** 도출 체인을 통해 검증된 목표, 결정, 요구사항은 안정적으로 유지된다. 태스크는 가장 하위 레이어일 뿐이며, 재도출 비용이 가장 낮다. 레이어 위계가 중요한 이유가 바로 이것이다: 레이어가 높을수록 더 안정적이다.
@@ -296,7 +289,7 @@ You:  /execute
     L4: Tasks          ← 성장 가능 (추가 전용, 깊이 1 제한)
 ```
 
-스펙은 미래를 예측하지 않는다. 미래를 견뎌낸다 — 어디를 단단히 잡고, 어디를 유연하게 할지 알기 때문에.
+계획은 미래를 예측하지 않는다. 미래를 견뎌낸다 — 어디를 단단히 잡고, 어디를 유연하게 할지 알기 때문에.
 
 ---
 
@@ -353,10 +346,10 @@ You:  /execute
 
 | 카테고리 | 하는 일 | 스킬 |
 |----------|------------------|--------|
-| **이해** | 요구사항 도출, 스펙 생성 | `/specify` `/quick-plan` `/discuss` `/deep-interview` `/mirror` |
+| **이해** | 요구사항 도출, 태스크 계획 | `/specify` `/blueprint` `/discuss` `/deep-interview` `/mirror` |
 | **조사** | 코드베이스 분석, 레퍼런스 탐색, 커뮤니티 스캔 | `/deep-research` `/dev-scan` `/reference-seek` `/google-search` `/browser-work` |
 | **결정** | 트레이드오프 평가, 다중 관점 리뷰 | `/council` `/tribunal` `/tech-decision` `/stepback` |
-| **구현** | 스펙 실행, 버그 수정, 반복 | `/execute` `/ralph` `/rulph` `/bugfix` `/ultrawork` |
+| **구현** | 계획 실행, 버그 수정, 반복 | `/execute` `/ralph` `/rulph` `/bugfix` `/ultrawork` `/scaffold` |
 | **성찰** | 변경 사항 검증, 교훈 추출 | `/check` `/compound` `/scope` `/issue` |
 
 <details>
@@ -364,10 +357,11 @@ You:  /execute
 
 | 명령어 | 하는 일 |
 |---------|--------------|
-| `/specify` | 레이어 기반 인터뷰 → spec.json 도출 (L0→L4), 게이트키퍼 포함 |
-| `/execute` | 스펙 기반 병렬 에이전트 디스패치 + 다중 모델 리뷰 + Final Verify |
-| `/ultrawork` | 전체 파이프라인: specify → execute를 하나의 명령으로 |
-| `/bugfix` | 근본 원인 진단 → 자동 생성 스펙 → execute (적응형 라우팅) |
+| `/specify` | 인터뷰 기반 requirements.md 도출 (L0→L4), 게이트키퍼 포함 |
+| `/blueprint` | requirements.md에서 계약 우선 태스크 그래프 계획 → plan.json |
+| `/execute` | 계획 기반 오케스트레이터, 3축 설정 (dispatch: direct/agent/team, verify: light/standard/thorough) |
+| `/ultrawork` | 전체 파이프라인: specify → blueprint → execute를 하나의 명령으로 |
+| `/bugfix` | 근본 원인 진단 → requirements.md → execute (적응형 라우팅) |
 | `/ralph` | 완료 기준 기반 반복 루프 — 독립적으로 검증될 때까지 계속 |
 | `/council` | 다중 관점 심의: tribunal + 외부 LLM + 커뮤니티 스캔 |
 | `/tribunal` | 3-에이전트 대립 리뷰: Risk + Value + Feasibility → 종합 판정 |
@@ -386,9 +380,10 @@ You:  /execute
 ```
 .claude/
 ├── skills/
-│   ├── specify/       레이어 기반 스펙 도출 (L0→L4)
-│   ├── execute/       스펙 기반 병렬 오케스트레이션
-│   ├── bugfix/        근본 원인 → 스펙 → execute 파이프라인
+│   ├── specify/       인터뷰 기반 requirements.md 도출 (L0→L4)
+│   ├── blueprint/     계약 우선 태스크 그래프 계획 → plan.json
+│   ├── execute/       계획 기반 병렬 오케스트레이션
+│   ├── bugfix/        근본 원인 → requirements.md → execute 파이프라인
 │   ├── council/       다중 관점 심의
 │   ├── tribunal/      3-에이전트 대립 리뷰
 │   └── ...            19개 추가 스킬
@@ -403,13 +398,13 @@ You:  /execute
 │   ├── guards         쓰기 보호, 계획 강제
 │   ├── validation     출력 품질, 실패 복구
 │   └── pipeline       Ultrawork 전환, 완료 기준 루프
-└── cli/               spec.json 검증 & 상태 관리
+└── cli/              plan.json 검증 & 상태 관리
 ```
 
 **주요 내부 구성요소:**
 
-- **도출 체인** — L0→L4, 각 전환마다 병합 체크포인트 + 게이트키퍼 팀
-- **다중 모델 리뷰** — Codex + Gemini + Claude가 독립적으로 리뷰 후 SHIP/NEEDS_FIXES 판정 도출
+- **도출 체인** — L0→L4, 각 전환마다 병합 체크포인트 + 게이트키퍼 팀 (requirements.md)
+- **Blueprint** — requirements.md에서 plan.json으로의 계약 우선 태스크 그래프 계획
 - **훅 시스템** — 18개 훅이 파이프라인 전환, 쓰기 보호, 게이트 강제, 실패 복구를 자동화
 - **검증 파이프라인** — 전용 Verifier 에이전트가 태스크별 하위 요구사항을 독립 점검
 - **자기 개선** — 범위 블로커 → 런타임에 수정 태스크 도출 (추가 전용, 깊이 1, 서킷 브레이커)
@@ -426,8 +421,9 @@ You:  /execute
 claude plugin add team-attention/hoyeon
 npm install -g @syscon-robotics/sr-harness-cli
 
-# 시작 — 요구사항을 도출하고 실행
+# 시작 — 요구사항을 도출하고, 계획하고, 실행
 /specify "add dark mode toggle to settings page"
+/blueprint
 /execute
 
 # 또는 전체 파이프라인을 하나의 명령으로
@@ -441,13 +437,11 @@ Claude Code에서 `/`를 입력하면 사용 가능한 모든 스킬을 볼 수 
 
 ## CLI
 
-`sr-harness-cli`는 spec.json 검증과 세션 상태를 관리한다:
+`sr-harness-cli`는 plan.json 검증과 태스크 상태를 관리한다:
 
 ```bash
-sr-harness-cli spec init "project-name"        # 새 스펙 생성
-sr-harness-cli spec merge spec.json --json ...  # 검증된 병합
-sr-harness-cli spec check spec.json             # 완전성 확인
-sr-harness-cli spec guide <section>             # 필드 구조 보기
+sr-harness-cli plan get <task-id> <plan-path>                    # 태스크 상세 조회
+sr-harness-cli plan task <plan-path> --status <task-id>=done   # 태스크 상태 업데이트
 ```
 
 전체 명령어 레퍼런스는 [docs/cli.md](docs/cli.md) 참조.
@@ -460,7 +454,7 @@ sr-harness-cli spec guide <section>             # 필드 구조 보기
 
 ---
 
-*"스펙은 미래를 예측하지 않는다. 미래를 견뎌낸다."*
+*"계획은 미래를 예측하지 않는다. 미래를 견뎌낸다."*
 
 **요구사항은 작성하는 것이 아니다 — 도출하는 것이다.**
 

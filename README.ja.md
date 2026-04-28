@@ -64,9 +64,9 @@ Goal → Decisions → Requirements → Sub-requirements → Tasks
 
 三つのメカニズムがこれを実現します：
 
-- **`spec.json` を唯一の信頼源とする** — すべてのエージェントが同じ構造化された仕様から読み書きします。独自のコンテキストを発明するエージェントはいません。会話の中だけに存在する情報はありません。仕様は、コンテキストウィンドウ、コンパクション、エージェントの引き継ぎを超えて生き残る共有メモリです。
+- **`requirements.md` + `plan.json` を構造化された成果物とする** — `/specify` が `requirements.md`（何を）を生成します。`/blueprint` がコントラクトとタスクグラフを含む `plan.json`（どのように）を生成します。すべてのエージェントがこれらの共有成果物から読み取ります。独自のコンテキストを発明するエージェントはいません。会話の中だけに存在する情報はありません。これらの成果物は、コンテキストウィンドウ、コンパクション、エージェントの引き継ぎを超えて生き残る共有メモリです。
 
-- **CLI による構造の強制** — `sr-harness-cli` は `spec.json` へのすべてのマージをバリデーションします。フィールド名、型、必要な関連性 — すべてが LLM がデータを見る前にプログラム的にチェックされます。CLI は構造を提案するのではなく、無効な構造を**拒否**します。
+- **CLI による構造の強制** — `sr-harness-cli` はプラン構造とタスク状態遷移をバリデーションします。フィールド名、型、必要な関連性 — すべてが LLM がデータを見る前にプログラム的にチェックされます。CLI は構造を提案するのではなく、無効な構造を**拒否**します。
 
 - **契約としての導出チェーン** — Goal → Decisions → Requirements → Sub-requirements → Tasks はリンクされています。各レイヤーはその上のレイヤーを参照します。サブ要件は要件にトレースされます。タスクは `fulfills` を通じて要件にトレースされます。チェーンが切れれば、ゲートがブロックします。つまり：**有効な要件があれば、システムは結果を生み出します** — LLM の個々の出力が変動しても、決定論的にルーティングされます。
 
@@ -76,7 +76,7 @@ LLM は創造的な仕事を担います。システムはそれをレールの�
 
 > *人間が確認しなければならないなら、システムは自動化に失敗したということだ。*
 
-`spec.json` のすべてのサブ要件はテスト可能な動作仕様です：
+`requirements.md` のすべてのサブ要件はテスト可能な動作仕様です：
 
 ```json
 {
@@ -113,8 +113,8 @@ LLM は創造的な仕事を担います。システムはそれをレールの�
 
 3つのメカニズムがこれを可能にする：
 
-- **`spec learning`** — Worker が実行中に構造化された学習を記録し、それを生成した要件とタスクに自動マッピング
-- **`spec search`** — 全スペックを横断する BM25 検索：要件、サブ要件、制約、学習。プロジェクト A で学んだことがプロジェクト B での質問に反映される
+- **構造化された学習** — Worker が実行中に構造化された学習を `learnings.json` に記録し、それを生成した要件とタスクに自動マッピング
+- **クロスプロジェクト検索** — 全プロジェクトを横断する BM25 検索：要件、サブ要件、制約、学習。プロジェクト A で学んだことがプロジェクト B での質問に反映される
 - **コンパウンディング・ループ** — 毎回の /specify セッションが過去の学習検索から始まる。より多くのプロジェクト → より豊富な検索結果 → より完全な要件 → 実行中のサプライズ減少 → より良い学習 → サイクル継続
 
 結果：**Hoyeon で実行する10番目のプロジェクトは、最初のものより明らかに優れている**——LLM が改善されたからではなく、ナレッジベースが成長したからだ。
@@ -140,8 +140,12 @@ You:  /specify "add dark mode toggle to settings page"
   ├─ docs-researcher checks design system conventions
   └─ ux-reviewer flags potential regression
 
-  → spec.json generated:
-    3 requirements, 8 sub-requirements, 4 tasks — all linked
+  → requirements.md generated:
+    3 requirements, 8 sub-requirements — all linked
+
+You:  /blueprint
+  → plan.json generated:
+    4 tasks with contracts, dependency graph, and fulfills links
 
 You:  /execute
 
@@ -161,8 +165,13 @@ You:  /execute
            → Agents researched codebase in parallel
            → Layer-by-layer derivation: L0→L1→L2→L3→L4
            → Each layer gated by CLI validation + agent review
+           → requirements.md generated
 
-/execute → Orchestrator read spec.json, dispatched parallel workers
+/blueprint → Contract-first task graph planning
+             → Tasks derived from requirements with contracts
+             → plan.json generated
+
+/execute → Orchestrator read plan.json, dispatched parallel workers
            → Workers self-verify against sub-requirement behaviors (--tdd: test-first)
            → Code review caught cross-cutting issues
 ```
@@ -197,25 +206,9 @@ You:  /execute
 
 両方を通過しなければ先に進めません。チェーンは最も弱いリンクと同じ強さしかありません — だからこそ、すべてのリンクが検証されます。
 
-### 仕様契約
+### パイプライン契約
 
-`spec.json` は唯一の信頼源です。すべてがここから読み、すべてがここに書き込みます。
-
-```json
-{
-  "meta": { "goal": "...", "mode": { "depth": "standard" } },
-  "context": { "research": {}, "decisions": [{ "implications": [] }], "assumptions": [] },
-  "requirements": [{
-    "id": "R1",
-    "behavior": "Toggle switches between light and dark theme",
-    "sub": [{
-      "id": "R1.1",
-      "behavior": "Clicking toggle in settings page switches to dark mode"
-    }]
-  }],
-  "tasks": [{ "id": "T1", "action": "...", "fulfills": ["R1"] }]
-}
-```
+`/specify` が `requirements.md` を生成します — 構造化された要件。`/blueprint` が `plan.json` を生成します — コントラクト付きのタスクグラフ。`/execute` が `plan.json` を読み、ワーカーをディスパッチします。
 
 エビデンスの連鎖：**requirement → sub-requirement → task (fulfills) → done**。意図から証明まで。
 
@@ -223,7 +216,7 @@ You:  /execute
 
 ## 実行エンジン
 
-オーケストレーターが `spec.json` を読み、並列ワーカーエージェントをディスパッチします：
+オーケストレーターが `plan.json` を読み、並列ワーカーエージェントをディスパッチします：
 
 ```
   ┌─────────────────────────────────────────────────────┐
@@ -250,16 +243,16 @@ You:  /execute
 
 ワーカーが実装し、独立した Verifier エージェントがタスクごとにサブ要件をチェックします — 判断なし、バイパスなし。
 
-### 仕様は生きている
+### プランは生きている
 
-> *適応できない仕様は、やがて放棄される仕様である。*
+> *適応できないプランは、やがて放棄されるプランである。*
 
-`spec.json` は計画時に凍結される静的なドキュメントではありません。実行中に進化する**生きた契約**です — 厳密で決定論的な範囲内で。
+`plan.json` は計画時に凍結される静的なドキュメントではありません。実行中に進化する**生きた契約**です — 厳密で決定論的な範囲内で。
 
-ワーカーが実際のコードベースが計画の前提と一致しないことを発見した場合、仕様は適応します：
+ワーカーが実際のコードベースが計画の前提と一致しないことを発見した場合、プランは適応します：
 
 ```
-  spec.json at plan time:
+  plan.json at plan time:
     tasks: [T1, T2, T3]           ← 3 planned tasks
 
   Worker T2 hits a blocker:
@@ -267,17 +260,17 @@ You:  /execute
        │
        ▼
   System derives T2-fix:
-    tasks: [T1, T2, T3, T2-fix]   ← spec grows, append-only
+    tasks: [T1, T2, T3, T2-fix]   ← plan grows, append-only
        │
        ▼
   T2-fix executes → T2 retries → passes
     tasks: [T1 ✓, T2 ✓, T3 ✓, T2-fix ✓]
 ```
 
-これは**制限付き適応**です — 仕様は成長しますが、変異しません。三つのルールが決定論を保ちます：
+これは**制限付き適応**です — プランは成長しますが、変異しません。三つのルールが決定論を保ちます：
 
 - **追記のみ** — 既存のタスクは変更されず、新しいタスクのみが追加されます。元の計画は監査証跡としてそのまま残ります。
-- **深さ1** — 派生タスクがさらにタスクを派生させることはできません。適応は一段階のみで、連鎖的な拡大はありません。これにより、仕様が際限なく複雑化することを防ぎます。
+- **深さ1** — 派生タスクがさらにタスクを派生させることはできません。適応は一段階のみで、連鎖的な拡大はありません。これにより、プランが際限なく複雑化することを防ぎます。
 - **サーキットブレーカー** — パスごとの最大リトライ回数を超えるとユーザーにエスカレーションされます。システムは、試行を止めて助けを求めるべき時を知っています。
 
 重要な洞察：**実行中に変わるのは要件ではなく、タスクだけです。** 導出チェーンを通じて検証されたゴール、判断、要件は安定したままです。タスクは最下層に過ぎず、再導出のコストが最も低い層です。これがレイヤー階層が重要な理由です：レイヤーが高いほど、安定性も高くなります。
@@ -294,7 +287,7 @@ You:  /execute
     L4: Tasks          ← can grow (append-only, depth-1)
 ```
 
-仕様は未来を予測しない。未来を生き延びるのだ — どの部分を堅持し、どの部分を柔軟にするかを知ることによって。
+プランは未来を予測しない。未来を生き延びるのだ — どの部分を堅持し、どの部分を柔軟にするかを知ることによって。
 
 ---
 
@@ -351,10 +344,10 @@ You:  /execute
 
 | カテゴリ | 目的 | スキル |
 |----------|------------------|--------|
-| **理解** | 要件の導出、仕様の生成 | `/specify` `/quick-plan` `/discuss` `/deep-interview` `/mirror` |
+| **理解** | 要件の導出、タスク計画 | `/specify` `/blueprint` `/discuss` `/deep-interview` `/mirror` |
 | **調査** | コードベースの分析、リファレンスの検索、コミュニティのスキャン | `/deep-research` `/dev-scan` `/reference-seek` `/google-search` `/browser-work` |
 | **判断** | トレードオフの評価、多角的レビュー | `/council` `/tribunal` `/tech-decision` `/stepback` |
-| **構築** | 仕様の実行、バグ修正、反復 | `/execute` `/ralph` `/rulph` `/bugfix` `/ultrawork` |
+| **構築** | プランの実行、バグ修正、反復 | `/execute` `/ralph` `/rulph` `/bugfix` `/ultrawork` `/scaffold` |
 | **振り返り** | 変更の検証、学びの抽出 | `/check` `/compound` `/scope` `/issue` |
 
 <details>
@@ -362,10 +355,11 @@ You:  /execute
 
 | コマンド | 説明 |
 |---------|--------------|
-| `/specify` | レイヤーベースのインタビュー → spec.json の導出（L0→L4）、ゲートキーパー付き |
-| `/execute` | 仕様駆動の並列エージェントディスパッチ + マルチモデルレビュー + Final Verify |
-| `/ultrawork` | フルパイプライン：specify → execute を一つのコマンドで |
-| `/bugfix` | 根本原因の診断 → 自動生成された仕様 → execute（適応的ルーティング） |
+| `/specify` | インタビュー駆動の requirements.md 導出（L0→L4）、ゲートキーパー付き |
+| `/blueprint` | requirements.md からコントラクト優先タスクグラフ計画 → plan.json |
+| `/execute` | プラン駆動オーケストレーター、3軸設定（dispatch: direct/agent/team, verify: light/standard/thorough） |
+| `/ultrawork` | フルパイプライン：specify → blueprint → execute を一つのコマンドで |
+| `/bugfix` | 根本原因の診断 → requirements.md → execute（適応的ルーティング） |
 | `/ralph` | DoD ベースの反復ループ — 独立検証されるまで続行 |
 | `/council` | 多角的な審議：tribunal + 外部 LLM + コミュニティスキャン |
 | `/tribunal` | 3エージェントの対抗的レビュー：Risk + Value + Feasibility → 統合された判定 |
@@ -384,9 +378,10 @@ You:  /execute
 ```
 .claude/
 ├── skills/
-│   ├── specify/       Layer-based spec derivation (L0→L4)
-│   ├── execute/       Spec-driven parallel orchestration
-│   ├── bugfix/        Root cause → spec → execute pipeline
+│   ├── specify/       Interview-driven requirements.md derivation (L0→L4)
+│   ├── blueprint/     Contract-first task graph planning → plan.json
+│   ├── execute/       Plan-driven parallel orchestration
+│   ├── bugfix/        Root cause → requirements.md → execute pipeline
 │   ├── council/       Multi-perspective deliberation
 │   ├── tribunal/      3-agent adversarial review
 │   └── ...            19 more skills
@@ -401,13 +396,13 @@ You:  /execute
 │   ├── guards         Write protection, plan enforcement
 │   ├── validation     Output quality, failure recovery
 │   └── pipeline       Ultrawork transitions, DoD loops
-└── cli/               spec.json validation & state management
+└── cli/              plan.json validation & state management
 ```
 
 **主要な内部機構：**
 
-- **導出チェーン** — L0→L4、各遷移にマージチェックポイント + ゲートキーパーチーム
-- **マルチモデルレビュー** — Codex + Gemini + Claude が独立してレビューを実行し、SHIP/NEEDS_FIXES の判定を合成
+- **導出チェーン** — L0→L4、各遷移にマージチェックポイント + ゲートキーパーチーム (requirements.md)
+- **Blueprint** — requirements.md から plan.json へのコントラクト優先タスクグラフ計画
 - **フックシステム** — 18のフックがパイプライン遷移の自動化、書き込みの保護、ゲートの強制、障害からの回復を担当
 - **検証パイプライン** — 専用 Verifier エージェントがタスクごとにサブ要件を独立チェック
 - **自己改善** — スコープブロッカー → ランタイムでの派生修正タスク（追記のみ、深さ1、サーキットブレーカー）
@@ -424,8 +419,9 @@ You:  /execute
 claude plugin add team-attention/hoyeon
 npm install -g @syscon-robotics/sr-harness-cli
 
-# 開始 — 要件を導出して実行
+# 開始 — 要件を導出し、計画し、実行
 /specify "add dark mode toggle to settings page"
+/blueprint
 /execute
 
 # またはフルパイプラインを一つのコマンドで実行
@@ -439,13 +435,11 @@ Claude Code で `/` を入力すると、利用可能なすべてのスキルが
 
 ## CLI
 
-`sr-harness-cli` は spec.json のバリデーションとセッション状態を管理します：
+`sr-harness-cli` は plan.json のバリデーションとタスク状態を管理します：
 
 ```bash
-sr-harness-cli spec init "project-name"        # Create new spec
-sr-harness-cli spec merge spec.json --json ...  # Validated merge
-sr-harness-cli spec check spec.json             # Verify completeness
-sr-harness-cli spec guide <section>             # Show field structure
+sr-harness-cli plan get <task-id> <plan-path>                    # タスク詳細を取得
+sr-harness-cli plan task <plan-path> --status <task-id>=done   # タスク状態を更新
 ```
 
 完全なコマンドリファレンスは [docs/cli.md](docs/cli.md) を参照してください。
@@ -458,7 +452,7 @@ sr-harness-cli spec guide <section>             # Show field structure
 
 ---
 
-*「仕様は未来を予測しない。未来を生き延びるのだ。」*
+*「プランは未来を予測しない。未来を生き延びるのだ。」*
 
 **要件は書くものではない — 導出するものである。**
 

@@ -64,9 +64,9 @@ Goal → Decisions → Requirements → Sub-requirements → Tasks
 
 三种机制确保这一点:
 
-- **`spec.json` 作为唯一事实来源** — 所有智能体从同一个结构化规格中读写。没有任何智能体自行编造上下文。没有信息仅存在于对话中。规格是跨越上下文窗口、压缩和智能体切换后依然存续的共享记忆。
+- **`requirements.md` + `plan.json` 作为结构化产出物** — `/specify` 生成 `requirements.md`（做什么）。`/blueprint` 生成包含契约和任务图的 `plan.json`（怎么做）。所有智能体从这些共享产出物中读取。没有任何智能体自行编造上下文。没有信息仅存在于对话中。这些产出物是跨越上下文窗口、压缩和智能体切换后依然存续的共享记忆。
 
-- **CLI 强制结构** — `sr-harness-cli` 验证每次对 `spec.json` 的合并。字段名、类型、必需关系——全部在 LLM 看到数据之前由程序检查。CLI 不是建议结构，而是**拒绝**无效结构。
+- **CLI 强制结构** — `sr-harness-cli` 验证计划结构和任务状态转换。字段名、类型、必需关系——全部在 LLM 看到数据之前由程序检查。CLI 不是建议结构，而是**拒绝**无效结构。
 
 - **推导链即契约** — Goal → Decisions → Requirements → Sub-requirements → Tasks 相互关联。每一层引用其上一层。子需求追溯到需求。任务通过 `fulfills` 追溯到需求。链条断裂，关卡阻拦。这意味着: **只要你拥有有效的需求，系统就会产出结果**——确定性地路由，即使 LLM 的单次输出有所不同。
 
@@ -76,7 +76,7 @@ LLM 负责创造性工作。系统确保它不偏离轨道。
 
 > *如果需要人来检查，说明系统未能完成自动化。*
 
-`spec.json` 中的每个子需求都是可测试的行为声明:
+`requirements.md` 中的每个子需求都是可测试的行为声明:
 
 ```json
 {
@@ -113,8 +113,8 @@ LLM 负责创造性工作。系统确保它不偏离轨道。
 
 三个机制使这一切成为可能：
 
-- **`spec learning`** — Worker 在执行过程中记录结构化学习，自动映射到产生它们的需求和任务
-- **`spec search`** — 跨所有规格的 BM25 搜索：需求、子需求、约束和学习记录。在项目 A 中学到的东西会影响项目 B 中提出的问题
+- **结构化学习** — Worker 在执行过程中将结构化学习记录到 `learnings.json`，自动映射到产生它们的需求和任务
+- **跨项目搜索** — 跨所有项目的 BM25 搜索：需求、子需求、约束和学习记录。在项目 A 中学到的东西会影响项目 B 中提出的问题
 - **复合循环** — 每次 /specify 会话都从搜索过去的学习记录开始。更多项目 → 更丰富的搜索结果 → 更完整的需求 → 执行中更少的意外 → 更好的学习 → 循环继续
 
 结果：**通过 Hoyeon 运行的第十个项目明显优于第一个**——不是因为 LLM 改进了，而是因为知识库增长了。
@@ -140,8 +140,12 @@ LLM 负责创造性工作。系统确保它不偏离轨道。
   ├─ docs-researcher 检查设计系统规范
   └─ ux-reviewer 标记潜在回归
 
-  → 生成 spec.json:
-    3 条需求, 8 个子需求, 4 个任务 — 全部关联
+  → 生成 requirements.md:
+    3 条需求, 8 个子需求 — 全部关联
+
+你:  /blueprint
+  → 生成 plan.json:
+    4 个任务，包含契约、依赖图和 fulfills 链接
 
 你:  /execute
 
@@ -161,10 +165,15 @@ LLM 负责创造性工作。系统确保它不偏离轨道。
            → 智能体并行研究代码库
            → 逐层推导: L0→L1→L2→L3→L4
            → 每层由 CLI 验证 + 智能体审查把关
+           → 生成 requirements.md
 
-/execute → 编排器读取 spec.json，分派并行 Worker
+/blueprint → 契约优先任务图规划
+             → 从需求推导带契约的任务
+             → 生成 plan.json
+
+/execute → 编排器读取 plan.json，分派并行 Worker
            → Worker 根据子需求行为自行验证 (--tdd: 测试先行)
-           → 多模型代码审查综合裁定
+           → 代码审查捕获跨任务问题
            → Final Verify 整体检查目标、约束、子需求
            → 原子提交，完整可追溯
 ```
@@ -199,25 +208,9 @@ LLM 负责创造性工作。系统确保它不偏离轨道。
 
 两项全部通过才能推进。链条的强度取决于最薄弱的环节——所以每个环节都经过验证。
 
-### 规格契约
+### 流水线契约
 
-`spec.json` 是唯一事实来源。所有读写都围绕它进行。
-
-```json
-{
-  "meta": { "goal": "...", "mode": { "depth": "standard" } },
-  "context": { "research": {}, "decisions": [{ "implications": [] }], "assumptions": [] },
-  "requirements": [{
-    "id": "R1",
-    "behavior": "Toggle switches between light and dark theme",
-    "sub": [{
-      "id": "R1.1",
-      "behavior": "Clicking toggle in settings page switches to dark mode"
-    }]
-  }],
-  "tasks": [{ "id": "T1", "action": "...", "fulfills": ["R1"] }]
-}
-```
+`/specify` 生成 `requirements.md` — 结构化需求。`/blueprint` 生成 `plan.json` — 带契约的任务图。`/execute` 读取 `plan.json` 并分派 Worker。
 
 证据链: **需求 → 子需求 → 任务 (fulfills) → 完成**。从意图到证明。
 
@@ -225,7 +218,7 @@ LLM 负责创造性工作。系统确保它不偏离轨道。
 
 ## 执行引擎
 
-编排器读取 `spec.json`，分派并行 Worker 智能体:
+编排器读取 `plan.json`，分派并行 Worker 智能体:
 
 ```
   ┌─────────────────────────────────────────────────────┐
@@ -252,16 +245,16 @@ LLM 负责创造性工作。系统确保它不偏离轨道。
 
 Worker 负责实现，独立 Verifier 智能体检查每个任务的子需求 — 无判断，不可绕过。
 
-### 规格是活的
+### 计划是活的
 
-> *无法适应的规格，注定会被抛弃。*
+> *无法适应的计划，注定会被抛弃。*
 
-`spec.json` 不是在规划阶段冻结的静态文档。它是一份**活的契约**，在执行过程中演化——在严格的确定性边界内。
+`plan.json` 不是在规划阶段冻结的静态文档。它是一份**活的契约**，在执行过程中演化——在严格的确定性边界内。
 
-当 Worker 发现实际代码库与计划的假设不符时，规格会适应:
+当 Worker 发现实际代码库与计划的假设不符时，计划会适应:
 
 ```
-  规划时的 spec.json:
+  规划时的 plan.json:
     tasks: [T1, T2, T3]           ← 3 个计划任务
 
   Worker T2 遇到阻塞:
@@ -269,17 +262,17 @@ Worker 负责实现，独立 Verifier 智能体检查每个任务的子需求 �
        │
        ▼
   系统推导 T2-fix:
-    tasks: [T1, T2, T3, T2-fix]   ← 规格增长, 只追加
+    tasks: [T1, T2, T3, T2-fix]   ← 计划增长, 只追加
        │
        ▼
   T2-fix 执行 → T2 重试 → 通过
     tasks: [T1 ✓, T2 ✓, T3 ✓, T2-fix ✓]
 ```
 
-这就是**有界适应**——规格会增长但绝不变异。三条规则确保确定性:
+这就是**有界适应**——计划会增长但绝不变异。三条规则确保确定性:
 
 - **只追加** — 已有任务绝不修改，只添加新任务。原始计划作为审计轨迹完整保留。
-- **深度 1** — 衍生任务不能再衍生任务。仅一级适应，不会级联。这防止规格陷入无限膨胀。
+- **深度 1** — 衍生任务不能再衍生任务。仅一级适应，不会级联。这防止计划陷入无限膨胀。
 - **熔断器** — 每条路径最大重试次数，超限则升级给用户。系统知道何时该停止尝试并寻求帮助。
 
 关键洞察: **执行过程中需求不变——变的只是任务。**经过推导链验证的目标、决策和需求保持稳定。任务只是最底层，也是重新推导成本最低的层级。这就是层级结构的意义: 层级越高，越稳定。
@@ -296,7 +289,7 @@ Worker 负责实现，独立 Verifier 智能体检查每个任务的子需求 �
     L4: Tasks          ← 可增长 (只追加, 深度 1)
 ```
 
-规格不预测未来。它在未来中存续——因为它知道哪些部分要坚守，哪些部分可以灵活调整。
+计划不预测未来。它在未来中存续——因为它知道哪些部分要坚守，哪些部分可以灵活调整。
 
 ---
 
@@ -353,10 +346,10 @@ Worker 负责实现，独立 Verifier 智能体检查每个任务的子需求 �
 
 | 类别 | 你在做什么 | 技能 |
 |------|----------|------|
-| **理解** | 推导需求，生成规格 | `/specify` `/quick-plan` `/discuss` `/deep-interview` `/mirror` |
+| **理解** | 推导需求，规划任务 | `/specify` `/blueprint` `/discuss` `/deep-interview` `/mirror` |
 | **研究** | 分析代码库，查找引用，扫描社区 | `/deep-research` `/dev-scan` `/reference-seek` `/google-search` `/browser-work` |
 | **决策** | 评估权衡，多视角审查 | `/council` `/tribunal` `/tech-decision` `/stepback` |
-| **构建** | 执行规格，修复 bug，迭代 | `/execute` `/ralph` `/rulph` `/bugfix` `/ultrawork` |
+| **构建** | 执行计划，修复 bug，迭代 | `/execute` `/ralph` `/rulph` `/bugfix` `/ultrawork` `/scaffold` |
 | **反思** | 验证变更，提取经验 | `/check` `/compound` `/scope` `/issue` |
 
 <details>
@@ -364,10 +357,11 @@ Worker 负责实现，独立 Verifier 智能体检查每个任务的子需求 �
 
 | 命令 | 功能 |
 |------|------|
-| `/specify` | 基于层级的访谈 → spec.json 推导 (L0→L4)，配合 gate-keeper |
-| `/execute` | 规格驱动的并行智能体调度 + 多模型审查 + Final Verify |
-| `/ultrawork` | 完整流水线: 一条命令完成 specify → execute |
-| `/bugfix` | 根因诊断 → 自动生成规格 → 执行 (自适应路由) |
+| `/specify` | 访谈驱动的 requirements.md 推导 (L0→L4)，配合 gate-keeper |
+| `/blueprint` | 从 requirements.md 进行契约优先任务图规划 → plan.json |
+| `/execute` | 计划驱动编排器，3 轴配置 (dispatch: direct/agent/team, verify: light/standard/thorough) |
+| `/ultrawork` | 完整流水线: 一条命令完成 specify → blueprint → execute |
+| `/bugfix` | 根因诊断 → requirements.md → 执行 (自适应路由) |
 | `/ralph` | 基于完成定义的迭代循环——直到独立验证通过才停止 |
 | `/council` | 多视角审议: tribunal + 外部 LLM + 社区扫描 |
 | `/tribunal` | 3 智能体对抗式审查: 风险 + 价值 + 可行性 → 综合裁定 |
@@ -386,9 +380,10 @@ Worker 负责实现，独立 Verifier 智能体检查每个任务的子需求 �
 ```
 .claude/
 ├── skills/
-│   ├── specify/       基于层级的规格推导 (L0→L4)
-│   ├── execute/       规格驱动的并行编排
-│   ├── bugfix/        根因 → 规格 → 执行流水线
+│   ├── specify/       访谈驱动的 requirements.md 推导 (L0→L4)
+│   ├── blueprint/     契约优先任务图规划 → plan.json
+│   ├── execute/       计划驱动的并行编排
+│   ├── bugfix/        根因 → requirements.md → 执行流水线
 │   ├── council/       多视角审议
 │   ├── tribunal/      3 智能体对抗式审查
 │   └── ...            另外 19 个技能
@@ -403,13 +398,13 @@ Worker 负责实现，独立 Verifier 智能体检查每个任务的子需求 �
 │   ├── guards         写入保护, 计划执行
 │   ├── validation     输出质量, 故障恢复
 │   └── pipeline       Ultrawork 流转, DoD 循环
-└── cli/               spec.json 验证 & 状态管理
+└── cli/              plan.json 验证 & 状态管理
 ```
 
 **核心内部机制:**
 
-- **推导链** — L0→L4，每层转换时有合并检查点 + gate-keeper 团队
-- **多模型审查** — Codex + Gemini + Claude 独立审查，综合产出 SHIP/NEEDS_FIXES 裁定
+- **推导链** — L0→L4，每层转换时有合并检查点 + gate-keeper 团队 (requirements.md)
+- **Blueprint** — 从 requirements.md 到 plan.json 的契约优先任务图规划
 - **钩子系统** — 18 个钩子自动化流水线流转、守护写入、执行关卡、故障恢复
 - **验证流水线** — 专用 Verifier 智能体独立检查每个任务的子需求
 - **自改进** — 范围阻塞 → 运行时衍生修复任务 (只追加, 深度 1, 熔断器)
@@ -426,8 +421,9 @@ Worker 负责实现，独立 Verifier 智能体检查每个任务的子需求 �
 claude plugin add team-attention/hoyeon
 npm install -g @syscon-robotics/sr-harness-cli
 
-# 开始——推导需求并执行
+# 开始——推导需求、规划、执行
 /specify "add dark mode toggle to settings page"
+/blueprint
 /execute
 
 # 或一条命令运行完整流水线
@@ -441,13 +437,11 @@ npm install -g @syscon-robotics/sr-harness-cli
 
 ## CLI
 
-`sr-harness-cli` 管理 spec.json 验证和会话状态:
+`sr-harness-cli` 管理 plan.json 验证和任务状态:
 
 ```bash
-sr-harness-cli spec init "project-name"        # 创建新规格
-sr-harness-cli spec merge spec.json --json ...  # 验证合并
-sr-harness-cli spec check spec.json             # 验证完整性
-sr-harness-cli spec guide <section>             # 显示字段结构
+sr-harness-cli plan get <task-id> <plan-path>                    # 获取任务详情
+sr-harness-cli plan task <plan-path> --status <task-id>=done   # 更新任务状态
 ```
 
 详见 [docs/cli.md](docs/cli.md) 了解完整命令参考。
@@ -460,7 +454,7 @@ sr-harness-cli spec guide <section>             # 显示字段结构
 
 ---
 
-*"规格不预测未来。它在未来中存续。"*
+*"计划不预测未来。它在未来中存续。"*
 
 **需求不是写出来的——而是推导出来的。**
 

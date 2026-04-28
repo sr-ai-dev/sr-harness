@@ -34,9 +34,33 @@ All intermediate files (qa-log.md, reqs-business.md, reqs-interaction.md, reqs-t
 
 The **WHERE** is the combination of current situation and intended scope. It calibrates how deep the interview goes on each axis — without it, every project gets the same heavyweight treatment, which over-engineers toys and under-specs production systems.
 
-### Step 0.1: Mirror (prove understanding before asking)
+### Step 0.1: Mirror + SR Context Detection
 
-Before asking for goal/non-goals, present your understanding of the user's request using this template:
+#### SR-Harness: Parse user input for project context
+
+Before generating the mirror, scan the user's input (description + keywords) to infer SR-Harness project context. This replaces the need for a separate product/module selection step.
+
+**Keyword inference rules:**
+
+| Keywords detected | Inference |
+|---|---|
+| `spx`, `core-driver`, `core-nav*`, `core-local*`, `core-task`, `core-docking` | `sr_product: spx` |
+| `sarics`, `관제`, `dashboard`, `frontend`, `backend`, `be`, `fe` | `sr_product: sarics-nx` |
+| spx + sarics keywords both present | `sr_product: cross-product` |
+| `core-driver`, `uart`, `wheel`, `bms`, `sensor`, `lift`, `hw`, `hardware` | `sr_profile: driver` |
+| `core-nav*`, `core-local*`, `core-task`, `core-docking`, `node`, `topic`, `action`, `service`, `nav2`, `amcl`, `ekf` | `sr_profile: ros-node` |
+| `sarics` + `spx` together, `bridge`, `ros bridge`, `관제-로봇` | `sr_profile: cross-product` |
+| `simulation`, `테스트`, `tool`, `도구`, `infra` | `sr_profile: infra` |
+| `sarics` alone with no SPX keywords | `sr_profile: web` |
+| `ros2`, `rclpy`, `rclcpp`, `humble`, `iron`, `colcon` | `sr_ros_version: ros2` |
+| `ros1`, `rospy`, `roscpp`, `noetic`, `catkin` | `sr_ros_version: ros1` |
+
+If `sr_product` or `sr_profile` is not detectable from keywords, leave as `null` — do not ask; the interview (Phase 1 Tech axis) will naturally surface it.
+If only `sr_ros_version` is ambiguous and `sr_profile` is `ros-node` or `driver`, batch a single ROS version question into the mirror confirmation below.
+
+#### Mirror template
+
+Present your understanding using this template:
 
 ```markdown
 **Mirror — Here's what I understood**
@@ -52,24 +76,43 @@ Before asking for goal/non-goals, present your understanding of the user's reque
 
 **Ambiguous (scope-level unknowns):**
 - <ambiguity about what "done" means, what's included, or who the user is>
+
+**Detected context:** <sr_product> / <sr_modules> / <sr_ros_version>
+(omit this line if nothing was detected)
 ```
 
-Then confirm via AskUserQuestion:
+Then confirm via AskUserQuestion.
+
+**If `sr_ros_version` is ambiguous** (sr_profile is `ros-node` or `driver` but ROS version not in input): batch the ROS version question together with the mirror confirmation in one AskUserQuestion call.
+
 ```
 AskUserQuestion(
-  question: "Does this match your intent?",
-  options: [
-    { label: "Approve", description: "Proceed to WHERE grounding" },
-    { label: "Revise", description: "Fix goal/non-goal/scope" }
+  questions: [
+    {
+      question: "Does this match your intent?",
+      options: [
+        { label: "Approve", description: "Proceed to WHERE grounding" },
+        { label: "Revise", description: "Fix goal/non-goal/scope" }
+      ]
+    },
+    {
+      question: "Which ROS version?",   // only if sr_ros_version ambiguous
+      options: [
+        { label: "ROS2 (Humble/Iron)", description: "colcon, rclpy/rclcpp, lifecycle nodes" },
+        { label: "ROS1 (Noetic)", description: "catkin, rospy/roscpp, rostopic" }
+      ]
+    }
   ]
 )
 ```
+
+**If `sr_ros_version` is already clear**: single-question confirmation only.
 
 **Rules:**
 - At least one Non-Goal and one Ambiguous item must be **inferred** by you — a pure echo is a violation
 - Ambiguous items are **scope-level** only ("what are we building / for whom / done when?"), NOT tech choices
 - Max 2 revision rounds. If still unclear, proceed and record residual ambiguities for Phase 1
-- On Approve: extract `goal` and `non_goals` from the mirror (no need to re-ask in free-text)
+- On Approve: extract `goal`, `non_goals`, and all detected `sr_*` fields for qa-log.md
 
 ### Step 0.2: PROJECT_TYPE + SITUATION + AMBITION (batched AskUserQuestion)
 
@@ -146,7 +189,19 @@ If the user picks none, proceed with base calibration. Otherwise, modifiers will
   - `hybrid` → `feature` (or `refactor` if structural churn dominates)
   The stub is overwritten at Phase 4.3 once the interview is complete. If `<spec_dir>/requirements.md` already exists from a prior run, skip `req init` and proceed (the user is re-running specify on the same spec).
 - Read the Q&A log template from `${baseDir}/templates/qa-log.md`
-- Initialize `<spec_dir>/qa-log.md` with spec name, goal, non-goals, and the WHERE context filled in
+- Initialize `<spec_dir>/qa-log.md` with spec name, goal, non-goals, and the WHERE context filled in.
+  Include SR-Harness fields if detected in Step 0.1:
+  ```yaml
+  where:
+    situation: <brownfield-extension|greenfield|...>
+    ambition: <toy|feature|product>
+    risk_modifiers: []
+    sr_product: <spx|sarics-nx|cross-product|other|null>
+    sr_modules: [<module>, ...]   # null if not detected
+    sr_ros_version: <ros1|ros2|null>
+    sr_profile: <web|driver|ros-node|cross-product|infra|null>
+    sr_raw_input: "<user's original input text>"
+  ```
 
 ### Step 0.4: Derive Axis Depth Calibration
 
@@ -175,6 +230,18 @@ Combine SITUATION × AMBITION × RISK_MODIFIERS to assign each taxonomy node a d
 - API-service + Brownfield-refactor + Product + external-exposure → virtually everything deep
 
 **Project-type notes** — PROJECT_TYPE doesn't change calibration numbers, but it changes what each INTERACTION node *means* (the interaction-extractor reads project_type for lens selection).
+
+**Step D — SR Profile override (SR-Harness only, apply after Step C)**:
+
+Apply only when `where.sr_profile` is set. These escalate on top of Step C — never downgrade.
+
+| sr_profile | Escalation | Additional interview nodes activated |
+|---|---|---|
+| `driver` | TECH.INFRA **deep** | `TECH.HW_INTERFACE`: UART/CAN/SPI protocol, baud rate, packet format, timeout/retry, E-Stop |
+| `ros-node` | TECH.ARCH **deep**, TECH.COMPAT **deep** | `TECH.ROS_INTERFACE`: topic/service/action names, msg types, QoS, lifecycle, tf frames |
+| `cross-product` | TECH.ARCH **deep**, TECH.COMPAT **deep**, BUSINESS.RISK **deep** | `TECH.INTEGRATION`: REST↔ROS bridge protocol, latency SLA, reconnect; `TECH.SAFETY`: E-Stop propagation |
+| `web` | no change (Step A–C apply normally) | — |
+| `infra` | BUSINESS.WHO **light**, INTERACTION all **light** | — |
 
 Write the derived calibration into `qa-log.md` frontmatter as `depth_calibration:` so Phase 1 and the gap-auditor can read it.
 
@@ -405,14 +472,44 @@ Update `qa-log.md` frontmatter: `status: complete` with final coverage scores.
 Run 3 agents **in parallel**:
 
 1. Read `${baseDir}/templates/reqs-axis.md` template
-2. Dispatch simultaneously:
+2. Read `where.sr_profile` from `qa-log.md` frontmatter
+3. Dispatch simultaneously:
    - **business-extractor** agent with: qa-log.md content + template
    - **interaction-extractor** agent with: qa-log.md content + template
-   - **tech-extractor** agent with: qa-log.md content + template
-3. Write outputs to:
+   - **tech-extractor** agent with: qa-log.md content + template + SR profile boundary context (see below)
+4. Write outputs to:
    - `.hoyeon/specs/{spec-name}/reqs-business.md`
    - `.hoyeon/specs/{spec-name}/reqs-interaction.md`
    - `.hoyeon/specs/{spec-name}/reqs-tech.md`
+
+### SR-Harness: tech-extractor boundary context injection
+
+When `where.sr_profile` is set, append the following to the tech-extractor prompt:
+
+**sr_profile == `driver`** — HW↔Driver↔ROS boundary:
+```
+Apply boundary decomposition per interface layer:
+Each sub-requirement must be separated into: HW communication | Driver processing | ROS interface.
+Do NOT mix HW protocol details and ROS topic names in a single sub-req.
+Example boundary: UART packet send (R-T1.1) ↔ /cmd_vel subscriber (R-T1.2) ↔ timeout E-Stop (R-T1.3)
+```
+
+**sr_profile == `ros-node`** — Node↔Node (topic/service/action) boundary:
+```
+Apply boundary decomposition per ROS interface:
+Each sub-requirement must be separated by publisher side ↔ subscriber side (or client ↔ server).
+Include: topic/service/action name, message type, QoS setting, and success/failure condition per side.
+Example boundary: /navigate_to_pose action client (R-T1.1) ↔ global planner server (R-T1.2) ↔ local planner cmd_vel (R-T1.3)
+```
+
+**sr_profile == `cross-product`** — REST↔ROS Bridge↔ROS boundary:
+```
+Apply boundary decomposition across three layers: SARICS side | Bridge | SPX side.
+Each cross-system interaction needs sub-reqs on all three sides.
+Example boundary: POST /api/missions (R-T1.1) ↔ bridge dispatch (R-T1.2) ↔ /mission_request ROS publish (R-T1.3)
+```
+
+If `sr_profile` is `web`, `infra`, or null: use standard v2 boundary decomposition (API↔UI etc.).
 
 ## Phase 3: Cross-Check
 

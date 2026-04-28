@@ -520,6 +520,65 @@ hoyeon-cli plan merge <spec_dir> --append --json "$(cat /tmp/bp-verify.json)"
 
 ---
 
+## Phase 4.5: Design Document Generation (SR-Harness)
+
+Generate `<spec_dir>/design.md` — a human-readable architecture document for engineering review and onboarding. This phase runs after verify_plan is committed (plan.json is complete) so all inputs are available.
+
+**Skip condition**: if `meta.type == bugfix` AND plan has ≤ 3 tasks → skip (too trivial to warrant a design doc).
+
+### Inputs
+
+| Source | Used for |
+|---|---|
+| `requirements.md` | §3 엔티티, §4 기능 상세 (R-B/R-U/R-T → endpoint/flow) |
+| `contracts.md` | §2 아키텍처 (interfaces), §6 핵심 설계 결정 (invariants) |
+| `plan.json tasks[]` | §5 시퀀스 다이어그램 (task dependency chain) |
+| `plan.json meta` | §1 시스템 개요 (goal, type, non_goals) |
+
+### 9-Section Standard
+
+Generate each section in order. Required sections (✓) must always be present; optional sections (–) are included when content exists.
+
+| # | Section | Req | Content |
+|---|---|:---:|---|
+| 1 | 시스템 개요 | ✓ | 목적 2-3문장 + tech stack table (`\| 분류 \| 기술 \| 용도 \|`) |
+| 2 | 아키텍처 | ✓ | **3관점**: 2.1 배포 구조 (ASCII + 표), 2.2 정적 구조 (모듈 관계도 + 역할 표), 2.3 동적 흐름 (경로별 도식 + 비교표) |
+| 3 | 주요 엔티티 | ✓ | 데이터 모델 표, 상태 머신, 열거형, 스키마, 설정 구조 |
+| 4 | 주요 기능 상세 | ✓ | 기능별 섹션: 엔드포인트/토픽명, JSON/msg 예시, 처리 흐름 ASCII, 알고리즘, 분기 조건 |
+| 5 | 시퀀스 다이어그램 | ✓ | plan.json task 의존성 기반. Mermaid(복잡한 시퀀스) 또는 ASCII. **실제 파일/클래스명 사용** |
+| 6 | 핵심 설계 결정 | ✓ | contracts.md invariants/interfaces 기반. 결정별: 무엇을 + 왜(대안 대비) + 코드/설정 예시 |
+| 7 | API / 인터페이스 요약 | – | 전체 엔드포인트 또는 ROS topic/service/action 표 |
+| 8 | 테스트 구조 | – | 테스트 파일별 표 + 격리 전략 (plan.json verify_plan 기반) |
+| 9 | 확장 포인트 | – | 미구현 기능의 구체적 추가 방법 |
+
+### Writing Principles (mandatory)
+
+1. **도해만 그리지 않음** → 반드시 구체적 설명(표/산문) 동반
+2. **추상적 이름 금지** → 실제 파일명, 클래스명, 함수명, 토픽명 사용
+3. **JSON/msg 예시 포함** → 요청/응답 또는 ROS msg 필드 실제 값으로
+4. **ASCII 기본, Mermaid는 복잡한 시퀀스에만**
+5. **각 다이어그램에 설명 표 동반**
+6. **Rendering ≠ Copying** — requirements.md/contracts.md의 내용을 그대로 붙이지 않고, 반드시 설명을 생성해야 함
+   - `invariant: "ROS2 QoS = reliable"` → §6: reliable vs best-effort 비교 + 적용 이유 + 설정 예시
+   - `R-T1.1 given/when/then` → §4: 실제 토픽명, msg 타입, 처리 흐름 ASCII
+
+### SR Profile overrides
+
+When `where.sr_profile` is in qa-log.md (read from `<spec_dir>/qa-log.md`):
+
+| sr_profile | §2 아키텍처 추가 뷰 | §4 기능 상세 포맷 | §5 시퀀스 포맷 |
+|---|---|---|---|
+| `driver` | HW 통신 레이어 다이어그램 (HW↔Driver↔ROS) | UART 패킷 포맷 + ROS 토픽 형식 | HW interrupt → Driver → ROS publish 흐름 |
+| `ros-node` | Node graph (토픽/서비스/액션 연결도) | topic/service/action 명세표 (이름, msg 타입, QoS) | Node-to-Node 메시지 흐름 (publisher → subscriber) |
+| `cross-product` | SARICS↔Bridge↔SPX 전체 아키텍처 | REST API + ROS interface 혼합 명세 | REST call → Bridge → ROS publish 3-layer 시퀀스 |
+| `web` | 기본 (frontend↔backend↔DB) | REST API 엔드포인트 표 | HTTP request → handler → DB 흐름 |
+
+### Output
+
+Write `<spec_dir>/design.md`. This file is **for human review only** — /execute does not read it.
+
+---
+
 ## Phase 5: Commit
 
 ### Step 5.1: Full validation
@@ -550,6 +609,7 @@ Summary:
   Journeys:  2
   Verify:    18 entries (G1:18, G2:18, G3:7, G4:1)
   Contracts: 5 interfaces, 3 invariants (contracts.md)
+  Design:    design.md (9 sections)            ← SR-Harness: shown if generated
 
 Next: /execute <spec_dir>/
 ```
@@ -565,6 +625,7 @@ Auto-approve rules:
 ✅ Blueprint committed.
    plan.json     ← 11 tasks, 2 journeys, 18 verify entries
    contracts.md  ← 5 interfaces, 3 invariants
+   design.md     ← 9 sections (SR-Harness, if generated)
 
 Next: /execute <spec_dir>/
 ```

@@ -1,4 +1,5 @@
 .playground*
 .references
 .hoyeon/*
+.sr-harness/
 .worktrees

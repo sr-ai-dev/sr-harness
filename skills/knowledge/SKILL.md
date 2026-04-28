@@ -126,7 +126,11 @@ brownfield 작업 시 `/specify`가 `qa-log.md`의 `where.sr_modules` 정보를 
 > 3. **부분 일치** (Jaccard 유사도 ≥ 0.7 또는 substring 포함) → 기존 항목 유지하고 신규는 skip. 단 bugfix처럼 회피 패턴이 추가되는 경우 신규를 별도 항목으로 추가.
 > 4. **불일치** → 정상 추가.
 >
-> **압축 정책 (선택):** Accumulated Learnings가 50개를 초과하면 가장 오래된 절반을 `## Archived Learnings` 섹션으로 이동. 같은 헤딩 anchor 정책 적용. 이 압축은 자동 트리거 아니며 `/knowledge update {module} --compact` 같은 명시 옵션에서만 수행 (현재 미구현, 향후 확장).
+> **압축 정책 (선택):** Accumulated Learnings가 50개를 초과하면 가장 오래된 절반을 `## Archived Learnings` 섹션으로 이동. 같은 헤딩 anchor 정책 적용. 자동 트리거되지 않으며 `/knowledge update {module} --compact` 옵션이 명시될 때만 수행. 구현은 `scripts/kb-compact.py` 헬퍼 스크립트에 위임:
+> ```bash
+> python3 scripts/kb-compact.py {kb_file.md} [--threshold 50] [--keep-ratio 0.5] [--dry-run]
+> ```
+> 압축 결과: 가장 최근 절반(날짜 기준)을 Accumulated Learnings에 유지, 나머지를 Archived Learnings로 이동. 다른 섹션은 영향 없음.
 
 **ROS 분기 파일 생성 규칙:**
 - `package.xml`에서 ROS 버전 감지
@@ -197,9 +201,30 @@ modules:
 - sr-harness 자체는 KB **호스트** 역할이므로 `source.path`로 등록할 수 없다. 픽스처 디렉토리(`.playground/`)도 운영 환경에서는 등록하지 않는다.
 - `commit_sha`는 `git -C {source.path} rev-parse HEAD` 의 출력값이다. `.git` 디렉토리가 없으면 staleness 비교 불가 → `/knowledge status`에서 `⚠ no-git` 표시.
 
+**Cross-product 항목 스키마 (예외):**
+
+`cross/{a}-{b}.md` 형태의 cross-product KB는 단일 모듈에 속하지 않으므로 다음 변형 스키마를 사용한다.
+
+```yaml
+modules:
+  {bridge-name}:                    # 예: sarics-spx-bridge
+    product: cross                  # 고정값
+    files:
+      common: cross/{a}-{b}.md
+    source:
+      path: {KB 호스트 레포 루트}    # cross는 모듈 레포 없음 → KB 호스트 참조 (예외)
+      github: {KB 호스트 git remote URL}
+    ros: null                       # cross는 ROS 버전 무관
+    scanned_at: "{ISO 8601}"
+    commit_sha: "{KB 호스트 HEAD SHA}"
+    cross_modules: [{module-a}, {module-b}]   # 필수: 연결된 모듈 이름
+```
+
+cross-product `commit_sha`는 KB 호스트의 SHA로 staleness 추적. 연결된 모듈 중 하나라도 변경되면 사용자가 수동으로 cross KB를 갱신한다 (자동 추적 미지원).
+
 ---
 
-### `/knowledge update {module}`
+### `/knowledge update {module} [--compact]`
 
 기존 지식 파일을 갱신한다. 변경이 있을 때만 재스캔.
 
@@ -207,8 +232,9 @@ modules:
 
 1. index.yaml에서 해당 모듈의 `commit_sha` 조회
 2. 현재 워크스페이스의 `git rev-parse HEAD`와 비교
-3. 동일하면: "변경 없음. 스킵합니다."
+3. 동일하면: "변경 없음. 스킵합니다." (단, `--compact` 옵션이 있으면 압축은 진행)
 4. 다르면: 재스캔 (= `/knowledge scan` 동작) → commit_sha 갱신
+5. `--compact` 옵션이 있으면 마지막에 `scripts/kb-compact.py` 호출하여 압축 (위 압축 정책 참조)
 
 ---
 

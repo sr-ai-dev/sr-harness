@@ -1,7 +1,7 @@
 ---
 spec: "{spec-name}"
 phase: extract
-axis: "{business | ux | tech}"
+axis: "{business | interaction | tech}"
 count: 0
 ---
 
@@ -34,5 +34,7 @@ Parsing hints:
   - Field:              ^- \*\*(\w+)\*\*: (.+)
   - Sub-requirement ID: ^#### R-[BUT]\d+\.\d+: (.+)
   - GWT fields:         given/when/then under sub-requirement
-  - Axis codes:         B=Business, U=UX, T=Tech
+  - Axis codes:         B=Business, U=Interaction, T=Tech
+  - Use `interaction` as the frontmatter axis name. `UX` is only a lens for
+    user-facing projects, not the canonical axis name.
 -->

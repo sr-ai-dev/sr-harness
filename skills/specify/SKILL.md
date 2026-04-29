@@ -6,6 +6,27 @@ description: |
   Turn a goal into structured requirements through systematic interview.
   Three phases: Interview → Extract → Cross-check.
   Writes requirements.md in the cli format (consumed by /blueprint).
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+  - Task
+  - AskUserQuestion
+  - Skill
+validate_prompt: |
+  Must produce or preserve a valid <spec_dir>/requirements.md with only type,
+  goal, and non_goals in frontmatter. Requirement IDs must use R-B*, R-U*, and
+  R-T* only, and every sub-requirement must include given/when/then.
+  For brownfield-extension, brownfield-refactor, and hybrid specs, qa-log.md
+  must either have where.research_done: true or record an explicit research skip
+  / fallback reason in ## Research.
+  After Phase 2, reqs-business.md, reqs-interaction.md, reqs-tech.md, and
+  cross-check.md must exist. cross-check.md must keep ## Dedup Log before
+  ## Cross-Check Report.
+  Phase 4.2 decisions must be persisted in qa-log.md ## Resolutions as CC-N
+  entries. Final Open Decisions must be promoted from qa-log.md ## Open Items
+  and deferred CC-N resolutions.
 ---
 
 # specify: Goal → Requirements via Systematic Interview
@@ -212,6 +233,7 @@ If the user picks none, proceed with base calibration. Otherwise, modifiers will
   - `${baseDir}/templates/qa-log.md`
   - `${baseDir}/templates/reqs-axis.md`
   - `${baseDir}/templates/requirements.md`
+  - `${baseDir}/references/research-prompts.md`
   If any template is missing, abort immediately with a clear message. Do not begin the interview and risk losing hours of Q&A at Phase 4.
 - **Bootstrap via cli** — creates the directory AND writes a `requirements.md` stub with the correct frontmatter so /blueprint can read it later:
   ```bash
@@ -311,7 +333,7 @@ Why: brownfield work depends on existing code that the user may not fully rememb
 
 Before any KB lookup or agent dispatch, read `<spec_dir>/qa-log.md` if it exists.
 
-If `where.research_done: true` or an existing `## Research` section is present, ask the user whether to reuse or refresh:
+If `where.research_done: true`, ask the user whether to reuse or refresh:
 
 ```
 AskUserQuestion(
@@ -325,6 +347,8 @@ AskUserQuestion(
 
 - **Re-use**: preserve the existing `## Research` section and skip this phase.
 - **Re-scan**: run this phase again; append a dated `### Re-scan` subsection instead of deleting previous findings.
+- A blank template `## Research` heading does **not** count as cached research. If `research_done: false`, proceed to KB lookup or agent dispatch even when the heading already exists.
+- If recovering a legacy `qa-log.md` without `research_done`, treat the section as cached only when it contains non-comment, non-whitespace content.
 
 ### SR-Harness: KB-first lookup
 
@@ -351,7 +375,12 @@ Run this check BEFORE dispatching agents. If `where.sr_modules` was detected in 
      ]
    )
    ```
-   Apply the user's answer per module: Use existing → `kb_loaded`; Re-scan now → run `/knowledge scan {module}` then `kb_loaded`; Skip → `agent_scan`.
+   Apply the user's answer per module:
+   - Use existing → `kb_loaded`
+   - Re-scan now → invoke `/knowledge scan {module}` via the knowledge skill, then reload the KB and mark `kb_loaded`
+   - Skip → `agent_scan`
+
+   If `/knowledge scan {module}` fails, is unavailable, or the user aborts it, do not abort `/specify`. Mark that module as `agent_scan`, add `KB re-scan failed: {module} — {reason}` to `qa-log.md` `## Research`, and continue with agent dispatch.
 4. If **all** modules are `kb_loaded` → skip "Dispatch subagents in parallel" entirely. Write KB content into `qa-log.md` `## Research` section directly.
 5. If **some** modules are `kb_loaded` (and others are `agent_scan`) → still dispatch agents, but inject the following constraints into each agent prompt:
    - **Exclude already-known modules**: list `kb_loaded` modules with note "이미 KB로 처리됨 — 스캔 제외"
@@ -361,23 +390,17 @@ Run this check BEFORE dispatching agents. If `where.sr_modules` was detected in 
 
 ### Dispatch subagents in parallel
 
-```
-Task(subagent_type="code-explorer",
-     prompt="Goal: {goal}. Find: existing patterns, modules, or files relevant to this change. Report as file:line format with brief summary.")
+Read `${baseDir}/references/research-prompts.md` and dispatch the listed prompts:
 
-Task(subagent_type="code-explorer",
-     prompt="Find project structure and toolchain: package manifests, build/test/lint commands, entry points, deployment config. Report as file:line format.")
-
-Task(subagent_type="docs-researcher",
-     prompt="Goal: {goal}. Search ADRs, READMEs, docs/, CLAUDE.md, config files for conventions, architecture decisions, and constraints relevant to this work. Report as file:line format.")
-```
+- **Relevant Code Explorer** → `code-explorer`
+- **Toolchain Explorer** → `code-explorer`
+- **Docs Researcher** → `docs-researcher`
 
 For `brownfield-refactor` specifically, add:
 
-```
-Task(subagent_type="code-explorer",
-     prompt="Find all call sites and dependents of {the area being refactored}. Report impact surface as file:line format.")
-```
+- **Refactor Impact Explorer** → `code-explorer`
+
+When some modules were already loaded through KB, apply the prompt constraint from `research-prompts.md` so agents exclude `kb_loaded` modules and scan only `agent_scan` modules.
 
 ### Consolidate into `qa-log.md` → `research:` section
 
@@ -430,6 +453,19 @@ Use the `depth_calibration:` frontmatter from `qa-log.md` to decide minimum inte
 | `deep` | 4+ | Required for every ambiguity signal | Required; a single shallow answer is usually CONTINUE |
 
 If an SR profile activates additional nodes such as `TECH.ROS_INTERFACE`, `TECH.HW_INTERFACE`, `TECH.INTEGRATION`, or `TECH.SAFETY`, apply the same depth table to those nodes.
+
+### SR Extra Node Recording
+
+When SR profile activates extra Tech nodes, append their headings under `## Axis: Tech` in `qa-log.md` after `### SECURITY`. Use the same Q/Drill/status recording format as built-in nodes.
+
+| Active node | Heading to add |
+|---|---|
+| `TECH.ROS_INTERFACE` | `### ROS_INTERFACE` |
+| `TECH.HW_INTERFACE` | `### HW_INTERFACE` |
+| `TECH.INTEGRATION` | `### INTEGRATION` |
+| `TECH.SAFETY` | `### SAFETY` |
+
+The gap-auditor must receive these active nodes in the taxonomy checklist and include them in coverage calculations.
 
 ### Late SR Profile Surface
 
@@ -873,7 +909,14 @@ Only after user has explicitly approved the preview:
    - Sub: `#### R-X<num>.Y:` at H4 with `given/when/then` lines
    - No axis grouping headings in the body (flat list); axis is encoded in the ID letter
 4. **Frontmatter** carries only `type`, `goal`, `non_goals[]`. Do NOT add extra keys like `spec`, `phase`, `date`, `total_requirements` — those broke with cli's frontmatter format.
-5. Pre-work is optional — include only when the interview surfaced actions the user must complete before execution (e.g., "get API key", "run migration"). Mark each item `(blocking)` or `(non-blocking)`. execute will gate on blocking items.
+5. Pre-work is optional — include only when the interview surfaced actions the user must complete before execution (e.g., "get API key", "run migration"). Use this exact checkbox format:
+   ```markdown
+   ## Pre-work
+
+   - [ ] <action text> (blocking)
+   - [ ] <action text> (non-blocking)
+   ```
+   Allowed markers are exactly `(blocking)` and `(non-blocking)`. `/execute` gates only on unchecked `(blocking)` items; `(non-blocking)` items are reported but do not block execution.
 6. Open Decisions is optional — omit the section if no unresolved decisions.
    - **Open Items → Open Decisions promotion**: items recorded in `qa-log.md` `## Open Items` (interview scratchpad) plus any `defer` resolutions from Step 4.2 are the source. Assign sequential `OD-N` IDs and write each as one entry in this section. The two names refer to the same concept at different stages — `Open Items` is the in-flight scratch, `Open Decisions` is the final consumed-by-`/blueprint` form.
 7. Confirm completion with the user, showing final file path + next step: `/blueprint <spec_dir>/`
@@ -909,7 +952,8 @@ All outputs go to `<spec_dir>/` (default `.hoyeon/specs/{spec-name}/`):
 ## CLI Dependency
 
 - `hoyeon-cli req init <spec_dir> --type <t> --goal "<g>"` (Phase 0.3) — creates dir + requirements.md stub
-- No other cli commands are called by /specify. Phase 4.3 overwrites `requirements.md` directly via Write tool.
+- No other cli commands are called directly by /specify. Phase 4.3 overwrites `requirements.md` directly via Write tool.
+- Phase 0.5 may invoke the `/knowledge scan {module}` skill when the user chooses "Re-scan now" for stale KB. If that skill call fails or is aborted, fall back to agent scan for the module and record the fallback in `qa-log.md` `## Research`.
 
 ## Agents Used
 

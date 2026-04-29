@@ -5,6 +5,7 @@
 > 구현 동기화: 2026-04-29 (`skills/specify/SKILL.md` 반영)
 > 추가 보강: 2026-04-29 (v1.6.0-sr.3 — 7건 추가 적용. 본 문서 마지막 섹션 참조)
 > 후속 보강: 2026-04-29 (v1.6.0-sr.4 — 6건 추가 적용. 본 문서 마지막 섹션 참조)
+> 개선안 정비: 2026-04-29 (v1.6.0-sr.5 개선안 실제 스킬 파일 반영)
 > 목적: `/specify` SKILL.md 내부 파이프라인의 잠재적 문제점과 개선 방향 정리
 
 ---
@@ -358,7 +359,7 @@ ${baseDir}/templates/requirements.md
 
 | Skill | Pipeline role | Main purpose | `validate_prompt` | Tool policy | 정비 포인트 |
 |-------|---------------|--------------|-------------------|-------------|-------------|
-| `specify` | Core pipeline | 목표를 인터뷰 기반 `requirements.md`로 변환 | 없음 | 없음 | 이번 문서의 적용 항목 반영 완료. 다음 단계로 `validate_prompt` 추가 권장 |
+| `specify` | Core pipeline | 목표를 인터뷰 기반 `requirements.md`로 변환 | 있음 | 있음 | v1.6.0-sr.5에서 `validate_prompt`와 `allowed-tools` 추가, Research cache/Pre-work/SR node/KB handoff 반영 |
 | `blueprint` | Core pipeline | `requirements.md`에서 `plan.json`, `contracts.md`, `design.md` 생성 | 없음 | 없음 | 산출물 3종 생성 조건을 `validate_prompt`로 고정 필요 |
 | `execute` | Core pipeline | `plan.json` 또는 `requirements.md`를 실행 태스크로 수행 | 있음 | 있음 | 현재 커버리지 양호 |
 | `bugfix` | Core pipeline | RCA → requirements → execute 기반 버그 수정 | 있음 | 있음(`allowed_tools`) | tool policy key를 `allowed-tools`로 표준화 권장 |
@@ -557,8 +558,124 @@ v1.6.0-sr.3에서 닫은 7건 외에 분석가가 추가로 제기한 N-1~N-14�
 | N-4 | Phase 4 in-memory 소실 | C-1 패턴 일반화 | qa-log 기반 영속/재구성 |
 | N-9 | 용어 혼재 | Step 4.4 final write | 단계 promotion 명시 |
 
-### 다음 사이클(예상 v1.6.0-sr.5) 후보
+### v1.6.0-sr.5 적용 개선안
 
-- **N-10** Pre-work 파싱 형식 — specify ↔ execute 양쪽 명세화 필요
-- **N-13** Phase 0.5 inline prompt 추출 — 변경 발생 트리거 시
-- **N-11** validate_prompt + allowed-tools — 메타-개선 사이클 (이전 합의)
+v1.6.0-sr.4까지는 파이프라인 붕괴 위험과 재실행 안전성 문제를 대부분 닫았다. v1.6.0-sr.5 보강은 남은 모호성을 줄이고, 이미 적용한 규칙이 다시 흐트러지지 않도록 검증 장치를 붙이는 데 초점을 둔다.
+
+| ID | 우선순위 | 개선안 | 적용 범위 | 상태 |
+|---|---:|---|---|---|
+| **N-15** | P0 | Phase 0.5 Research cache hit 조건 수정 | `skills/specify/SKILL.md`, `templates/qa-log.md` | 적용됨 |
+| **N-11** | P1 | `validate_prompt` + `allowed-tools` 추가 | `skills/specify/SKILL.md` | 적용됨 |
+| **N-10** | P1 | `## Pre-work` 파싱 형식 명세 | `skills/specify/SKILL.md`, `skills/execute/SKILL.md` | 적용됨 |
+| **N-16** | P1 | SR 추가 노드 기록 규칙 명시 | `skills/specify/SKILL.md`, `templates/qa-log.md` | 적용됨 |
+| **N-17** | P2 | `/knowledge scan` handoff 계약 정리 | `skills/specify/SKILL.md`, `skills/knowledge/SKILL.md` | 적용됨 |
+| **N-18** | P3 | `interaction`/`ux` 용어 정리 | `templates/reqs-axis.md`, extractor agents | 적용됨 |
+| **N-13** | P3 | Phase 0.5 agent prompt 추출 | `skills/specify/references/research-prompts.md` | 적용됨 |
+
+#### N-15. Phase 0.5 Research cache hit 조건 수정
+
+**현상:** `skills/specify/SKILL.md`는 `where.research_done: true` 또는 기존 `## Research` 섹션 존재를 캐시 hit로 본다. 하지만 `templates/qa-log.md`는 신규 spec에도 빈 `## Research` 섹션을 기본으로 포함한다.
+
+**영향:** 첫 brownfield 실행에서도 "Existing research is already recorded" 질문이 뜰 수 있다. 사용자가 Re-use를 선택하면 실제 코드 스캔 없이 Phase 1 Tech interview가 시작되어, brownfield 요구사항이 기존 코드 사실 없이 진행된다.
+
+**개선:** 캐시 hit 기준을 다음 중 하나로 좁힌다.
+
+```
+cache_hit = where.research_done == true
+         OR Research section contains non-comment, non-whitespace content
+```
+
+템플릿의 빈 anchor는 존재만으로 캐시로 보지 않는다. 더 단순한 해법은 `where.research_done: true`만 신뢰하고, `## Research` 섹션 존재 조건을 삭제하는 것이다.
+
+**검증:** 새 spec을 만들고 `where.situation: brownfield-extension`, `research_done: false`, 빈 `## Research` 섹션만 있는 상태에서 Phase 0.5를 시작했을 때, Re-use/Re-scan 질문 없이 KB lookup 또는 research agent dispatch로 진행되어야 한다.
+
+#### N-11. `validate_prompt` + `allowed-tools` 추가
+
+**현상:** `specify`는 산출물이 많은 core pipeline인데 frontmatter에 `validate_prompt`와 `allowed-tools`가 없다. 이미 C-1~N-15 같은 세부 규칙을 문서화했더라도, 스킬 완료 시 자동으로 점검하지 않으면 회귀를 놓치기 쉽다.
+
+**개선:** `skills/specify/SKILL.md` frontmatter에 다음 계열의 검증 조건을 추가한다.
+
+- `requirements.md`는 frontmatter `type`, `goal`, `non_goals`만 포함한다.
+- 최종 요구사항 ID는 `R-B*`, `R-U*`, `R-T*`만 사용한다.
+- 모든 sub-requirement는 `given`, `when`, `then`을 가진다.
+- brownfield/hybrid 실행 후에는 `qa-log.md where.research_done` 또는 명시적 skip 사유가 있어야 한다.
+- Phase 2 이후에는 `reqs-business.md`, `reqs-interaction.md`, `reqs-tech.md`, `cross-check.md`가 존재한다.
+- `cross-check.md`는 `## Dedup Log`와 `## Cross-Check Report` 순서를 유지한다.
+- Phase 4.2 결정은 `qa-log.md ## Resolutions`에 `CC-N` 단위로 기록된다.
+
+`allowed-tools`는 실제 동작에 필요한 도구만 연다. 기본 후보는 `Read`, `Write`, `Edit`, `Bash`, `Task`, `AskUserQuestion`이다. 외부 웹 검색은 `/specify`의 기본 동작이 아니므로 열지 않는다.
+
+**검증:** 의도적으로 `R-I1.1` 또는 `cross-check.md` 누락 상태를 만든 뒤 PostToolUse 검증이 실패 이유를 지적해야 한다.
+
+#### N-10. `## Pre-work` 파싱 형식 명세
+
+**현상:** `specify`는 final `requirements.md`에 `## Pre-work`를 쓸 수 있다고 하고, `execute`는 이 섹션을 gate로 읽는다. 하지만 checkbox 항목의 정확한 파싱 형식이 양쪽에서 완전히 고정되어 있지 않다.
+
+**개선:** 두 스킬 모두 아래 형식을 표준으로 삼는다.
+
+```markdown
+## Pre-work
+
+- [ ] <action text> (blocking)
+- [ ] <action text> (non-blocking)
+```
+
+허용 값은 `(blocking)`과 `(non-blocking)` 두 개뿐이다. `execute`는 blocking 항목이 하나라도 남아 있으면 Proceed/Abort 질문을 띄우고, non-blocking만 있으면 summary에만 표시한다.
+
+**검증:** `requirements.md`에 blocking 1개와 non-blocking 1개를 넣고 `/execute`를 시작했을 때 blocking 항목만 gate 조건으로 잡혀야 한다.
+
+#### N-16. SR 추가 노드 기록 규칙 명시
+
+**현상:** SR profile이 활성화되면 `TECH.ROS_INTERFACE`, `TECH.HW_INTERFACE`, `TECH.INTEGRATION`, `TECH.SAFETY` 같은 추가 interview node가 생긴다. 그러나 `qa-log.md` 템플릿에는 기본 Tech node만 있어, 오케스트레이터가 어디에 질문과 답변을 기록해야 하는지 애매하다.
+
+**개선:** 템플릿에 빈 섹션을 항상 넣기보다는, `SKILL.md`에 동적 생성 규칙을 명시한다.
+
+```
+When SR profile activates extra Tech nodes, append them under "## Axis: Tech"
+after SECURITY, preserving the same Q/Drill/status recording format.
+```
+
+선택적으로 템플릿에는 주석만 둔다.
+
+```markdown
+<!-- SR profile may append TECH.ROS_INTERFACE / TECH.HW_INTERFACE / TECH.INTEGRATION / TECH.SAFETY here. -->
+```
+
+**검증:** `sr_profile: ros-node`로 시작한 spec의 `qa-log.md`에 `### ROS_INTERFACE`가 생성되고, gap-auditor가 해당 노드를 coverage 계산에 포함해야 한다.
+
+#### N-17. `/knowledge scan` handoff 계약 정리
+
+**현상:** Phase 0.5 stale KB 처리에서 Re-scan 선택지는 `/knowledge scan {module}`을 실행한다고 되어 있다. 하지만 `/specify`의 CLI Dependency는 `hoyeon-cli req init`만 언급하고, `/knowledge` 호출 실패 시 fallback도 명시하지 않는다.
+
+**개선:** Re-scan now의 동작을 다음처럼 고정한다.
+
+1. `/knowledge scan {module}`을 sub-skill로 호출한다.
+2. scan 성공 시 KB를 다시 읽고 `kb_loaded`로 표시한다.
+3. scan 실패 또는 사용자가 중단하면 해당 모듈을 `agent_scan`으로 되돌린다.
+4. 실패 사유는 `qa-log.md ## Research`에 `KB re-scan failed` 항목으로 남긴다.
+
+**검증:** stale module에서 Re-scan 실패를 시뮬레이션했을 때 전체 `/specify`가 abort하지 않고 agent scan으로 이어져야 한다.
+
+#### N-18. `interaction`/`ux` 용어 정리
+
+**현상:** 현재 템플릿과 에이전트 일부는 `ux`라는 축 이름을 쓰고, 본 파이프라인은 `interaction`을 공식 축으로 쓴다. ID 문자는 이미 `U`로 정리되었지만, frontmatter와 coverage label이 흔들리면 parser나 검증 prompt가 불필요하게 복잡해진다.
+
+**개선:** 사람이 읽는 축 이름은 `Interaction`, frontmatter 값은 `interaction`, ID 문자는 `U`로 고정한다. `UX`는 user-facing project_type의 lens 이름으로만 사용한다.
+
+**검증:** `reqs-interaction.md` frontmatter가 `axis: interaction`이고, 내부 ID가 `R-U*`만 포함되어야 한다.
+
+#### N-13. Phase 0.5 agent prompt 추출
+
+**현상:** code-explorer/docs-researcher prompt가 `SKILL.md` 본문에 inline으로 들어 있어 작은 문구 변경도 긴 스킬 본문 diff를 만든다.
+
+**적용:** `skills/specify/references/research-prompts.md`를 추가하고, `SKILL.md`에는 prompt 선택 규칙과 입력 변수만 남겼다. Phase 0.5 prompt 변경은 앞으로 reference 파일에서 처리한다.
+
+**검증:** prompt 분리 후에도 brownfield-extension과 brownfield-refactor가 서로 다른 agent prompt를 받는지 확인한다.
+
+### v1.6.0-sr.5 적용 순서 및 결과
+
+1. **N-15**를 먼저 처리했다. 캐시 오판은 첫 실행 품질에 직접 영향을 준다.
+2. **N-11**을 처리해 회귀 방지 장치를 걸었다.
+3. **N-10**과 **N-16**을 함께 처리했다. 둘 다 `/specify` 산출물이 downstream에서 해석되는 방식과 관련 있다.
+4. **N-17**은 `/knowledge`와 함께 반영했다.
+5. **N-18**, **N-13**은 문서/템플릿 정리 성격으로 마지막에 묶어 처리했다.

@@ -103,6 +103,9 @@ if [ -f "$PLUGIN_JSON" ] && [ "$VERSION" != "dev" ]; then
   # v1.5.4-sr.1 형식에서 semver 추출은 하지 않고 전체를 버전으로 사용
   SR_VERSION=$(echo "$VERSION" | sed 's/^v//')
   sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"${SR_VERSION}\"/g" "$PLUGIN_JSON"
+  if [ -f "$MARKETPLACE_JSON" ]; then
+    sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"${SR_VERSION}\"/g" "$MARKETPLACE_JSON"
+  fi
   echo "  버전: ${SR_VERSION}"
 fi
 echo "✅ 버전 업데이트 완료"

@@ -15,12 +15,16 @@ You receive:
 
 ## Depth-Calibrated Evaluation
 
-The `depth_calibration` field tells you how strict to be per node:
+The `depth_calibration` field tells you how strict to be per node. Use the same depth → question-count thresholds that `/specify` uses, so orchestrator and auditor judge by the same yardstick:
 
-- **deep** — require at least 1 drill follow-up with concrete specifics. Missing or shallow answer → flag as AMBIGUOUS or MISSING aggressively.
-- **standard** — require a clear answer. Drill only if genuine ambiguity signals present.
-- **light** — a brief acknowledgment is enough. Treat as COVERED unless the answer is contradictory. Do NOT demand drills for `light` nodes.
-- **skip** (derived from `light` on a Toy project for SECURITY-class nodes) — treat as COVERED automatically; do not flag as MISSING.
+| depth | Minimum questions per active node | Drill expectation | Verdict bias |
+|---|---:|---|---|
+| `light` | 1 | Optional | Treat as COVERED on first clear answer |
+| `standard` | 2-3 | Required when ambiguity signals appear | Flag AMBIGUOUS only on genuine ambiguity |
+| `deep` | 4+ | Required for every ambiguity signal; at least 1 drill follow-up | Single shallow answer → CONTINUE; missing drill → AMBIGUOUS |
+| `skip` | 0 | None | Automatically COVERED (derived from `light` on Toy projects for SECURITY-class nodes) |
+
+Count interview turns per node from `qa-log.md` (each `#### Q:` plus `##### Drill:` under the node). If a `deep` node has fewer than 4 turns OR no drill follow-up, return CONTINUE with an explicit "depth target not met" reason.
 
 This prevents over-engineering toys (e.g., not demanding SHA-256 specifics on a casual game) while keeping production work rigorous.
 

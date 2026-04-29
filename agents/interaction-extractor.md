@@ -51,6 +51,6 @@ Also read `where.ambition`: for `toy`, skip accessibility/i18n requirements unle
 
 ## Output
 
-Follow the `reqs-axis.md` template exactly. Use axis code `I` for all IDs (R-I1, R-I1.1, etc.).
+Follow the `reqs-axis.md` template exactly. Use axis code `U` for all IDs (R-U1, R-U1.1, etc.) — `U` stands for "user (interaction)" and matches the convention used by `/specify` Phase 4.4 and `/blueprint` downstream.
 
 Set frontmatter `axis: interaction` and update `count` with total requirements.

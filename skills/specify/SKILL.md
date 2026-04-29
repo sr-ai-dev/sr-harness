@@ -27,6 +27,8 @@ validate_prompt: |
   Phase 4.2 decisions must be persisted in qa-log.md ## Resolutions as CC-N
   entries. Final Open Decisions must be promoted from qa-log.md ## Open Items
   and deferred CC-N resolutions.
+  Unless explicitly skipped, metrics/specify-events.jsonl and performance.md
+  must be produced so slow /specify runs can be analyzed after the fact.
 ---
 
 # specify: Goal → Requirements via Systematic Interview
@@ -56,6 +58,46 @@ All intermediate files (qa-log.md, reqs-business.md, reqs-interaction.md, reqs-t
 - `${baseDir}` — the directory containing this `SKILL.md` (i.e., `skills/specify/`). Resolves to the same path whether the skill is loaded from the repo or from a plugin marketplace cache.
 - `<spec_dir>` — the per-spec output directory (default `.sr-harness/specs/{spec-name}/`). Decided in Step 0.3.
 - All template references in this file use `${baseDir}/templates/*` and never repo-root paths.
+- Metrics helper path: `${baseDir}/../../scripts/specify-metrics.mjs`
+
+## Performance Metrics
+
+`/specify` records lightweight wall-clock metrics so slow runs can be diagnosed after the session. The metrics are not consumed by `/blueprint`; they are diagnostic artifacts only.
+
+Write metrics to:
+
+- `<spec_dir>/metrics/specify-events.jsonl` — raw event stream
+- `<spec_dir>/performance.md` — summary report with bottleneck and improvement candidates
+
+Use this helper:
+
+```bash
+node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> <phase> <event> --label "<label>"
+node "${baseDir}/../../scripts/specify-metrics.mjs" report <spec_dir> > <spec_dir>/performance.md
+```
+
+Record these events:
+
+| Moment | Command shape |
+|---|---|
+| Phase start | `mark <spec_dir> phase0 phase_start --label "WHERE Grounding"` |
+| Phase end | `mark <spec_dir> phase0 phase_end --label "WHERE Grounding"` |
+| AskUserQuestion before/after | `mark <spec_dir> phase1 ask_user_start/end --label "<axis or gate>"` |
+| gap-auditor before/after | `mark <spec_dir> phase1 gap_audit_start/end --label "<business|interaction|tech|final>"` |
+| extractor before/after | `mark <spec_dir> phase2 agent_start/end --label "<business-extractor|interaction-extractor|tech-extractor>"` |
+| research agent before/after | `mark <spec_dir> phase0.5 agent_start/end --label "<code-explorer|docs-researcher|refactor-impact>"` |
+
+At the end of Phase 4.4, generate the report:
+
+```bash
+node "${baseDir}/../../scripts/specify-metrics.mjs" report <spec_dir> > <spec_dir>/performance.md
+```
+
+Interpretation rules:
+- `ask_user_*` duration includes user wait time. If that dominates, the bottleneck is workflow friction, not model work.
+- `gap_audit_*` count identifies audit loops. Repeated loops usually mean Phase 1 questions are too broad or depth thresholds are too strict.
+- `phase0.5` dominance usually means KB cache miss, stale KB re-scan, or over-broad code exploration.
+- `phase2` dominance usually means extractor agents are not effectively parallel or one extractor has a prompt/output bloat issue.
 
 ## Phase 0: WHERE Grounding
 
@@ -234,6 +276,7 @@ If the user picks none, proceed with base calibration. Otherwise, modifiers will
   - `${baseDir}/templates/reqs-axis.md`
   - `${baseDir}/templates/requirements.md`
   - `${baseDir}/references/research-prompts.md`
+  - `${baseDir}/../../scripts/specify-metrics.mjs`
   If any template is missing, abort immediately with a clear message. Do not begin the interview and risk losing hours of Q&A at Phase 4.
 - **Bootstrap via cli** — creates the directory AND writes a `requirements.md` stub with the correct frontmatter so /blueprint can read it later:
   ```bash
@@ -281,6 +324,12 @@ If the user picks none, proceed with base calibration. Otherwise, modifiers will
     sr_raw_input: "<user's original input text>"
   ```
 
+After `<spec_dir>` is known and pre-flight passes, start Phase 0 metrics:
+
+```bash
+node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase0 phase_start --label "WHERE Grounding"
+```
+
 ### Step 0.4: Derive Axis Depth Calibration
 
 Combine SITUATION × AMBITION × RISK_MODIFIERS to assign each taxonomy node a depth level (**light**, **standard**, or **deep**). Apply rules in order — later rules escalate, never downgrade.
@@ -323,11 +372,25 @@ Apply only when `where.sr_profile` is set. These escalate on top of Step C — n
 
 Write the derived calibration into `qa-log.md` frontmatter as `depth_calibration:` so Phase 1 and the gap-auditor can read it.
 
+When Step 0.4 finishes, close Phase 0:
+
+```bash
+node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase0 phase_end --label "WHERE Grounding"
+```
+
 ## Phase 0.5: Context Research (brownfield only)
 
 **Skip this phase entirely if `where.situation == greenfield`.** Run it for `brownfield-extension`, `brownfield-refactor`, and `hybrid`.
 
 Why: brownfield work depends on existing code that the user may not fully remember. Asking the user "what's the architecture?" when the codebase is right there is wasteful and unreliable. Scan the code first, then interview them on decisions — not facts.
+
+Record Phase 0.5 start/end:
+
+```bash
+node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase0.5 phase_start --label "Context Research"
+# ... after research consolidation or explicit Re-use skip
+node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase0.5 phase_end --label "Context Research"
+```
 
 ### Re-run cache check
 
@@ -402,6 +465,8 @@ For `brownfield-refactor` specifically, add:
 
 When some modules were already loaded through KB, apply the prompt constraint from `research-prompts.md` so agents exclude `kb_loaded` modules and scan only `agent_scan` modules.
 
+For each dispatched research agent, record `agent_start` immediately before dispatch and `agent_end` after its result is received. Use labels `code-explorer:relevant`, `code-explorer:toolchain`, `docs-researcher`, and `code-explorer:refactor-impact`.
+
 ### Consolidate into `qa-log.md` → `research:` section
 
 Write findings into `qa-log.md` under a new top-level heading `## Research` (before the axis sections). Include:
@@ -420,6 +485,14 @@ During Phase 1, when asking Tech axis questions:
 - Only ask the user for **decisions** (what they want) and **intent** (why), not **facts** (what exists — we already found those)
 
 ## Phase 1: Interview
+
+Record Phase 1 start/end:
+
+```bash
+node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase1 phase_start --label "Interview"
+# ... after final audit SUFFICIENT and Proceed gate
+node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase1 phase_end --label "Interview"
+```
 
 ### Interview Protocol
 
@@ -482,6 +555,8 @@ This prevents under-spec when SR context surfaces late, without the heavyweight 
 
 **PRIMARY: Use AskUserQuestion tool for all interview questions.**
 Free-text prompting should only be a fallback when options genuinely cannot be enumerated.
+
+Before every AskUserQuestion call, record `ask_user_start`; immediately after the user answers, record `ask_user_end`. Use the current axis or gate as the label, e.g. `business`, `tech`, `phase2-gate`, `final-preview`.
 
 #### Why AskUserQuestion
 
@@ -643,6 +718,8 @@ Each call:
    - **SUFFICIENT** → move on
 6. **You do NOT decide completion yourself** — only gap-auditor can say SUFFICIENT, except for the explicit circuit-breaker "Accept and move on" path above.
 
+Record `gap_audit_start` immediately before dispatch and `gap_audit_end` after the verdict is read. Use the audited axis as the label.
+
 ### Interview Completion
 
 All 3 axes must receive **SUFFICIENT** verdict, AND the final audit must also return **SUFFICIENT**. A circuit-breaker "Accept and move on" answer counts as sufficient only for the specific axis/final audit where the user accepted the residual gaps.
@@ -664,6 +741,14 @@ If **Add more**, ask which axis needs more detail, continue Phase 1 for that axi
 
 ## Phase 2: Requirements Extraction
 
+Record Phase 2 start/end:
+
+```bash
+node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase2 phase_start --label "Requirements Extraction"
+# ... after all extractors and post-processing complete
+node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase2 phase_end --label "Requirements Extraction"
+```
+
 Run 3 agents **in parallel**:
 
 1. Read `${baseDir}/templates/reqs-axis.md` template
@@ -676,6 +761,8 @@ Run 3 agents **in parallel**:
    - `.sr-harness/specs/{spec-name}/reqs-business.md`
    - `.sr-harness/specs/{spec-name}/reqs-interaction.md`
    - `.sr-harness/specs/{spec-name}/reqs-tech.md`
+
+Record `agent_start` for each extractor before dispatch and `agent_end` after each result is received. This lets the report identify whether a single extractor dominates Phase 2.
 
 ### Phase 2 Post-processing
 
@@ -739,6 +826,14 @@ If `sr_profile` is `web`, `infra`, or null: use standard v2 boundary decompositi
 
 ## Phase 3: Cross-Check
 
+Record Phase 3 start/end:
+
+```bash
+node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase3 phase_start --label "Cross-Check"
+# ... after cross-check.md is written
+node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase3 phase_end --label "Cross-Check"
+```
+
 1. Read all 3 reqs files
 2. Detect issues across axes:
    - **CONFLICT**: requirements that contradict each other across axes
@@ -754,6 +849,14 @@ If `sr_profile` is `web`, `infra`, or null: use standard v2 boundary decompositi
 After Phase 3 writes the report, `cross-check.md` is **immutable** until a Supplement axis or Full re-interview cycle starts (see Phase 4.3). Resolution state belongs in the final `requirements.md` draft and its `## Open Decisions` section, never in `cross-check.md`.
 
 ## Phase 4: User Confirmation & Finalization
+
+Record Phase 4 start/end:
+
+```bash
+node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase4 phase_start --label "Confirmation"
+# ... after requirements.md is written
+node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase4 phase_end --label "Confirmation"
+```
 
 Before writing the final `requirements.md`, surface everything to the user for explicit acceptance. This prevents assumptions from silently becoming "requirements."
 
@@ -919,7 +1022,8 @@ Only after user has explicitly approved the preview:
    Allowed markers are exactly `(blocking)` and `(non-blocking)`. `/execute` gates only on unchecked `(blocking)` items; `(non-blocking)` items are reported but do not block execution.
 6. Open Decisions is optional — omit the section if no unresolved decisions.
    - **Open Items → Open Decisions promotion**: items recorded in `qa-log.md` `## Open Items` (interview scratchpad) plus any `defer` resolutions from Step 4.2 are the source. Assign sequential `OD-N` IDs and write each as one entry in this section. The two names refer to the same concept at different stages — `Open Items` is the in-flight scratch, `Open Decisions` is the final consumed-by-`/blueprint` form.
-7. Confirm completion with the user, showing final file path + next step: `/blueprint <spec_dir>/`
+7. Generate `<spec_dir>/performance.md` using the metrics helper.
+8. Confirm completion with the user, showing final file path + next step: `/blueprint <spec_dir>/`, and mention the top bottleneck from `performance.md`.
 
 ### Step 4.5: KB Save (SR-Harness only)
 
@@ -946,12 +1050,15 @@ All outputs go to `<spec_dir>/` (default `.sr-harness/specs/{spec-name}/`):
 | `reqs-interaction.md` | 2 | Axis extraction scratch | merged into requirements.md |
 | `reqs-tech.md` | 2 | Axis extraction scratch | merged into requirements.md |
 | `cross-check.md` | 2 / 3 | Dedup log plus immutable conflict/gap/duplicate audit record | confirmation traceability only |
+| `metrics/specify-events.jsonl` | 0-4 | Raw timing events for phase and operation analysis | diagnostic only |
+| `performance.md` | 4.4 | Timing summary with bottleneck and improvement candidates | diagnostic only |
 
 **Only `requirements.md` is load-bearing for downstream skills.** The other files are internal scratch/audit — /blueprint does not read them.
 
 ## CLI Dependency
 
 - `sr-harness-cli req init <spec_dir> --type <t> --goal "<g>"` (Phase 0.3) — creates dir + requirements.md stub
+- `node "${baseDir}/../../scripts/specify-metrics.mjs" ...` (Phases 0-4) — records timing diagnostics and writes `performance.md`
 - No other cli commands are called directly by /specify. Phase 4.3 overwrites `requirements.md` directly via Write tool.
 - Phase 0.5 may invoke the `/knowledge scan {module}` skill when the user chooses "Re-scan now" for stale KB. If that skill call fails or is aborted, fall back to agent scan for the module and record the fallback in `qa-log.md` `## Research`.
 

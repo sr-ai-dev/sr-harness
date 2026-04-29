@@ -28,7 +28,13 @@ The final deliverable is `<spec_dir>/requirements.md` in the format that `/bluep
 - `X` in the ID is axis code: **B**=Business, **U**=Interaction (user), **T**=Tech
 - Optional `## Open Decisions` section with `### OD-N:` blocks
 
-All intermediate files (qa-log.md, reqs-business.md, reqs-interaction.md, reqs-tech.md) stay in `<spec_dir>/` for traceability but are NOT read by /blueprint.
+All intermediate files (qa-log.md, reqs-business.md, reqs-interaction.md, reqs-tech.md, cross-check.md) stay in `<spec_dir>/` for traceability but are NOT read by /blueprint.
+
+## Path Conventions
+
+- `${baseDir}` — the directory containing this `SKILL.md` (i.e., `skills/specify/`). Resolves to the same path whether the skill is loaded from the repo or from a plugin marketplace cache.
+- `<spec_dir>` — the per-spec output directory (default `.sr-harness/specs/{spec-name}/`). Decided in Step 0.3.
+- All template references in this file use `${baseDir}/templates/*` and never repo-root paths.
 
 ## Phase 0: WHERE Grounding
 
@@ -40,22 +46,46 @@ The **WHERE** is the combination of current situation and intended scope. It cal
 
 Before generating the mirror, scan the user's input (description + keywords) to infer SR-Harness project context. This replaces the need for a separate product/module selection step.
 
-**Keyword inference rules:**
+**Keyword inference rules use confidence, not single-token matching.**
 
-| Keywords detected | Inference |
+| Context | High-confidence signals | Generic signals (never enough alone) | Inference rule |
+|---|---|---|---|
+| `sr_product: spx` | `spx`, `core-driver`, `core-nav*`, `core-local*`, `core-task`, `core-docking` | `robot`, `driver`, `navigation` | High signal present -> infer `spx` |
+| `sr_product: sarics-nx` | `sarics`, `관제`, `sarics-nx` | `dashboard`, `frontend`, `backend`, `be`, `fe` | High signal present -> infer `sarics-nx`; generic-only needs 2+ signals and mark as `(estimated)` |
+| `sr_product: cross-product` | SPX high signal + SARICS high signal, `ros bridge`, `관제-로봇` | `bridge`, `integration` | High signal pair -> infer `cross-product`; generic-only stays null |
+| `sr_profile: driver` | `core-driver`, `uart`, `can`, `wheel`, `bms`, `sensor`, `lift` | `hw`, `hardware`, `driver` | High signal present -> infer `driver`; generic-only needs 2+ signals and mark as `(estimated)` |
+| `sr_profile: ros-node` | `core-nav*`, `core-local*`, `core-task`, `core-docking`, `nav2`, `amcl`, `ekf`, `rclpy`, `rclcpp` | `node`, `topic`, `action`, `service` | High signal present -> infer `ros-node`; generic-only needs 2+ signals and mark as `(estimated)` |
+| `sr_profile: cross-product` | `sarics` + `spx`, `ros bridge`, `관제-로봇` | `bridge`, `sync`, `api` | High signal present -> infer `cross-product` |
+| `sr_profile: infra` | `simulation`, `simulator`, `infra` | `테스트`, `tool`, `도구` | High signal present -> infer `infra`; generic-only needs 2+ signals and mark as `(estimated)` |
+| `sr_profile: web` | `sarics` with no SPX signal | `dashboard`, `frontend`, `backend` | SARICS high signal -> infer `web`; generic-only stays null |
+| `sr_ros_version: ros2` | `ros2`, `rclpy`, `rclcpp`, `humble`, `iron`, `colcon` | - | High signal present -> infer `ros2` |
+| `sr_ros_version: ros1` | `ros1`, `rospy`, `roscpp`, `noetic`, `catkin` | - | High signal present -> infer `ros1` |
+
+Confidence handling:
+- **high**: domain-specific signal present. Infer automatically.
+- **medium**: 2+ generic signals, or a generic signal plus a related domain-specific signal. Show `(estimated)` in the mirror and let the user correct it during confirmation.
+- **low**: only 1 generic signal. Leave as `null`.
+
+Generic words such as `node`, `service`, `topic`, `action`, `dashboard`, `backend`, `tool`, and `테스트` appear in many domains. Do not use them alone to set SR context.
+
+**`sr_modules` extraction** — populate the array by normalizing matched module tokens. KB-first lookup (Phase 0.5) and KB Save (Step 4.5) iterate this array, so it must be filled whenever the user names specific SPX/SARICS modules.
+
+| Token (case-insensitive) | Normalized module name |
 |---|---|
-| `spx`, `core-driver`, `core-nav*`, `core-local*`, `core-task`, `core-docking` | `sr_product: spx` |
-| `sarics`, `관제`, `dashboard`, `frontend`, `backend`, `be`, `fe` | `sr_product: sarics-nx` |
-| spx + sarics keywords both present | `sr_product: cross-product` |
-| `core-driver`, `uart`, `wheel`, `bms`, `sensor`, `lift`, `hw`, `hardware` | `sr_profile: driver` |
-| `core-nav*`, `core-local*`, `core-task`, `core-docking`, `node`, `topic`, `action`, `service`, `nav2`, `amcl`, `ekf` | `sr_profile: ros-node` |
-| `sarics` + `spx` together, `bridge`, `ros bridge`, `관제-로봇` | `sr_profile: cross-product` |
-| `simulation`, `테스트`, `tool`, `도구`, `infra` | `sr_profile: infra` |
-| `sarics` alone with no SPX keywords | `sr_profile: web` |
-| `ros2`, `rclpy`, `rclcpp`, `humble`, `iron`, `colcon` | `sr_ros_version: ros2` |
-| `ros1`, `rospy`, `roscpp`, `noetic`, `catkin` | `sr_ros_version: ros1` |
+| `core-driver`, `wheel`, `bms`, `led`, `io`, `lift`, `sensor manager` | `core-driver` |
+| `core-localization`, `core-local`, `localization`, `amcl`, `ekf` | `core-localization` |
+| `core-task`, `task scheduler`, `mission scheduler` | `core-task` |
+| `core-navigation`, `core-nav`, `nav2`, `move_base`, `planner` | `core-navigation` |
+| `core-docking`, `docking` | `core-docking` |
+| `sarics-be`, `sarics backend`, `관제 backend` | `sarics-be` |
+| `sarics-fe`, `sarics frontend`, `관제 frontend`, `dashboard` (only when `sarics` co-occurs) | `sarics-fe` |
 
-If `sr_product` or `sr_profile` is not detectable from keywords, leave as `null` — do not ask; the interview (Phase 1 Tech axis) will naturally surface it.
+Rules:
+- Multiple modules can be detected — append all matches.
+- If no module token matches, leave `sr_modules: null` (NOT `[]`) so Phase 0.5 / Step 4.5 skip cleanly.
+- Sub-component tokens (`wheel`, `bms`, etc.) collapse to their parent module — they are not separate modules.
+
+If `sr_product` or `sr_profile` is not detectable at medium or high confidence, leave as `null` — do not ask; the interview (Phase 1 Tech axis) will naturally surface it.
 If only `sr_ros_version` is ambiguous and `sr_profile` is `ros-node` or `driver`, batch a single ROS version question into the mirror confirmation below.
 
 #### Mirror template
@@ -178,6 +208,11 @@ If the user picks none, proceed with base calibration. Otherwise, modifiers will
 
 - Determine **spec name** (kebab-case, e.g., `user-dashboard`)
 - Decide `spec_dir`: default `.sr-harness/specs/{spec-name}/`
+- **Pre-flight templates before starting the interview**. Verify these files exist under the specify skill directory:
+  - `${baseDir}/templates/qa-log.md`
+  - `${baseDir}/templates/reqs-axis.md`
+  - `${baseDir}/templates/requirements.md`
+  If any template is missing, abort immediately with a clear message. Do not begin the interview and risk losing hours of Q&A at Phase 4.
 - **Bootstrap via cli** — creates the directory AND writes a `requirements.md` stub with the correct frontmatter so /blueprint can read it later:
   ```bash
   sr-harness-cli req init <spec_dir> --type <greenfield|feature|refactor|bugfix> --goal "<one-line goal>"
@@ -188,8 +223,29 @@ If the user picks none, proceed with base calibration. Otherwise, modifiers will
   - `brownfield-refactor` → `refactor`
   - `hybrid` → `feature` (or `refactor` if structural churn dominates)
   The stub is overwritten at Phase 4.3 once the interview is complete. If `<spec_dir>/requirements.md` already exists from a prior run, skip `req init` and proceed (the user is re-running specify on the same spec).
+  - **`type` rerun check**: when `<spec_dir>/requirements.md` exists, read its frontmatter `type` and compare with the new SITUATION→type mapping above. If they differ, halt and ask the user whether to keep the existing `type` (and ignore the new SITUATION) or rewrite it (and treat the spec as a Full re-interview per Phase 4.3).
 - Read the Q&A log template from `${baseDir}/templates/qa-log.md`
-- Initialize `<spec_dir>/qa-log.md` with spec name, goal, non-goals, and the WHERE context filled in.
+- Initialize `<spec_dir>/qa-log.md` only when it does not already exist.
+  - If `<spec_dir>/qa-log.md` exists, keep it unchanged, treat the run as a resume/re-run, and append new Q&A under a dated `## Re-run` or `## Re-interview` section when needed.
+  - If it does not exist, create it with spec name, goal, non-goals, and the WHERE context filled in.
+- **Resume mismatch check** — when `<spec_dir>/qa-log.md` exists, compare the existing `where:` frontmatter against the new Mirror result. If any of the following changed, halt and ask the user:
+  - `goal` differs (semantic difference, not whitespace)
+  - `non_goals` set differs
+  - `situation` / `ambition` differ
+  - `sr_product` / `sr_profile` / `sr_modules` differ from non-null existing values
+  ```
+  AskUserQuestion(
+    question: "Existing qa-log.md describes a different scope than the new mirror. How to proceed?",
+    options: [
+      { label: "Update WHERE", description: "Overwrite frontmatter with new mirror result; keep prior Q&A under ## Re-interview" },
+      { label: "Keep existing", description: "Discard new mirror; resume with prior WHERE context" },
+      { label: "Fresh spec", description: "Abort — user will use a different spec_dir" }
+    ]
+  )
+  ```
+  - **Update WHERE**: write new mirror values to frontmatter, append a `## Re-interview` section with the date, continue Phase 0.4.
+  - **Keep existing**: discard new mirror result, restart Phase 0.1 from existing frontmatter values.
+  - **Fresh spec**: abort; the user will rerun `/specify` with a different `spec_dir`.
   Include SR-Harness fields if detected in Step 0.1:
   ```yaml
   where:
@@ -251,22 +307,53 @@ Write the derived calibration into `qa-log.md` frontmatter as `depth_calibration
 
 Why: brownfield work depends on existing code that the user may not fully remember. Asking the user "what's the architecture?" when the codebase is right there is wasteful and unreliable. Scan the code first, then interview them on decisions — not facts.
 
+### Re-run cache check
+
+Before any KB lookup or agent dispatch, read `<spec_dir>/qa-log.md` if it exists.
+
+If `where.research_done: true` or an existing `## Research` section is present, ask the user whether to reuse or refresh:
+
+```
+AskUserQuestion(
+  question: "Existing research is already recorded for this spec. Reuse it or scan again?",
+  options: [
+    { label: "Re-use", description: "Keep the existing Research section and skip research agents" },
+    { label: "Re-scan", description: "Run research agents again and append fresh findings" }
+  ]
+)
+```
+
+- **Re-use**: preserve the existing `## Research` section and skip this phase.
+- **Re-scan**: run this phase again; append a dated `### Re-scan` subsection instead of deleting previous findings.
+
 ### SR-Harness: KB-first lookup
 
 Run this check BEFORE dispatching agents. If `where.sr_modules` was detected in Step 0.1:
 
 1. Read `.sr-harness/knowledge/index.yaml`
-2. For each module in `where.sr_modules`:
-   - **Module in index.yaml?**
-     - **YES** → compare `commit_sha` with `git rev-parse HEAD` in `source.path`
-       - **MATCH** → Read the module's KB files (`common` + `ros2`/`ros1` if present). Mark module as `kb_loaded`. Skip agent scan for this module.
-       - **MISMATCH** → AskUserQuestion: "KB for {module} is outdated (stale commit). Use existing KB or re-scan?" options: [Use existing, Re-scan now, Skip]
-         - Use existing → load KB files as-is, mark `kb_loaded`
-         - Re-scan now → run `/knowledge scan {module}`, then load result
-         - Skip → fall through to agent dispatch
-     - **NO** → fall through to agent dispatch
-3. If **all** modules are `kb_loaded` → skip "Dispatch subagents in parallel" entirely. Write KB content into `qa-log.md` `## Research` section directly.
-4. If **some** modules are `kb_loaded` → still dispatch agents, but inject the following constraints into each agent prompt:
+2. **Classify each module in `where.sr_modules`** (in-memory, no user prompts yet):
+   - Not in index.yaml → mark `agent_scan` (fall through to dispatch)
+   - In index.yaml + `commit_sha` match `git rev-parse HEAD` in `source.path` → mark `kb_loaded` (load KB files: `common` + `ros2`/`ros1` if present, skip agent scan)
+   - In index.yaml + `commit_sha` mismatch → mark `kb_stale` (collected for batched prompt below)
+3. **Batched MISMATCH prompt** — if any modules are `kb_stale`, ask the user once with one question per stale module (max 4 per AskUserQuestion call; chunk if more):
+   ```
+   AskUserQuestion(
+     questions: [
+       {
+         question: "KB for {module-A} is outdated (stale commit). How to proceed?",
+         options: [
+           { label: "Use existing", description: "Load KB files as-is, mark kb_loaded" },
+           { label: "Re-scan now", description: "Run /knowledge scan {module-A}, then load result" },
+           { label: "Skip", description: "Fall through to agent dispatch" }
+         ]
+       },
+       // ... one question per stale module (chunk into multiple calls if more than 4)
+     ]
+   )
+   ```
+   Apply the user's answer per module: Use existing → `kb_loaded`; Re-scan now → run `/knowledge scan {module}` then `kb_loaded`; Skip → `agent_scan`.
+4. If **all** modules are `kb_loaded` → skip "Dispatch subagents in parallel" entirely. Write KB content into `qa-log.md` `## Research` section directly.
+5. If **some** modules are `kb_loaded` (and others are `agent_scan`) → still dispatch agents, but inject the following constraints into each agent prompt:
    - **Exclude already-known modules**: list `kb_loaded` modules with note "이미 KB로 처리됨 — 스캔 제외"
    - **Scope to remaining modules only**: agent should investigate only the not-loaded modules
    - Example prompt suffix: `"제외 대상 (이미 KB 로드됨): spx-driver. 조사 대상: core-navigation"`
@@ -331,6 +418,29 @@ Axis 3: TECH        — ARCH, DATA, INFRA, DEPEND, COMPAT, SECURITY
 | infrastructure | Operator procedure | Green deploy path | Dashboards, alerts | RBAC, IAM |
 
 EDGE/STATE are universal: failures & conditional behavior apply everywhere.
+
+### Depth -> Question Guidelines
+
+Use the `depth_calibration:` frontmatter from `qa-log.md` to decide minimum interview depth. The gap-auditor must use the same thresholds when judging coverage.
+
+| depth | Minimum questions per active node | Inline Drill (Type A) | Post-Audit Drill (Type B) |
+|---|---:|---|---|
+| `light` | 1 | Optional | Optional |
+| `standard` | 2-3 | Required on first ambiguity signal | Required when gap-auditor flags ambiguity |
+| `deep` | 4+ | Required for every ambiguity signal | Required; a single shallow answer is usually CONTINUE |
+
+If an SR profile activates additional nodes such as `TECH.ROS_INTERFACE`, `TECH.HW_INTERFACE`, `TECH.INTEGRATION`, or `TECH.SAFETY`, apply the same depth table to those nodes.
+
+### Late SR Profile Surface
+
+When `where.sr_profile` was `null` after Step 0.1 but Tech-axis answers reveal SR context (e.g., user mentions ROS topics, UART protocol, ros bridge), update it mid-interview rather than waiting for the final audit:
+
+1. Update `where.sr_profile` (and `sr_modules` / `sr_ros_version` if newly clear) in `qa-log.md` frontmatter.
+2. Re-run **Step 0.4 Step D** against the updated `sr_profile` — escalate `depth_calibration` for the affected nodes (e.g., `ros-node` → TECH.ARCH/COMPAT deep, plus activate `TECH.ROS_INTERFACE`).
+3. Dispatch **gap-auditor** immediately on the Tech axis (do not wait for the normal end-of-axis trigger). The auditor will flag the now-`deep` nodes as AMBIGUOUS or MISSING if the existing Q&A is shallower than the new threshold.
+4. Convert the auditor's AMBIGUOUS list into Inline/Post-Audit drills as usual.
+
+This prevents under-spec when SR context surfaces late, without the heavyweight cost of a Re-calibration log.
 
 ### Question Rules
 
@@ -466,7 +576,8 @@ Update `qa-log.md` after each exchange using the template format:
 Dispatch the **gap-auditor** agent at these specific moments:
 
 1. **End of axis** (required) — after you believe an axis is complete, before moving to the next
-2. **Stuck on axis** (early check) — after 3 consecutive AskUserQuestion turns on the same axis without moving forward
+2. **Stuck on axis** (early check) — after 3 consecutive AskUserQuestion turns on the same axis without moving forward.
+   "Without moving forward" means the last 3 turns added no new `status: resolved` entry to `qa-log.md`; `status: ambiguous` and `status: assumption` do not count as progress.
 3. **Final audit** (required) — after all 3 axes look done, before transitioning to Phase 2
 
 Do NOT call gap-auditor after every AskUserQuestion turn — that's wasteful. Call it at boundaries.
@@ -475,18 +586,45 @@ Do NOT call gap-auditor after every AskUserQuestion turn — that's wasteful. Ca
 
 Each call:
 1. Write current Q&A state to `qa-log.md` first
-2. Dispatch **gap-auditor** with:
+2. Increment `audit_counts.{business|interaction|tech|final}` in `qa-log.md` frontmatter before dispatch.
+3. If the relevant count would exceed **5**, stop and ask:
+   ```
+   AskUserQuestion(
+     question: "The {axis} audit has looped 5 times without reaching SUFFICIENT. Continue interviewing or accept the remaining gaps as open decisions?",
+     options: [
+       { label: "Continue interviewing", description: "Run another audit/interview loop for this axis" },
+       { label: "Accept and move on", description: "Convert remaining gaps into Open Decisions and proceed" }
+     ]
+   )
+   ```
+   - **Continue interviewing**: allow one more audit loop and increment the count.
+   - **Accept and move on**: record each unresolved gap under `## Open Items` in `qa-log.md` as `status: assumption` or `status: ambiguous`, then treat the axis as sufficient for completion purposes.
+4. Dispatch **gap-auditor** with:
    - Full `qa-log.md` content
    - Which axis just completed (or "final" for the full audit)
-3. Read the verdict:
+5. Read the verdict:
    - **CONTINUE** → ask the agent's suggested questions (use AskUserQuestion)
    - **SUFFICIENT** → move on
-4. **You do NOT decide completion yourself** — only gap-auditor can say SUFFICIENT
+6. **You do NOT decide completion yourself** — only gap-auditor can say SUFFICIENT, except for the explicit circuit-breaker "Accept and move on" path above.
 
 ### Interview Completion
 
-All 3 axes must receive **SUFFICIENT** verdict, AND the final audit must also return **SUFFICIENT**.
+All 3 axes must receive **SUFFICIENT** verdict, AND the final audit must also return **SUFFICIENT**. A circuit-breaker "Accept and move on" answer counts as sufficient only for the specific axis/final audit where the user accepted the residual gaps.
 Update `qa-log.md` frontmatter: `status: complete` with final coverage scores.
+
+Before entering Phase 2, show a short interview summary and ask for confirmation:
+
+```
+AskUserQuestion(
+  question: "Proceed to requirements extraction?",
+  options: [
+    { label: "Proceed", description: "Run the three extractor agents now" },
+    { label: "Add more", description: "Return to the selected axis, add more Q&A, then run final audit again" }
+  ]
+)
+```
+
+If **Add more**, ask which axis needs more detail, continue Phase 1 for that axis, run the axis audit and final audit again, then return to this gate.
 
 ## Phase 2: Requirements Extraction
 
@@ -502,6 +640,37 @@ Run 3 agents **in parallel**:
    - `.sr-harness/specs/{spec-name}/reqs-business.md`
    - `.sr-harness/specs/{spec-name}/reqs-interaction.md`
    - `.sr-harness/specs/{spec-name}/reqs-tech.md`
+
+### Phase 2 Post-processing
+
+Before Phase 3, run a lightweight deterministic dedup pass across the three reqs files:
+
+1. Compare sub-requirements by normalized `given` + `when` + `then`.
+2. If two items are structurally identical, keep the more specific axis item:
+   - Tech-specific implementation/interface detail wins over generic Interaction wording.
+   - Interaction workflow detail wins over generic Business wording.
+   - Business intent stays when it expresses value/success criteria rather than behavior.
+3. Remove only exact structural duplicates. Do not resolve semantic overlap here; leave that for Phase 3.
+4. Create `<spec_dir>/cross-check.md` with the fixed section structure below and write the `## Dedup Log` section. Always create this file even when no duplicates are removed (write `_No duplicates removed._` under `## Dedup Log`).
+
+### `cross-check.md` Section Structure (fixed)
+
+The file MUST contain exactly these top-level sections in this order, and each phase writes only the section it owns:
+
+```markdown
+# Cross-Check
+
+## Dedup Log
+<!-- Phase 2 owns this section. List removed duplicates as bullet items: source ID → kept ID, reason. -->
+
+## Cross-Check Report
+<!-- Phase 3 owns this section. List CONFLICT / GAP / DUPLICATE / OPEN_QUESTION / ASSUMPTION items, each with a stable issue ID (CC-1, CC-2, ...). -->
+```
+
+Write rules:
+- **Phase 2** creates the file with both section headings and fills only `## Dedup Log`. The `## Cross-Check Report` heading is left present but body empty.
+- **Phase 3** reads the file, preserves `## Dedup Log` verbatim, and replaces the body of `## Cross-Check Report` with discovery results. Phase 3 NEVER touches `## Dedup Log`.
+- After Phase 3 the file is **immutable** until next Supplement axis / Full re-interview cycle.
 
 ### SR-Harness: tech-extractor boundary context injection
 
@@ -539,16 +708,25 @@ If `sr_profile` is `web`, `infra`, or null: use standard v2 boundary decompositi
    - **CONFLICT**: requirements that contradict each other across axes
    - **GAP**: something mentioned in one axis but missing in others
    - **DUPLICATE**: same requirement expressed differently
-3. Build a **Cross-Check Report** (in memory, not yet written to disk):
+3. Read existing `<spec_dir>/cross-check.md` (created by Phase 2 Post-processing). Preserve `## Dedup Log` verbatim.
+4. Replace the body of `## Cross-Check Report` with discovery results:
    - List each issue with the requirement IDs involved
    - Collect all `confidence: low` and `open_questions` items from extractor outputs
    - Collect all assumptions the extractors made (items inferred but not directly sourced from Q&A)
+   - Assign a stable issue ID to each item (`CC-1`, `CC-2`, ...) — IDs are sequential within this report and do not collide with prior runs.
+
+After Phase 3 writes the report, `cross-check.md` is **immutable** until a Supplement axis or Full re-interview cycle starts (see Phase 4.3). Resolution state belongs in the final `requirements.md` draft and its `## Open Decisions` section, never in `cross-check.md`.
 
 ## Phase 4: User Confirmation & Finalization
 
 Before writing the final `requirements.md`, surface everything to the user for explicit acceptance. This prevents assumptions from silently becoming "requirements."
 
 ### Step 4.1: Present Cross-Check Summary
+
+**Data sources** (read each before composing the summary):
+- `<spec_dir>/cross-check.md` `## Cross-Check Report` → Conflicts, Open Questions, Assumptions
+- `<spec_dir>/reqs-business.md` / `reqs-interaction.md` / `reqs-tech.md` → Confirmed Requirement counts per axis
+- `<spec_dir>/qa-log.md` frontmatter `where.non_goals` → Out of Scope list
 
 Show the user a concise summary grouped into:
 
@@ -577,6 +755,27 @@ Show the user a concise summary grouped into:
 For each CONFLICT and ASSUMPTION, use AskUserQuestion with options (typically: accept / reject / modify / defer).
 
 For OPEN QUESTIONS: either answer them now (free-text or AskUserQuestion) or explicitly defer them to the open_decisions list.
+
+Apply resolutions to the in-memory requirements draft AND persist a one-line audit entry in `qa-log.md` per resolution so the work survives session compaction:
+
+- **accept**: keep the requirement or assumption in the final draft.
+- **reject**: remove or rewrite the affected requirement.
+- **modify**: apply the user's replacement text, then re-show the affected requirement.
+- **defer**: add an entry to the final `## Open Decisions` section.
+
+**Persist resolution per decision** — immediately after the user answers an AskUserQuestion in this step, append one line to `qa-log.md` `## Resolutions`:
+
+```
+- CC-{N}: {accept | reject | modify | defer} — {short note or replacement text reference}
+```
+
+The `## Resolutions` section is created on first append if missing. This is the durable record; the in-memory draft is rebuilt from `cross-check.md` + this list on resume.
+
+**Resume rule** — if Phase 4 resumes after interruption (compaction, crash, or `/specify` re-entry on the same `spec_dir`):
+1. Read `cross-check.md` `## Cross-Check Report` for the full CC-N list.
+2. Read `qa-log.md` `## Resolutions` for already-resolved CC-N entries.
+3. Only ask about CC-N IDs that appear in (1) but not in (2).
+4. Rebuild the requirements draft by replaying the `## Resolutions` list against `reqs-*.md`.
 
 ### Step 4.3: Preview final requirements
 
@@ -616,7 +815,14 @@ AskUserQuestion(
 ```
 
 If **Edit**: ask which requirements to change, apply edits, re-show preview. Max 3 rounds.
-If **Re-interview**: return to Phase 1 with the gap identified.
+If **Re-interview**: choose one explicit path:
+
+| Path | Use when | Re-run scope | File handling |
+|---|---|---|---|
+| **Supplement axis** | The gap is isolated to one axis | Reopen that axis in Phase 1 -> rerun that axis extractor -> rerun Phase 3 -> return to Phase 4 | Overwrite only the affected `reqs-{axis}.md`; keep the other two reqs files |
+| **Full re-interview** | The goal/scope was misunderstood or multiple axes are invalid | Phase 1 full interview -> Phase 2 all extractors -> Phase 3 -> Phase 4 | Delete `reqs-*.md` and `cross-check.md`; keep `qa-log.md` and append a `## Re-interview` section |
+
+Never mix old and new extractor outputs for an axis. Any axis that receives new Q&A must have its extractor rerun before Phase 3.
 
 ### Step 4.4: Write Final `requirements.md`
 
@@ -668,7 +874,8 @@ Only after user has explicitly approved the preview:
    - No axis grouping headings in the body (flat list); axis is encoded in the ID letter
 4. **Frontmatter** carries only `type`, `goal`, `non_goals[]`. Do NOT add extra keys like `spec`, `phase`, `date`, `total_requirements` — those broke with cli's frontmatter format.
 5. Pre-work is optional — include only when the interview surfaced actions the user must complete before execution (e.g., "get API key", "run migration"). Mark each item `(blocking)` or `(non-blocking)`. execute will gate on blocking items.
-6. Open Decisions is optional — omit the section if no unresolved decisions
+6. Open Decisions is optional — omit the section if no unresolved decisions.
+   - **Open Items → Open Decisions promotion**: items recorded in `qa-log.md` `## Open Items` (interview scratchpad) plus any `defer` resolutions from Step 4.2 are the source. Assign sequential `OD-N` IDs and write each as one entry in this section. The two names refer to the same concept at different stages — `Open Items` is the in-flight scratch, `Open Decisions` is the final consumed-by-`/blueprint` form.
 7. Confirm completion with the user, showing final file path + next step: `/blueprint <spec_dir>/`
 
 ### Step 4.5: KB Save (SR-Harness only)
@@ -695,6 +902,7 @@ All outputs go to `<spec_dir>/` (default `.sr-harness/specs/{spec-name}/`):
 | `reqs-business.md` | 2 | Axis extraction scratch | merged into requirements.md |
 | `reqs-interaction.md` | 2 | Axis extraction scratch | merged into requirements.md |
 | `reqs-tech.md` | 2 | Axis extraction scratch | merged into requirements.md |
+| `cross-check.md` | 2 / 3 | Dedup log plus immutable conflict/gap/duplicate audit record | confirmation traceability only |
 
 **Only `requirements.md` is load-bearing for downstream skills.** The other files are internal scratch/audit — /blueprint does not read them.
 

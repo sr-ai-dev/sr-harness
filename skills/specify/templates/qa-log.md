@@ -11,6 +11,18 @@ where:
   ambition: "{toy | feature | product}"
   risk_modifiers:
     - "{sensitive-data | external-exposure | irreversible | high-scale}"
+  # SR-Harness fields — leave null when not detected at medium/high confidence
+  sr_product: null         # spx | sarics-nx | cross-product | other | null
+  sr_modules: null         # [<module>, ...] or null when no module token matched
+  sr_ros_version: null     # ros1 | ros2 | null
+  sr_profile: null         # web | driver | ros-node | cross-product | infra | null
+  sr_raw_input: ""         # original user input text, used by Step 0.3 mismatch check on resume
+  research_done: false     # set to true by Phase 0.5 after research consolidates
+audit_counts:
+  business: 0
+  interaction: 0
+  tech: 0
+  final: 0
 depth_calibration:
   business:
     WHO: "{light | standard | deep}"
@@ -96,3 +108,7 @@ Contents:
 ### SECURITY
 
 ## Open Items
+<!-- Interview scratchpad. Promoted to requirements.md `## Open Decisions` (with OD-N IDs) at Step 4.4. -->
+
+## Resolutions
+<!-- Phase 4.2 owns this section. One bullet per CC-N decision: `- CC-{N}: {accept|reject|modify|defer} — {note}`. Do not pre-populate; orchestrator appends as resolutions happen. -->

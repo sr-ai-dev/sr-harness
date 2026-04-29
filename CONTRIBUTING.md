@@ -21,12 +21,12 @@ This registers all skills, agents, and hooks defined by the plugin.
 
 2. Install the CLI globally:
    ```bash
-   npm install -g @team-attention/hoyeon-cli
+   npm install -g @syscon-robotics/sr-harness-cli
    ```
 
 3. Verify installation:
    ```bash
-   hoyeon-cli --version
+   sr-harness-cli --version
    ```
 
 ### Directory Structure
@@ -81,7 +81,7 @@ Three files must be bumped together in a single commit on `develop`:
 2. `.claude-plugin/marketplace.json`
 3. `cli/package.json`
 
-The CLI package (`@team-attention/hoyeon-cli`) version is always kept in sync with the plugin version.
+The CLI package (`@syscon-robotics/sr-harness-cli`) version is always kept in sync with the plugin version.
 
 ## Testing
 

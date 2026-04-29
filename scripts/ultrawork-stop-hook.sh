@@ -24,7 +24,7 @@ SESSION_ID=$(echo "$HOOK_INPUT" | jq -r '.session_id')
 TRANSCRIPT_PATH=$(echo "$HOOK_INPUT" | jq -r '.transcript_path // empty')
 
 # CWD-scoped: ultrawork state lives with the spec files, not the session dir.
-STATE_FILE="$CWD/.hoyeon/state.local.json"
+STATE_FILE="$CWD/.sr-harness/state.local.json"
 
 # Exit if no state file
 if [[ ! -f "$STATE_FILE" ]]; then
@@ -59,8 +59,8 @@ if [[ $MAX_ITERATIONS -gt 0 ]] && [[ $ITERATION -ge $MAX_ITERATIONS ]]; then
   exit 0
 fi
 
-# Locate the most recently modified spec.json under .hoyeon/specs/
-SPECS_ROOT="$CWD/.hoyeon/specs"
+# Locate the most recently modified spec.json under .sr-harness/specs/
+SPECS_ROOT="$CWD/.sr-harness/specs"
 SPEC_JSON=""
 SPEC_DIR=""
 FEATURE_NAME=""
@@ -141,9 +141,9 @@ Execute: /execute $spec_dir" \
     PLAN_JSON="$SPEC_DIR/plan.json"
 
     if [[ -f "$PLAN_JSON" ]]; then
-      # Count pending (non-done) tasks via hoyeon-cli plan list
-      # hoyeon-cli plan list emits a bare JSON array of tasks.
-      PENDING=$(hoyeon-cli plan list "$PLAN_JSON" --json 2>/dev/null \
+      # Count pending (non-done) tasks via sr-harness-cli plan list
+      # sr-harness-cli plan list emits a bare JSON array of tasks.
+      PENDING=$(sr-harness-cli plan list "$PLAN_JSON" --json 2>/dev/null \
         | jq '[.[]? | select(.status != "done")] | length' 2>/dev/null || echo "0")
 
       if [[ ! "$PENDING" =~ ^[0-9]+$ ]]; then

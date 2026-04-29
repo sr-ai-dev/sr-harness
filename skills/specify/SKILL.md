@@ -54,7 +54,7 @@ All intermediate files (qa-log.md, reqs-business.md, reqs-interaction.md, reqs-t
 ## Path Conventions
 
 - `${baseDir}` — the directory containing this `SKILL.md` (i.e., `skills/specify/`). Resolves to the same path whether the skill is loaded from the repo or from a plugin marketplace cache.
-- `<spec_dir>` — the per-spec output directory (default `.hoyeon/specs/{spec-name}/`). Decided in Step 0.3.
+- `<spec_dir>` — the per-spec output directory (default `.sr-harness/specs/{spec-name}/`). Decided in Step 0.3.
 - All template references in this file use `${baseDir}/templates/*` and never repo-root paths.
 
 ## Phase 0: WHERE Grounding
@@ -228,7 +228,7 @@ If the user picks none, proceed with base calibration. Otherwise, modifiers will
 ### Step 0.3: Spec Name & Output Setup
 
 - Determine **spec name** (kebab-case, e.g., `user-dashboard`)
-- Decide `spec_dir`: default `.hoyeon/specs/{spec-name}/`
+- Decide `spec_dir`: default `.sr-harness/specs/{spec-name}/`
 - **Pre-flight templates before starting the interview**. Verify these files exist under the specify skill directory:
   - `${baseDir}/templates/qa-log.md`
   - `${baseDir}/templates/reqs-axis.md`
@@ -237,7 +237,7 @@ If the user picks none, proceed with base calibration. Otherwise, modifiers will
   If any template is missing, abort immediately with a clear message. Do not begin the interview and risk losing hours of Q&A at Phase 4.
 - **Bootstrap via cli** — creates the directory AND writes a `requirements.md` stub with the correct frontmatter so /blueprint can read it later:
   ```bash
-  hoyeon-cli req init <spec_dir> --type <greenfield|feature|refactor|bugfix> --goal "<one-line goal>"
+  sr-harness-cli req init <spec_dir> --type <greenfield|feature|refactor|bugfix> --goal "<one-line goal>"
   ```
   Map `WHERE.SITUATION` → `--type`:
   - `greenfield` → `greenfield`
@@ -673,9 +673,9 @@ Run 3 agents **in parallel**:
    - **interaction-extractor** agent with: qa-log.md content + template
    - **tech-extractor** agent with: qa-log.md content + template + SR profile boundary context (see below)
 4. Write outputs to:
-   - `.hoyeon/specs/{spec-name}/reqs-business.md`
-   - `.hoyeon/specs/{spec-name}/reqs-interaction.md`
-   - `.hoyeon/specs/{spec-name}/reqs-tech.md`
+   - `.sr-harness/specs/{spec-name}/reqs-business.md`
+   - `.sr-harness/specs/{spec-name}/reqs-interaction.md`
+   - `.sr-harness/specs/{spec-name}/reqs-tech.md`
 
 ### Phase 2 Post-processing
 
@@ -865,7 +865,7 @@ Never mix old and new extractor outputs for an axis. Any axis that receives new 
 Only after user has explicitly approved the preview:
 
 1. Read `${baseDir}/templates/requirements.md` template (cli format)
-2. Overwrite `<spec_dir>/requirements.md` (replacing the stub created by `hoyeon-cli req init` at Phase 0.3). Final shape:
+2. Overwrite `<spec_dir>/requirements.md` (replacing the stub created by `sr-harness-cli req init` at Phase 0.3). Final shape:
    ```markdown
    ---
    type: greenfield | feature | refactor | bugfix
@@ -936,7 +936,7 @@ For each module in `where.sr_modules`:
 
 ## Output Files
 
-All outputs go to `<spec_dir>/` (default `.hoyeon/specs/{spec-name}/`):
+All outputs go to `<spec_dir>/` (default `.sr-harness/specs/{spec-name}/`):
 
 | File | Phase | Description | Consumed by |
 |------|-------|-------------|-------------|
@@ -951,7 +951,7 @@ All outputs go to `<spec_dir>/` (default `.hoyeon/specs/{spec-name}/`):
 
 ## CLI Dependency
 
-- `hoyeon-cli req init <spec_dir> --type <t> --goal "<g>"` (Phase 0.3) — creates dir + requirements.md stub
+- `sr-harness-cli req init <spec_dir> --type <t> --goal "<g>"` (Phase 0.3) — creates dir + requirements.md stub
 - No other cli commands are called directly by /specify. Phase 4.3 overwrites `requirements.md` directly via Write tool.
 - Phase 0.5 may invoke the `/knowledge scan {module}` skill when the user chooses "Re-scan now" for stale KB. If that skill call fails or is aborted, fall back to agent scan for the module and record the fallback in `qa-log.md` `## Research`.
 

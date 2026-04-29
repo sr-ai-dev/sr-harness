@@ -60,8 +60,8 @@ Use MCP computer-use screenshots of menus.
 From `plan.json` (and optionally `requirements.md` for fuller context):
 
 ```bash
-hoyeon-cli plan get <spec_dir> --path journeys --json
-hoyeon-cli plan get <spec_dir> --path tasks --json
+sr-harness-cli plan get <spec_dir> --path journeys --json
+sr-harness-cli plan get <spec_dir> --path tasks --json
 ```
 
 Collect every noun-phrase the spec mentions as a user-facing surface:

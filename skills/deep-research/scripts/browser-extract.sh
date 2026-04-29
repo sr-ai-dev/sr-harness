@@ -18,7 +18,7 @@ fi
 
 # Graceful skip if chromux not found
 if [ -z "$CHROMUX" ]; then
-  echo "SKIP: chromux not found — install via npm i -g @team-attention/chromux"
+  echo "SKIP: chromux not found — install via npm i -g @syscon-robotics/chromux"
   exit 0
 fi
 

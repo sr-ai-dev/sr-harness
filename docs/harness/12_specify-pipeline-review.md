@@ -4,6 +4,7 @@
 > 기준 버전: v1.6.0-sr.1
 > 구현 동기화: 2026-04-29 (`skills/specify/SKILL.md` 반영)
 > 추가 보강: 2026-04-29 (v1.6.0-sr.3 — 7건 추가 적용. 본 문서 마지막 섹션 참조)
+> 후속 보강: 2026-04-29 (v1.6.0-sr.4 — 6건 추가 적용. 본 문서 마지막 섹션 참조)
 > 목적: `/specify` SKILL.md 내부 파이프라인의 잠재적 문제점과 개선 방향 정리
 
 ---
@@ -476,3 +477,88 @@ C-1~M-5 적용 후 SKILL.md/templates/agent를 다시 대조해 발견한 7건�
 - `## Pre-work` 섹션 파싱 형식 명세 — /execute 측 명세와 동시 작업 필요
 
 이 3건은 다음 사이클(`v1.6.0-sr.4` 예정) 또는 별도 spec/specify로 다룬다.
+
+---
+
+## v1.6.0-sr.4 후속 보강
+
+> 작성일: 2026-04-29
+> 트리거: v1.6.0-sr.3 적용 후 fresh review로 발견된 N-1~N-14 항목 재평가 결과
+> 영향 범위: `skills/specify/SKILL.md`, `skills/specify/templates/qa-log.md`
+
+v1.6.0-sr.3에서 닫은 7건 외에 분석가가 추가로 제기한 N-1~N-14를 재평가했다. 이 중 4건은 이미 v1.6.0-sr.3에서 처리됨, 1건은 합의로 백로그(N-11), 9건이 신규 갭이었다. 9건 중 6건을 본 사이클에서 적용했다.
+
+### N-12. (적용됨) 재실행 시 `--type` 검증 부재
+
+**현상**: 기존 `requirements.md`의 frontmatter `type`이 새 SITUATION→type mapping과 다른 경우 그냥 진행 → silent corruption 가능.
+
+**적용**: SKILL.md Step 0.3 line 226에 `type` rerun check 1줄 추가 — 다르면 halt + 사용자에게 keep/rewrite 선택 요청.
+
+### N-7. (적용됨) Phase 0.5 KB MISMATCH 모듈별 호출 → batched
+
+**현상**: stale 모듈마다 별도 AskUserQuestion 호출. SPX 5+ 모듈 시 5+ 클릭.
+
+**적용**: classification 단계에서 `kb_loaded` / `kb_stale` / `agent_scan` 라벨로 분류 후, `kb_stale` 모듈만 batched AskUserQuestion(최대 4-question/call, 초과 시 chunk)으로 한 번에 결정. 모듈별 액션은 사용자 답변에 따라 적용.
+
+### N-6. (적용됨) 늦은 SR profile surface 시 depth 미보정
+
+**현상**: Step 0.1에서 sr_profile=null로 시작하면 Step 0.4D escalate 발동 안 됨. Phase 1 Tech axis에서 ROS/UART 단서가 나와도 depth가 standard에 잠김 → false negative(under-spec).
+
+**적용**: Phase 1에 "Late SR Profile Surface" 단락 추가:
+1. mid-interview에 `sr_profile` 갱신
+2. Step 0.4 Step D 즉시 재실행으로 depth_calibration 갱신
+3. Tech axis gap-auditor를 일찍 dispatch하여 새 deep 노드 coverage 확인
+4. AMBIGUOUS 항목을 inline/post-audit drill로 보충
+
+별도 Re-calibration 이력 섹션 없이 audit_counts 추적만으로 처리.
+
+### N-5. (적용됨) Phase 4.1 Summary 데이터 소스 누락
+
+**현상**: SKILL.md는 "Read cross-check.md and show summary"만 명시했지만 summary 템플릿은 `Confirmed Requirements {count by axis}`(reqs-*.md) + `Out of Scope`(qa-log non_goals)를 추가로 요구.
+
+**적용**: Step 4.1 본문 시작 부분에 "Data sources (read each before composing the summary)" 3-bullet 명시 — cross-check.md / reqs-*.md / qa-log non_goals 각각의 역할 분리.
+
+### N-4. (적용됨, lightweight) Phase 4.2 in-memory 결정의 영속화
+
+**현상**: Phase 4.2의 사용자 결정(accept/reject/modify/defer)이 4.4 직전까지 in-memory만 존재. compaction 시 사용자 결정 통째로 소실 → C-1 패턴 Phase 4 재발.
+
+**판단 변경**: 분석가는 `resolutions.md` 별도 파일을 제안했으나, qa-log.md는 매 단계 디스크 기록 중이라 자연스러운 후보. 별도 파일 추가는 과한 처방.
+
+**적용 (lightweight)**:
+- qa-log.md template에 `## Resolutions` 섹션 anchor + 사용 규약 코멘트 추가
+- Phase 4.2: 결정 발생 시마다 `qa-log.md ## Resolutions`에 1줄 append (`- CC-{N}: {accept|reject|modify|defer} — {note}`)
+- Phase 4.2 Resume rule 4-step 명시: cross-check.md CC-N 목록 ↔ Resolutions 비교로 미해결만 재질의, draft를 reqs-*.md + Resolutions 리플레이로 재구성
+
+### N-9. (적용됨) Open Items ↔ Open Decisions 매핑 명시
+
+**현상**: qa-log.md `## Open Items`(인터뷰 scratchpad) ↔ requirements.md `## Open Decisions`(최종 산출물) 두 용어가 같은 개념인지 다른 단계의 같은 개념인지 모호.
+
+**판단 변경**: 분석가는 rename을 제안했으나 두 용어는 의도적 단계 구분(scratch vs final). rename 대신 **단계 promotion 규칙**을 명시.
+
+**적용**: SKILL.md Step 4.4 list item 6에 promotion 규칙 1줄 추가 — `Open Items + defer resolutions → OD-N IDs 부여 → Open Decisions 섹션 작성`. qa-log template에도 `## Open Items` 코멘트로 동일 매핑 안내.
+
+### Reject한 항목
+
+- **N-14** (`## Re-interview` / `## Re-run` 섹션 anchor를 템플릿에 추가): 신규 spec(첫 실행)에 빈 Re-* 섹션이 들어가면 가독성 저해 + 혼동 유발. 동적 섹션은 필요 시 orchestrator가 생성하는 게 맞음.
+
+### Defer한 항목
+
+- **N-10** Pre-work 파싱 형식: specify 단독으로 못 닫음 — /execute 측 명세와 동시 작업 필요. 별도 cross-skill spec.
+- **N-13** Phase 0.5 inline prompt 추출: agent 인터페이스가 안정적인 동안 inline이 더 명확. 변경 발생 시 그때 추출.
+
+### v1.6.0-sr.4 영향 매트릭스
+
+| 보강 ID | 닫는 갭 | 의존 기존 개선 | 영향 |
+|---|---|---|---|
+| N-12 | type rerun corruption | M-5 (qa-log 보존) | silent corruption 차단 |
+| N-7 | UX 마찰 | M-5 (KB cache) | SPX 전체 작업 시 클릭 5→1 |
+| N-6 | late SR depth false negative | H-2 (confidence), Step 0.4D | mid-interview escalate 가능 |
+| N-5 | Summary 데이터 누락 | C-1 (Phase 3 영속화) | 실행마다 편차 제거 |
+| N-4 | Phase 4 in-memory 소실 | C-1 패턴 일반화 | qa-log 기반 영속/재구성 |
+| N-9 | 용어 혼재 | Step 4.4 final write | 단계 promotion 명시 |
+
+### 다음 사이클(예상 v1.6.0-sr.5) 후보
+
+- **N-10** Pre-work 파싱 형식 — specify ↔ execute 양쪽 명세화 필요
+- **N-13** Phase 0.5 inline prompt 추출 — 변경 발생 트리거 시
+- **N-11** validate_prompt + allowed-tools — 메타-개선 사이클 (이전 합의)

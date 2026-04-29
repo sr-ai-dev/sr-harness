@@ -26,6 +26,8 @@ validate_prompt: |
   Phase 0 must detect input type (plan.json / requirements.md / markdown) and normalize.
   Dispatch mode must be asked via AskUserQuestion.
   Verify depth must be asked via AskUserQuestion.
+  If requirements.md has ## Pre-work, unchecked (blocking) items must gate execution;
+  (non-blocking) items must be reported but must not block.
   All tasks must reach status "completed" or "done" before stopping.
   Verify recipe must run.
   Final report must be output.
@@ -192,9 +194,17 @@ If `requirements.md` exists and contains a `## Pre-work` section, parse it and g
 
 ```
 IF exists("{spec_dir}/requirements.md"):
-  pre_work = scan for "## Pre-work" section → parse checkbox items
-  # Expected format: "- [ ] action (blocking)" or "- [ ] action (non-blocking)"
-  blocking = [item for item in pre_work if "blocking" in item]
+  pre_work = scan for "## Pre-work" section -> parse checkbox items
+  # Canonical format:
+  #   - [ ] action text (blocking)
+  #   - [ ] action text (non-blocking)
+  # Only unchecked (blocking) items gate execution.
+  # Do NOT classify "(non-blocking)" as blocking just because it contains the
+  # substring "blocking".
+  items = parse lines matching:
+    ^- \[( |x|X)\]\s+(.+?)\s+\((blocking|non-blocking)\)\s*$
+  blocking = [item for item in items if item.checked == false AND item.marker == "blocking"]
+  non_blocking = [item for item in items if item.marker == "non-blocking"]
 
   IF len(blocking) > 0:
     print("Pre-work items requiring completion:")
@@ -209,9 +219,15 @@ IF exists("{spec_dir}/requirements.md"):
       ]
     )
     IF answer == "Not yet": HALT
+
+  IF len(non_blocking) > 0:
+    print("Non-blocking pre-work noted:")
+    FOR EACH item in non_blocking:
+      print("  - {item.action}")
 ```
 
 If there is no `## Pre-work` section, skip silently.
+If malformed checkbox lines appear in `## Pre-work`, show them to the user and ask whether to continue or abort for cleanup. Do not silently reinterpret malformed markers.
 
 ### 0.3 Load plan.json (structural fields only)
 

@@ -57,6 +57,9 @@ coverage:
 <!--
 Populated in Phase 0.5 for brownfield/hybrid situations.
 Omit this section for greenfield.
+This empty template heading is not a cache hit. Phase 0.5 treats research as
+cached only when where.research_done is true, or for legacy logs when this
+section contains non-comment content.
 Contents:
 - Existing architecture (1-3 sentences)
 - Relevant files/modules (file:line)
@@ -106,6 +109,15 @@ Contents:
 ### COMPAT
 
 ### SECURITY
+
+<!--
+SR profiles may append extra Tech nodes here:
+- ### ROS_INTERFACE
+- ### HW_INTERFACE
+- ### INTEGRATION
+- ### SAFETY
+Use the same Q/Drill/status recording format as built-in nodes.
+-->
 
 ## Open Items
 <!-- Interview scratchpad. Promoted to requirements.md `## Open Decisions` (with OD-N IDs) at Step 4.4. -->

@@ -63,6 +63,11 @@ brownfield 작업 시 `/specify`가 `qa-log.md`의 `where.sr_modules` 정보를 
 
 현재 워크스페이스를 풀 스캔하여 모듈의 지식 파일을 생성/갱신한다.
 
+`/specify` Phase 0.5 may call this command when a stale KB entry is found and the user selects "Re-scan now". In that handoff:
+- Return normally only after the module KB file and `index.yaml` are updated.
+- If the scan cannot complete, report a concise failure reason and stop without partially marking the module fresh.
+- `/specify` will catch the failure, record `KB re-scan failed: {module} — {reason}` in `qa-log.md ## Research`, and fall back to agent scan for that module.
+
 **동작:**
 
 1. 워크스페이스에서 프로젝트 구조 스캔 (Glob/Grep/Read)

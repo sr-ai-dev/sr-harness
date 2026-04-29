@@ -75,7 +75,7 @@ For each taxonomy node, classify as:
 
 ### Coverage
 - business: {N}/{total} ({percent}%)
-- ux: {N}/{total} ({percent}%)
+- interaction: {N}/{total} ({percent}%)
 - tech: {N}/{total} ({percent}%)
 - overall: {N}/{total} ({percent}%)
 

@@ -121,7 +121,31 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v1.6.0-sr.2)
+## Recent Changes (v1.6.0-sr.4)
+
+- feat(specify): 파이프라인 후속 보강 6건 (v1.6.0-sr.4)
+  - Step 0.3: 재실행 시 type rerun 검증 (N-12)
+  - Phase 0.5 KB-first lookup: 모듈별 → batched MISMATCH AskUserQuestion (N-7)
+  - Phase 1: Late SR Profile Surface — mid-interview에 sr_profile 갱신 시 Step D 재실행 + Tech axis gap-auditor 일찍 dispatch (N-6)
+  - Phase 4.1: Data sources 3-bullet 명시 (cross-check.md / reqs-*.md / qa-log non_goals) (N-5)
+  - Phase 4.2: 결정 발생 시 qa-log Resolutions에 1줄 append + Resume rule 4-step 명시 (N-4 lightweight)
+  - Step 4.4: Open Items → Open Decisions promotion 매핑 명시 (N-9)
+  - templates/qa-log.md: Open Items promotion 코멘트 + Resolutions 섹션 anchor 추가
+- feat(specify): 파이프라인 추가 보강 7건 (v1.6.0-sr.3)
+  - agents/interaction-extractor.md: 축 코드 R-I → R-U 통일 (specify/blueprint 동기화)
+  - agents/gap-auditor.md: depth 판정 기준을 specify와 동일한 질문 수 + drill 의무 표로 동기화
+  - SKILL.md Step 0.1: sr_modules 추출 토큰→정규화명 매핑 표 추가
+  - SKILL.md Phase 2/3: cross-check.md 2-section 구조 (Dedup Log + Cross-Check Report) 고정
+  - SKILL.md Step 0.3: Resume mismatch check + 3-옵션 AskUserQuestion 게이트
+  - SKILL.md 상단: Path Conventions 섹션 (baseDir / spec_dir 정의)
+  - templates/qa-log.md: SR 필드 5개 + research_done + audit_counts 기본값
+- docs: 12_specify-pipeline-review.md
+  - 기존 C-1~M-5 (10건) 각 섹션에 (해결됨) 헤더 + "현재 동작" 1줄 요약
+  - "## v1.6.0-sr.3 추가 보강" 섹션 (N-1~N-7 + 영향 매트릭스)
+  - "## v1.6.0-sr.4 후속 보강" 섹션 (N-12, N-7, N-6, N-5, N-4, N-9 + Reject/Defer + 영향 매트릭스)
+- docs: 13_sr-profile-reference.md (신규) — sr_profile 종합 레퍼런스 (값/감지/저장/파이프라인 영향/예시)
+
+## Previous Changes (v1.6.0-sr.2)
 
 - feat(knowledge): full Knowledge System integration into specify/execute/bugfix pipeline
   - knowledge/SKILL.md — section-name anchors, re-scan learning preservation, regex DOTALL pitfall warning, schema validation, commit_sha/source.path semantics, de-dup policy, cross-product schema, --compact option

@@ -649,7 +649,7 @@ AskUserQuestion:
 
 ````markdown
 ```bash
-hoyeon-cli spec init fix-{slug} --goal "Fix: {description}" ${SPEC_PATH}
+sr-harness-cli spec init fix-{slug} --goal "Fix: {description}" ${SPEC_PATH}
 ```
 ````
 
@@ -982,7 +982,7 @@ Hook은 LLM 프롬프트가 아니다. 파일 저장, 도구 호출 등 **시스
 | SKILL.md frontmatter (`allowed-tools`, `name`) | ✓ | ✗ |
 | `Agent()` 도구 호출 (서브에이전트 생성) | ✓ | ✗ |
 | `AskUserQuestion()` 도구 | ✓ | ✗ |
-| `hoyeon-cli` (spec.json 관리) | ✓ | ✗ |
+| `sr-harness-cli` (spec.json 관리) | ✓ | ✗ |
 | `.claude/` 디렉토리 관례 | ✓ | ✗ |
 | **마크다운 본문의 지시 내용** | ✗ | **✓** |
 
@@ -1038,7 +1038,7 @@ Layer 1: 지식 (Fully portable) — 그대로 사용 가능
 | 사용자 승인 게이트 | `AskUserQuestion()` | GPT의 대화 중 확인 질문 | 대화 중 확인 질문 |
 | 서브에이전트 | `Agent(subagent_type=...)` | 없음 (단일 프로세스) | 없음 |
 | 도구 제한 | `allowed-tools` | GPT Actions 설정 | 설정 불가 |
-| 외부 CLI | `hoyeon-cli` | Custom Actions | Terminal |
+| 외부 CLI | `sr-harness-cli` | Custom Actions | Terminal |
 
 #### Layer 3 (인프라) — 완전 재구현 필요
 
@@ -1050,7 +1050,7 @@ specify의 L2 인터뷰 로직을 OpenAI GPT로 옮기는 경우:
 
 ```
 Claude Code 스킬 (원본):
-  "hoyeon-cli spec merge --stdin --append << 'EOF'"     ← Layer 3 (재구현)
+  "sr-harness-cli spec merge --stdin --append << 'EOF'"     ← Layer 3 (재구현)
   "AskUserQuestion(question: '...', options: [...])"     ← Layer 3 (재구현)
   "Task(subagent_type='general-purpose', prompt=...)"    ← Layer 3 (재구현)
   "composite score ≥ 0.80이 종료 조건"                    ← Layer 2 (유지)
@@ -1130,7 +1130,7 @@ hoyeon:
 | **스킬 수** | 14개 | 슬래시 커맨드 수개 | 26개 |
 | **에이전트** | 0개 | LLM/CLI가 생성 | 21개 (사전 정의) |
 | **Hook** | 없음 | 없음 (v2는 CLI가 대체) | 있음 (hooks.json) |
-| **CLI 도구** | 없음 | v2: `npx gsd` | `hoyeon-cli` |
+| **CLI 도구** | 없음 | v2: `npx gsd` | `sr-harness-cli` |
 | **설치** | SKILL.md 개별 다운로드 | v1: CLAUDE.md 복붙 / v2: npx | `claude plugin install` |
 | **스펙 형식** | 마크다운 (md) | 마크다운 (md) | **JSON (spec.json)** |
 | **검증** | 사람이 눈으로 | 사람이 눈으로 | `spec validate` (자동) |
@@ -1233,7 +1233,7 @@ GSD              → 태스크별 fresh context로 품질 저하 없이 실행 (
 ```
 GSD:         spec.md → tasks.md → 사람이 눈으로 확인
 superpowers: requirements.md → design.md → 사람이 눈으로 확인
-hoyeon:      spec.json → hoyeon-cli spec validate → 자동 검증
+hoyeon:      spec.json → sr-harness-cli spec validate → 자동 검증
                decisions[] → requirements[].sub[] → tasks[].fulfills[]
                "R2.3을 충족하는 태스크 없음" → 자동 검출
 ```
@@ -1279,7 +1279,7 @@ L0(목표) → L1(컨텍스트) → L2(결정) → L3(요구사항) → L4(태�
 업계가 요구하는 것:                    hoyeon이 제공하는 것:
 ─────────────────                    ──────────────────
 스펙 주도 개발            ✓            spec.json 레이어 체인
-결정론적 검증             ✓            hoyeon-cli validate
+결정론적 검증             ✓            sr-harness-cli validate
 환경 제약                ✓            allowed-tools, validate_prompt
 Context rot 방지         △            서브에이전트 (부분)
 관찰 가능성              △            Hook (부분)
@@ -1311,7 +1311,7 @@ hoyeon은 **Spec Coding과 Harness Engineering의 경계**에 위치한다. 스�
 |--------|------|:------:|
 | Layer 1 | design.md 9섹션 표준, 작성 원칙 (3관점, 실제 파일명, JSON 예시) | **완전 이식** |
 | Layer 2 | 각 게이트에서 문서 생성 → 리뷰 → 수정 루프, ID 가시성 규칙 | **구조 이식** |
-| Layer 3 | hoyeon-cli merge/patch, Write 도구로 파일 생성, AskUserQuestion | **재구현 필요** |
+| Layer 3 | sr-harness-cli merge/patch, Write 도구로 파일 생성, AskUserQuestion | **재구현 필요** |
 
 ### 9.2 문서 프로젝트(sr-harness) 특이사항
 

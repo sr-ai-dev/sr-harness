@@ -5,30 +5,30 @@ import issueHandler from '../src/commands/issue.js';
 import sessionHandler from '../src/commands/session.js';
 
 const USAGE = `
-hoyeon-cli — CLI for specify + blueprint + execute workflow
+sr-harness-cli — CLI for specify + blueprint + execute workflow
 
 Usage:
-  hoyeon-cli <group> <command> [options]
+  sr-harness-cli <group> <command> [options]
 
 Groups:
   req       requirements.md scaffolding (init only — cli does not parse .md)
   plan      plan.json operations (init, merge, get, list, task, validate)
   learning  Add structured learning entries to context/learnings.json
   issue     Add structured issue entries to context/issues.json
-  session   Session state management (set/get key-value in ~/.hoyeon/<sid>/state.json)
+  session   Session state management (set/get key-value in ~/.sr-harness/<sid>/state.json)
 
 Options:
   --help, -h    Show this help message
   --version     Show version
 
 Examples:
-  hoyeon-cli req init .hoyeon/specs/my-spec --type greenfield
-  hoyeon-cli plan init .hoyeon/specs/my-spec --type greenfield
-  hoyeon-cli plan merge .hoyeon/specs/my-spec --json '{"tasks":[...]}'
-  hoyeon-cli plan task .hoyeon/specs/my-spec --status T1=running
-  hoyeon-cli learning --task T1 --json '{"problem":"..."}' .hoyeon/specs/my-spec
-  hoyeon-cli issue --task T1 --json '{"type":"blocker","description":"..."}' .hoyeon/specs/my-spec
-  hoyeon-cli session set --sid abc123 --key spec_dir --value .hoyeon/specs/foo
+  sr-harness-cli req init .sr-harness/specs/my-spec --type greenfield
+  sr-harness-cli plan init .sr-harness/specs/my-spec --type greenfield
+  sr-harness-cli plan merge .sr-harness/specs/my-spec --json '{"tasks":[...]}'
+  sr-harness-cli plan task .sr-harness/specs/my-spec --status T1=running
+  sr-harness-cli learning --task T1 --json '{"problem":"..."}' .sr-harness/specs/my-spec
+  sr-harness-cli issue --task T1 --json '{"type":"blocker","description":"..."}' .sr-harness/specs/my-spec
+  sr-harness-cli session set --sid abc123 --key spec_dir --value .sr-harness/specs/foo
 `;
 
 const GROUPS = {
@@ -49,7 +49,7 @@ async function main() {
 
   if (args[0] === '--version') {
     const version = typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__ : 'dev';
-    process.stdout.write(`hoyeon-cli v${version}\n`);
+    process.stdout.write(`sr-harness-cli v${version}\n`);
     process.exit(0);
   }
 
@@ -57,7 +57,7 @@ async function main() {
 
   if (!Object.prototype.hasOwnProperty.call(GROUPS, group)) {
     process.stderr.write(`Error: unknown group '${group}'\n`);
-    process.stderr.write(`Run 'hoyeon-cli --help' for usage.\n`);
+    process.stderr.write(`Run 'sr-harness-cli --help' for usage.\n`);
     process.exit(1);
   }
 

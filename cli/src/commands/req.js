@@ -5,7 +5,7 @@ import { specPaths } from '../lib/json-io.js';
 
 const HELP = `
 Usage:
-  hoyeon-cli req <command> [options]
+  sr-harness-cli req <command> [options]
 
 Commands:
   init <spec_dir> --type <greenfield|feature|refactor|bugfix> [--goal "<text>"]
@@ -59,6 +59,6 @@ export default async function req(args) {
     return;
   }
   const fn = COMMANDS[sub];
-  if (!fn) die(`Error: unknown req command '${sub}'. Run 'hoyeon-cli req --help'.`);
+  if (!fn) die(`Error: unknown req command '${sub}'. Run 'sr-harness-cli req --help'.`);
   await fn(args.slice(1));
 }

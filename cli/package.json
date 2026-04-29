@@ -1,10 +1,10 @@
 {
-  "name": "@team-attention/hoyeon-cli",
+  "name": "@syscon-robotics/sr-harness-cli",
   "version": "1.6.0-sr.4",
   "type": "module",
   "description": "Dedicated CLI for specify + blueprint workflow (requirements.md + plan.json)",
   "bin": {
-    "hoyeon-cli": "./dist/cli.js"
+    "sr-harness-cli": "./dist/cli.js"
   },
   "files": [
     "dist/",

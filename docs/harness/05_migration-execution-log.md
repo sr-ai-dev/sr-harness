@@ -31,7 +31,7 @@
 | **추가** | 마이그레이션 참고 (2줄) | reviewer/tester 규칙 이관 안내 |
 | **수정** | 설계 문서 표준 | hoyeon/비hoyeon 분기 추가, SSoT 원칙 |
 | **수정** | 작업 유형별 접근법 | hoyeon 우선, 폴백 규칙 |
-| **수정** | 기능 사용 표시 | hoyeon-cli 항목 추가 |
+| **수정** | 기능 사용 표시 | sr-harness-cli 항목 추가 |
 | **유지** | 소통 규칙, Git 커밋, 실패 처리, 웹 검색, Auto Memory 등 | 변경 없음 |
 
 ### 백업
@@ -105,19 +105,19 @@ _removed_20260412/
 |------|--------|------|
 | 마켓플레이스 추가 | `claude plugin marketplace add team-attention/hoyeon` | team-attention-dev 등록 |
 | 플러그인 설치 | `claude plugin install hoyeon` | v1.5.4, user scope, enabled |
-| CLI 전역 설치 | `npm install -g @team-attention/hoyeon-cli` | 7 packages added |
+| CLI 전역 설치 | `npm install -g @syscon-robotics/sr-harness-cli` | 7 packages added |
 
 ### 설치 확인
 
 ```
 claude plugin list:
-  ❯ hoyeon@team-attention-dev
+  ❯ hoyeon@syscon-robotics-dev
     Version: 1.5.4
     Scope: user
     Status: ✔ enabled
 
-hoyeon-cli --help:
-  hoyeon-cli — Developer workflow CLI
+sr-harness-cli --help:
+  sr-harness-cli — Developer workflow CLI
 ```
 
 ### 설치 스코프
@@ -135,7 +135,7 @@ hoyeon-cli --help:
 | 문서 | 내용 |
 |------|------|
 | `01_priority1-comparison.md` | 핵심 워크플로우 비교 (writing-plans, dev-workflow, orchestrate) |
-| `01-1_hoyeon-cli-role.md` | hoyeon-cli 역할과 스킬 의존성 |
+| `01-1_sr-harness-cli-role.md` | sr-harness-cli 역할과 스킬 의존성 |
 | `02_priority2-comparison.md` | 실행/검증 비교 (executing-plans, subagent, verification, parallel) |
 | `03_priority3-comparison.md` | 보조 스킬 비교 (debugging, TDD, code-review, worktrees) + 전체 종합 |
 | `04_global-claude-md-draft.md` | 글로벌 CLAUDE.md 개편안 + 변경 해설 |

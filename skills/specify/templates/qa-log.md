@@ -108,3 +108,7 @@ Contents:
 ### SECURITY
 
 ## Open Items
+<!-- Interview scratchpad. Promoted to requirements.md `## Open Decisions` (with OD-N IDs) at Step 4.4. -->
+
+## Resolutions
+<!-- Phase 4.2 owns this section. One bullet per CC-N decision: `- CC-{N}: {accept|reject|modify|defer} — {note}`. Do not pre-populate; orchestrator appends as resolutions happen. -->

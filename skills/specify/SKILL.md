@@ -223,6 +223,7 @@ If the user picks none, proceed with base calibration. Otherwise, modifiers will
   - `brownfield-refactor` → `refactor`
   - `hybrid` → `feature` (or `refactor` if structural churn dominates)
   The stub is overwritten at Phase 4.3 once the interview is complete. If `<spec_dir>/requirements.md` already exists from a prior run, skip `req init` and proceed (the user is re-running specify on the same spec).
+  - **`type` rerun check**: when `<spec_dir>/requirements.md` exists, read its frontmatter `type` and compare with the new SITUATION→type mapping above. If they differ, halt and ask the user whether to keep the existing `type` (and ignore the new SITUATION) or rewrite it (and treat the spec as a Full re-interview per Phase 4.3).
 - Read the Q&A log template from `${baseDir}/templates/qa-log.md`
 - Initialize `<spec_dir>/qa-log.md` only when it does not already exist.
   - If `<spec_dir>/qa-log.md` exists, keep it unchanged, treat the run as a resume/re-run, and append new Q&A under a dated `## Re-run` or `## Re-interview` section when needed.
@@ -330,17 +331,29 @@ AskUserQuestion(
 Run this check BEFORE dispatching agents. If `where.sr_modules` was detected in Step 0.1:
 
 1. Read `.sr-harness/knowledge/index.yaml`
-2. For each module in `where.sr_modules`:
-   - **Module in index.yaml?**
-     - **YES** → compare `commit_sha` with `git rev-parse HEAD` in `source.path`
-       - **MATCH** → Read the module's KB files (`common` + `ros2`/`ros1` if present). Mark module as `kb_loaded`. Skip agent scan for this module.
-       - **MISMATCH** → AskUserQuestion: "KB for {module} is outdated (stale commit). Use existing KB or re-scan?" options: [Use existing, Re-scan now, Skip]
-         - Use existing → load KB files as-is, mark `kb_loaded`
-         - Re-scan now → run `/knowledge scan {module}`, then load result
-         - Skip → fall through to agent dispatch
-     - **NO** → fall through to agent dispatch
-3. If **all** modules are `kb_loaded` → skip "Dispatch subagents in parallel" entirely. Write KB content into `qa-log.md` `## Research` section directly.
-4. If **some** modules are `kb_loaded` → still dispatch agents, but inject the following constraints into each agent prompt:
+2. **Classify each module in `where.sr_modules`** (in-memory, no user prompts yet):
+   - Not in index.yaml → mark `agent_scan` (fall through to dispatch)
+   - In index.yaml + `commit_sha` match `git rev-parse HEAD` in `source.path` → mark `kb_loaded` (load KB files: `common` + `ros2`/`ros1` if present, skip agent scan)
+   - In index.yaml + `commit_sha` mismatch → mark `kb_stale` (collected for batched prompt below)
+3. **Batched MISMATCH prompt** — if any modules are `kb_stale`, ask the user once with one question per stale module (max 4 per AskUserQuestion call; chunk if more):
+   ```
+   AskUserQuestion(
+     questions: [
+       {
+         question: "KB for {module-A} is outdated (stale commit). How to proceed?",
+         options: [
+           { label: "Use existing", description: "Load KB files as-is, mark kb_loaded" },
+           { label: "Re-scan now", description: "Run /knowledge scan {module-A}, then load result" },
+           { label: "Skip", description: "Fall through to agent dispatch" }
+         ]
+       },
+       // ... one question per stale module (chunk into multiple calls if more than 4)
+     ]
+   )
+   ```
+   Apply the user's answer per module: Use existing → `kb_loaded`; Re-scan now → run `/knowledge scan {module}` then `kb_loaded`; Skip → `agent_scan`.
+4. If **all** modules are `kb_loaded` → skip "Dispatch subagents in parallel" entirely. Write KB content into `qa-log.md` `## Research` section directly.
+5. If **some** modules are `kb_loaded` (and others are `agent_scan`) → still dispatch agents, but inject the following constraints into each agent prompt:
    - **Exclude already-known modules**: list `kb_loaded` modules with note "이미 KB로 처리됨 — 스캔 제외"
    - **Scope to remaining modules only**: agent should investigate only the not-loaded modules
    - Example prompt suffix: `"제외 대상 (이미 KB 로드됨): spx-driver. 조사 대상: core-navigation"`
@@ -417,6 +430,17 @@ Use the `depth_calibration:` frontmatter from `qa-log.md` to decide minimum inte
 | `deep` | 4+ | Required for every ambiguity signal | Required; a single shallow answer is usually CONTINUE |
 
 If an SR profile activates additional nodes such as `TECH.ROS_INTERFACE`, `TECH.HW_INTERFACE`, `TECH.INTEGRATION`, or `TECH.SAFETY`, apply the same depth table to those nodes.
+
+### Late SR Profile Surface
+
+When `where.sr_profile` was `null` after Step 0.1 but Tech-axis answers reveal SR context (e.g., user mentions ROS topics, UART protocol, ros bridge), update it mid-interview rather than waiting for the final audit:
+
+1. Update `where.sr_profile` (and `sr_modules` / `sr_ros_version` if newly clear) in `qa-log.md` frontmatter.
+2. Re-run **Step 0.4 Step D** against the updated `sr_profile` — escalate `depth_calibration` for the affected nodes (e.g., `ros-node` → TECH.ARCH/COMPAT deep, plus activate `TECH.ROS_INTERFACE`).
+3. Dispatch **gap-auditor** immediately on the Tech axis (do not wait for the normal end-of-axis trigger). The auditor will flag the now-`deep` nodes as AMBIGUOUS or MISSING if the existing Q&A is shallower than the new threshold.
+4. Convert the auditor's AMBIGUOUS list into Inline/Post-Audit drills as usual.
+
+This prevents under-spec when SR context surfaces late, without the heavyweight cost of a Re-calibration log.
 
 ### Question Rules
 
@@ -699,7 +723,12 @@ Before writing the final `requirements.md`, surface everything to the user for e
 
 ### Step 4.1: Present Cross-Check Summary
 
-Read `<spec_dir>/cross-check.md` and show the user a concise summary grouped into:
+**Data sources** (read each before composing the summary):
+- `<spec_dir>/cross-check.md` `## Cross-Check Report` → Conflicts, Open Questions, Assumptions
+- `<spec_dir>/reqs-business.md` / `reqs-interaction.md` / `reqs-tech.md` → Confirmed Requirement counts per axis
+- `<spec_dir>/qa-log.md` frontmatter `where.non_goals` → Out of Scope list
+
+Show the user a concise summary grouped into:
 
 ```
 ## Final Confirmation
@@ -727,13 +756,26 @@ For each CONFLICT and ASSUMPTION, use AskUserQuestion with options (typically: a
 
 For OPEN QUESTIONS: either answer them now (free-text or AskUserQuestion) or explicitly defer them to the open_decisions list.
 
-Apply resolutions only to the requirements draft:
+Apply resolutions to the in-memory requirements draft AND persist a one-line audit entry in `qa-log.md` per resolution so the work survives session compaction:
+
 - **accept**: keep the requirement or assumption in the final draft.
 - **reject**: remove or rewrite the affected requirement.
 - **modify**: apply the user's replacement text, then re-show the affected requirement.
 - **defer**: add an entry to the final `## Open Decisions` section.
 
-If Phase 4 resumes after interruption, compare `cross-check.md` issue IDs against the current requirements draft and `## Open Decisions`; only ask about unresolved IDs.
+**Persist resolution per decision** — immediately after the user answers an AskUserQuestion in this step, append one line to `qa-log.md` `## Resolutions`:
+
+```
+- CC-{N}: {accept | reject | modify | defer} — {short note or replacement text reference}
+```
+
+The `## Resolutions` section is created on first append if missing. This is the durable record; the in-memory draft is rebuilt from `cross-check.md` + this list on resume.
+
+**Resume rule** — if Phase 4 resumes after interruption (compaction, crash, or `/specify` re-entry on the same `spec_dir`):
+1. Read `cross-check.md` `## Cross-Check Report` for the full CC-N list.
+2. Read `qa-log.md` `## Resolutions` for already-resolved CC-N entries.
+3. Only ask about CC-N IDs that appear in (1) but not in (2).
+4. Rebuild the requirements draft by replaying the `## Resolutions` list against `reqs-*.md`.
 
 ### Step 4.3: Preview final requirements
 
@@ -832,7 +874,8 @@ Only after user has explicitly approved the preview:
    - No axis grouping headings in the body (flat list); axis is encoded in the ID letter
 4. **Frontmatter** carries only `type`, `goal`, `non_goals[]`. Do NOT add extra keys like `spec`, `phase`, `date`, `total_requirements` — those broke with cli's frontmatter format.
 5. Pre-work is optional — include only when the interview surfaced actions the user must complete before execution (e.g., "get API key", "run migration"). Mark each item `(blocking)` or `(non-blocking)`. execute will gate on blocking items.
-6. Open Decisions is optional — omit the section if no unresolved decisions
+6. Open Decisions is optional — omit the section if no unresolved decisions.
+   - **Open Items → Open Decisions promotion**: items recorded in `qa-log.md` `## Open Items` (interview scratchpad) plus any `defer` resolutions from Step 4.2 are the source. Assign sequential `OD-N` IDs and write each as one entry in this section. The two names refer to the same concept at different stages — `Open Items` is the in-flight scratch, `Open Decisions` is the final consumed-by-`/blueprint` form.
 7. Confirm completion with the user, showing final file path + next step: `/blueprint <spec_dir>/`
 
 ### Step 4.5: KB Save (SR-Harness only)

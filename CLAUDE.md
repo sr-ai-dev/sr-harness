@@ -61,7 +61,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 
 | Script | Type | Purpose |
 |--------|------|---------|
-| `cli-version-sync.sh` | SessionStart | Auto-sync hoyeon-cli npm version with plugin version |
+| `cli-version-sync.sh` | SessionStart | Auto-sync sr-harness-cli npm version with plugin version |
 | `session-compact-hook.sh` | SessionStart | Unified compact recovery — outputs skill name + state.json path |
 | `ultrawork-init-hook.sh` | UserPromptSubmit | Initialize ultrawork pipeline state when `/ultrawork` is typed |
 | `skill-session-init.sh` | UserPromptSubmit + PreToolUse[Skill] | Initialize session state for specify/execute/blueprint skills |
@@ -79,7 +79,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 | `rv-validator.sh` | Stop | Run re-validation pass on stop |
 | `rulph-stop.sh` | Stop | Handle rulph loop termination |
 | `ralph-stop.sh` | Stop | Ralph loop DoD verification + prompt re-injection |
-| `skill-session-cleanup.sh` | SessionEnd | Clean up session dir (`rm -rf ~/.hoyeon/{session_id}/`) |
+| `skill-session-cleanup.sh` | SessionEnd | Clean up session dir (`rm -rf ~/.sr-harness/{session_id}/`) |
 
 ### Hook Development Notes
 
@@ -89,7 +89,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
   2. `.claude/settings.json` — project-level registration (uses `.claude/scripts/...`)
   3. `CLAUDE.md` — add entry to the Active Hooks table above
 - A hook script that is not registered in settings will **not fire** — creating the file alone is not enough
-- Run `hoyeon-cli session get --sid <id>` to verify session state after changes
+- Run `sr-harness-cli session get --sid <id>` to verify session state after changes
 - Hook behavior gotchas are documented in commit history and session learnings
 
 ## Git Branching & Release
@@ -119,7 +119,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 
 - Plugin version is in `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `cli/package.json`
 - **Bump all three files** in a single commit on `develop` before merging to `main`
-- CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
+- CLI version (`@syscon-robotics/sr-harness-cli`) is always synced with plugin version
 
 ## Recent Changes (v1.6.0-sr.7)
 
@@ -173,23 +173,23 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - feat(specify): SR Profile depth calibration (Step 0.4D) — driver/ros-node/cross-product profiles adjust research axis weights
 - feat(specify): tech-extractor boundary pattern injection per sr_profile (Phase 2 system prompt)
 - feat(blueprint): Phase 4.5 Design Document Generation — 9-section design.md produced after plan approval (§1 시스템개요…§9 확장포인트), with SR Profile section overrides
-- feat(spec-review): v2 pipeline sync — requirements.md direct Edit, plan.json via hoyeon-cli plan merge, design.md/contracts.md direct Edit with cascading sync rules
+- feat(spec-review): v2 pipeline sync — requirements.md direct Edit, plan.json via sr-harness-cli plan merge, design.md/contracts.md direct Edit with cascading sync rules
 - feat(knowledge): description update — Phase 0.5 Context Research integration, brownfield qa-log.md sr_modules pattern
 
 ## Previous Changes (v1.6.0)
 
-### CLI Rename (hoyeon-cli2 → hoyeon-cli)
-- **BREAKING**: npm package renamed `@team-attention/hoyeon-cli2` → `@team-attention/hoyeon-cli` (v1 slot reclaimed now that v1 CLI is retired)
-- Directory: `cli2/` → `cli/`, binary: `hoyeon-cli2` → `hoyeon-cli`
-- Users must `npm uninstall -g @team-attention/hoyeon-cli2 && npm install -g @team-attention/hoyeon-cli` (or rely on SessionStart `cli-version-sync.sh`)
+### CLI Rename (sr-harness-cli2 → sr-harness-cli)
+- **BREAKING**: npm package renamed `@syscon-robotics/sr-harness-cli2` → `@syscon-robotics/sr-harness-cli` (v1 slot reclaimed now that v1 CLI is retired)
+- Directory: `cli2/` → `cli/`, binary: `sr-harness-cli2` → `sr-harness-cli`
+- Users must `npm uninstall -g @syscon-robotics/sr-harness-cli2 && npm install -g @syscon-robotics/sr-harness-cli` (or rely on SessionStart `cli-version-sync.sh`)
 - Fixed long-standing broken refs in `.github/workflows/ci.yml`, `publish.yml`, and `scripts/pre-commit-cli-build.sh` that pointed at `cli/` while directory was `cli2/`
-- Fixed `hoyeon-cli plan status` stale command references in agents and docs → correct form is `hoyeon-cli plan task <spec_dir> --status <id>=<state>`
+- Fixed `sr-harness-cli plan status` stale command references in agents and docs → correct form is `sr-harness-cli plan task <spec_dir> --status <id>=<state>`
 
 ### Pipeline v2 Migration
-- **BREAKING**: Removed old specify (v1), execute (v1), quick-plan skills and hoyeon-cli (v1)
+- **BREAKING**: Removed old specify (v1), execute (v1), quick-plan skills and sr-harness-cli (v1)
 - **Renamed**: specify2 → specify, execute2 → execute (clean names)
 - New pipeline: `/specify` (requirements.md) → `/blueprint` (plan.json + contracts.md) → `/execute` (dispatch workers)
-- New CLI: `hoyeon-cli` with groups: req, plan, learning, issue, session
+- New CLI: `sr-harness-cli` with groups: req, plan, learning, issue, session
 - Rewired `/bugfix` from spec.json → requirements.md pipeline
 - Updated all hooks, agents, and downstream skills for v2
 - Codebase reconnaissance added to `/blueprint` (Phase 0.5, non-greenfield)
@@ -201,28 +201,28 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - 6 dispatch/verify reference recipes: direct.md, agent.md, team.md, worker-charter.md, verify.md, contracts-patch.md
 - Pre-work gate, inline planning fallback, resume behavior with idempotent done-skip
 
-### CLI (`hoyeon-cli`)
+### CLI (`sr-harness-cli`)
 - `req init` — requirements.md scaffolding
 - `plan init/merge/get/list/task/validate` — plan.json operations
 - `learning` — structured learnings to context/learnings.json
 - `issue` — structured issues to context/issues.json
 - `session set/get` — session state management
 
-## CLI Reference (hoyeon-cli)
+## CLI Reference (sr-harness-cli)
 
 | Group | Command | Description |
 |-------|---------|-------------|
-| `req` | `hoyeon-cli req init <spec_dir> --type <type> [--goal "..."]` | Create spec_dir + requirements.md template |
-| `plan` | `hoyeon-cli plan init <spec_dir> --type <type>` | Create empty plan.json stub |
-| `plan` | `hoyeon-cli plan merge <spec_dir> --json '<payload>' [--patch\|--append]` | Merge payload into plan.json |
-| `plan` | `hoyeon-cli plan get <spec_dir> --path <dotted.path>` | Read field by dot notation |
-| `plan` | `hoyeon-cli plan list <spec_dir> [--status <state>] [--json]` | List tasks with optional filter |
-| `plan` | `hoyeon-cli plan task <spec_dir> --status <id>=<state>` | Update task status (monotonic done-lock) |
-| `plan` | `hoyeon-cli plan validate <spec_dir>` | Schema + cross-ref integrity check |
-| `learning` | `hoyeon-cli learning --task <id> --json '{...}' <spec_dir>` | Add learning to context/learnings.json |
-| `issue` | `hoyeon-cli issue --task <id> --json '{...}' <spec_dir>` | Add issue to context/issues.json |
-| `session` | `hoyeon-cli session set --sid <id> [--key k --value v] [--json '{...}']` | Update session state |
-| `session` | `hoyeon-cli session get --sid <id>` | Read session state |
+| `req` | `sr-harness-cli req init <spec_dir> --type <type> [--goal "..."]` | Create spec_dir + requirements.md template |
+| `plan` | `sr-harness-cli plan init <spec_dir> --type <type>` | Create empty plan.json stub |
+| `plan` | `sr-harness-cli plan merge <spec_dir> --json '<payload>' [--patch\|--append]` | Merge payload into plan.json |
+| `plan` | `sr-harness-cli plan get <spec_dir> --path <dotted.path>` | Read field by dot notation |
+| `plan` | `sr-harness-cli plan list <spec_dir> [--status <state>] [--json]` | List tasks with optional filter |
+| `plan` | `sr-harness-cli plan task <spec_dir> --status <id>=<state>` | Update task status (monotonic done-lock) |
+| `plan` | `sr-harness-cli plan validate <spec_dir>` | Schema + cross-ref integrity check |
+| `learning` | `sr-harness-cli learning --task <id> --json '{...}' <spec_dir>` | Add learning to context/learnings.json |
+| `issue` | `sr-harness-cli issue --task <id> --json '{...}' <spec_dir>` | Add issue to context/issues.json |
+| `session` | `sr-harness-cli session set --sid <id> [--key k --value v] [--json '{...}']` | Update session state |
+| `session` | `sr-harness-cli session get --sid <id>` | Read session state |
 
 **Key conventions:**
 - **File-based JSON passing** — write JSON to `/tmp/spec-merge.json` via heredoc (`<< 'EOF'`), pass via `--json "$(cat /tmp/spec-merge.json)"`. Never pass JSON directly as CLI argument (zsh glob expansion corrupts `[`, `{`, `$`)
@@ -233,11 +233,11 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 
 **Learning & Issue examples:**
 ```bash
-hoyeon-cli learning --task T1 --stdin <spec_dir> << 'EOF'
+sr-harness-cli learning --task T1 --stdin <spec_dir> << 'EOF'
 {"problem": "...", "cause": "...", "rule": "...", "tags": [...]}
 EOF
 
-hoyeon-cli issue --task T1 --stdin <spec_dir> << 'EOF'
+sr-harness-cli issue --task T1 --stdin <spec_dir> << 'EOF'
 {"type": "failed_approach|out_of_scope|blocker", "description": "..."}
 EOF
 ```

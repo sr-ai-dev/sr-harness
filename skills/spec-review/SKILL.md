@@ -34,7 +34,7 @@ specify/blueprint 승인 게이트 밖에서도 **문서 기반 피드백 → �
 
 **수정 원칙:**
 - `requirements.md` → **직접 Edit** (마크다운 SSoT, CLI 불필요)
-- `plan.json` → **`hoyeon-cli plan merge`** 만 사용 (직접 편집 금지)
+- `plan.json` → **`sr-harness-cli plan merge`** 만 사용 (직접 편집 금지)
 - `contracts.md` → **직접 Edit** (마크다운)
 - `design.md` → **직접 Edit** (human-only, /execute가 읽지 않음)
 
@@ -59,7 +59,7 @@ blueprint 승인 게이트 내:
 ### Step 1: spec_dir 로드
 
 ```
-1. .hoyeon/specs/ 디렉토리에서 spec 목록 확인
+1. .sr-harness/specs/ 디렉토리에서 spec 목록 확인
 2. spec이 1개 → 자동 로드
 3. spec이 2개+ → 사용자에게 선택 질문
 ```
@@ -142,10 +142,10 @@ v2 requirements.md 포맷:
 cat > /tmp/sr-plan-patch.json << 'EOF'
 {"tasks": [{"id": "T3", "action": "새로운 action 문구"}]}
 EOF
-hoyeon-cli plan merge <spec_dir> --patch --json "$(cat /tmp/sr-plan-patch.json)"
+sr-harness-cli plan merge <spec_dir> --patch --json "$(cat /tmp/sr-plan-patch.json)"
 ```
 
-task status 변경은 `hoyeon-cli plan task <spec_dir> --status T3=done` 사용.
+task status 변경은 `sr-harness-cli plan task <spec_dir> --status T3=done` 사용.
 
 #### contracts.md / design.md 수정 (직접 Edit)
 
@@ -166,7 +166,7 @@ task status 변경은 `hoyeon-cli plan task <spec_dir> --status T3=done` 사용.
 **동기화 규칙:**
 1. 영향받는 문서의 **해당 섹션만** 재생성 (전체 재작성 금지)
 2. 재생성 시 requirements.md ID 가시성 유지 (R-B1.1, R-T2.3 등)
-3. plan.json 수정 후 반드시 `hoyeon-cli plan validate <spec_dir>` 실행
+3. plan.json 수정 후 반드시 `sr-harness-cli plan validate <spec_dir>` 실행
 
 ### Step 6: 결과 제시
 
@@ -188,7 +188,7 @@ task status 변경은 `hoyeon-cli plan task <spec_dir> --status T3=done` 사용.
 
 ## 제약 사항
 
-- **plan.json 직접 편집 금지** — 반드시 `hoyeon-cli plan merge/task` 경유
+- **plan.json 직접 편집 금지** — 반드시 `sr-harness-cli plan merge/task` 경유
 - **요구사항 신규 추가 시** — 해당 sub-req를 fulfill하는 task가 plan.json에 없으면 경고 표시
   ("R-B2.4가 plan.json에 coverage되지 않습니다. /blueprint를 다시 실행하거나 수동으로 task를 추가하세요.")
 - **plan.json validate 실패 시** — 사용자에게 보고, 수정 제안
@@ -211,7 +211,7 @@ task status 변경은 `hoyeon-cli plan task <spec_dir> --status T3=done` 사용.
 # plan.json task 수정
 /spec-review
 > "T5 action 문구를 더 명확하게 바꿔줘"
-# → hoyeon-cli plan merge --patch → design.md §5 재생성
+# → sr-harness-cli plan merge --patch → design.md §5 재생성
 ```
 
 ---

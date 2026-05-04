@@ -40,8 +40,8 @@ source files itself.
 ```json
 {
   "task_id": "T7",
-  "plan_path": "/abs/path/.hoyeon/specs/execute/plan.json",
-  "contracts_path": "/abs/path/.hoyeon/specs/execute/contracts.md",
+  "plan_path": "/abs/path/.sr-harness/specs/execute/plan.json",
+  "contracts_path": "/abs/path/.sr-harness/specs/execute/contracts.md",
   "sub_req_ids": ["R-F6.1", "R-F6.2", "R-F6.3", "R-F6.4", "R-N15.1", "R-N17.1"],
   "round": 1,
   "prior_failure_context": null
@@ -61,7 +61,7 @@ The charter is a **pointer**, never a payload. The following are hard bans:
 - **No inlined contracts.md content** — no interface definitions, no invariants,
   no data-type schemas copied into the charter.
 - **No task.action body** — the worker reads `task.action` from plan.json via
-  `hoyeon-cli plan get`.
+  `sr-harness-cli plan get`.
 - **No file scope hints beyond IDs** — no "edit file X, line Y" directives; the
   worker derives scope from the task action + sub_req GWT it reads itself.
 
@@ -158,7 +158,7 @@ The worker receives only the charter. It MUST read the authoritative sources its
 
 ```bash
 # fetch task.action and task.fulfills[] — charter does not carry these
-hoyeon-cli plan get <plan_path>    # or: ... --path tasks --filter id=<task_id>
+sr-harness-cli plan get <plan_path>    # or: ... --path tasks --filter id=<task_id>
 
 # 1b. Read the sub-requirements named in sub_req_ids
 #     The worker reads requirements.md with the Read tool for each sub_req's GWT
@@ -260,7 +260,7 @@ Step 6 runs only after Step 5's learnings/issues.json write has flushed to disk;
 these two steps are strictly sequential, never concurrent.
 
 ```bash
-hoyeon-cli plan task <plan_path> --status <task_id>=<done|failed|blocked>
+sr-harness-cli plan task <plan_path> --status <task_id>=<done|failed|blocked>
 ```
 
 Then emit the WorkerOutput JSON (§2) as the worker's last message.
@@ -324,7 +324,7 @@ charter.prompt = "Implement task T7: charter must contain no spec body..."
 ```
 
 **Correct**: charter references `task_id: "T7"`. The worker runs
-`hoyeon-cli plan get` to fetch `task.action`.
+`sr-harness-cli plan get` to fetch `task.action`.
 
 ### 5.3 Inlined contracts.md content
 

@@ -42,7 +42,7 @@ scaffold is specify's **architecture variant**. Same requirements.md format, dif
 
 ## Core Rules
 
-1. **CLI creates the spec dir** — `hoyeon-cli req init` to create the spec directory and stub requirements.md. Then Write/Edit requirements.md directly.
+1. **CLI creates the spec dir** — `sr-harness-cli req init` to create the spec directory and stub requirements.md. Then Write/Edit requirements.md directly.
 2. **Direct markdown editing** — Write requirements.md content using Write or Edit tools. No JSON merge protocol needed.
 3. **No schema validation** — requirements.md is freeform markdown. No `spec validate` or `spec guide` commands.
 4. **Revision Protocol** — When user selects "Revise" at an approval gate:
@@ -66,15 +66,15 @@ scaffold produces requirements.md only (no tasks). Task breakdown is handled lat
 ### Session Init (before L0)
 
 ```bash
-SPEC_DIR=".hoyeon/specs/{name}"
-hoyeon-cli req init $SPEC_DIR --type greenfield --goal "{goal}"
+SPEC_DIR=".sr-harness/specs/{name}"
+sr-harness-cli req init $SPEC_DIR --type greenfield --goal "{goal}"
 ```
 
 This creates `${SPEC_DIR}/requirements.md` with a stub template.
 
 ```bash
 SESSION_ID="[from UserPromptSubmit hook]"
-hoyeon-cli session set --sid $SESSION_ID --key spec_dir --value "$SPEC_DIR"
+sr-harness-cli session set --sid $SESSION_ID --key spec_dir --value "$SPEC_DIR"
 ```
 
 ---
@@ -549,7 +549,7 @@ Each generated skill must reference actual tools/commands from L2 decisions:
 ### L4 Approval — Plan Summary
 
 ```
-requirements.md ready! .hoyeon/specs/{name}/requirements.md
+requirements.md ready! .sr-harness/specs/{name}/requirements.md
 
 Goal
 ----------------------------------------
@@ -628,7 +628,7 @@ AskUserQuestion(
 
 ## Checklist Before Stopping
 
-- [ ] requirements.md at `.hoyeon/specs/{name}/requirements.md`
+- [ ] requirements.md at `.sr-harness/specs/{name}/requirements.md`
 - [ ] Confirmed Goal is architecture-framed (not feature-framed)
 - [ ] Non-Goals includes "feature implementation" or similar
 - [ ] L2: Decisions cover all 5 architecture dimensions

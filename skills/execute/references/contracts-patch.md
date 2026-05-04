@@ -11,7 +11,7 @@ cross-module contract mismatch. Runs automatically — **no user confirmation**
 - `contracts_path` — absolute path to `<spec_dir>/contracts.md` (may be null)
 - `audit_path` — absolute path to `<spec_dir>/audit.md`
 
-**Tools used** (INV-5): `Read`, `Edit`, `Write` only. **Never `hoyeon-cli`** for
+**Tools used** (INV-5): `Read`, `Edit`, `Write` only. **Never `sr-harness-cli`** for
 contracts.md or audit.md.
 
 ---
@@ -268,7 +268,7 @@ a new bullet **under the existing Required fields list**. The concrete Edit call
 
 ```
 Edit(
-  file_path=".hoyeon/specs/execute/contracts.md",
+  file_path=".sr-harness/specs/execute/contracts.md",
   old_string="- `contract_mismatch` (optional) — free-text description of detected contract violation",
   new_string="- `contract_mismatch` (optional) — free-text description of detected contract violation\n- `round` (number, optional) — echo of the dispatch round for notification ordering (added by T5)"
 )

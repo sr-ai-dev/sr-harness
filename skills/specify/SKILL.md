@@ -33,6 +33,50 @@ validate_prompt: |
 
 # specify: Goal → Requirements via Systematic Interview
 
+## Invocation Modes (v1.6.0-sr.7)
+
+`/specify` accepts the following invocation patterns. They are pre-processed before Phase 0 begins.
+
+### Bare invocation — Smart Router
+
+`/specify` with no arguments inspects local state and routes:
+
+| State | Action |
+|---|---|
+| No `<spec_dir>` exists, no goal in input | Ask the user for a goal, then proceed to `init` flow |
+| `<spec_dir>` exists with incomplete `qa-log.md` | **Resume** from last recorded phase |
+| `<spec_dir>` exists with completed `requirements.md` and `spec_inbox.json` empty (or absent) | Print `status` summary (coverage + open decisions) and stop |
+| `<spec_dir>` exists with `spec_inbox.json` containing N items | Print "🔔 N items pending" and offer reflect/expand options via AskUserQuestion |
+| Multiple candidate `spec_dir`s under `.hoyeon/specs/` | AskUserQuestion to pick one |
+
+The router only chooses *which* flow to run — it does not change Phase 0–4 internals. If the user passes an explicit goal string, treat as `init` regardless of state.
+
+### `--quick` flag
+
+`/specify --quick "<goal>"` runs an abbreviated interview suitable for skeleton v0 specs:
+
+- **Phase 1 cap**: max **2 questions per active node** regardless of `depth_calibration` (deep → standard, standard → light cap).
+- **Inline drills**: disabled. Treat all "vague qualifier" / "hidden assumption" signals as Open Items instead of drilling.
+- **Gap audit**: each axis runs gap-auditor exactly once. CONTINUE verdict auto-promotes remaining AMBIGUOUS items to `## Open Items` and the axis is treated as sufficient.
+- **Phase 2 extractors**: still run, but on a smaller qa-log → naturally faster.
+- **Final audit**: skipped. Cross-check (Phase 3) catches inter-axis issues.
+
+Use `--quick` for early exploration, prototypes, and toy projects. Re-run without `--quick` (or use future `/specify expand <axis>`) to deepen any axis.
+
+### `-context @<file>...` flag — Context-First lite
+
+`/specify -context @docs/idea.md [-context @notes/meeting.md ...]` injects pre-existing documents as the primary source for Mirror + Phase 1 default answers.
+
+Pre-processing:
+1. Read each `@<file>`. Concatenate up to 50K tokens; if larger, summarize each file via a single Pre-Fill Agent call.
+2. Stash combined context as `<spec_dir>/context-bundle.md` once `spec_dir` is decided in Step 0.3.
+3. In Step 0.1 Mirror generation, prefer extracted goal/non_goals/sr_* fields from the context bundle over keyword inference. Mark each extracted field with `source: from-context-doc` and `lineage: <file>:<line-range>` in qa-log.md frontmatter.
+4. In Phase 1, when forming AskUserQuestion options, use the context bundle as the "tentative answer" for Default-First (see Question Construction below). Show `[from idea.md:42-58]` provenance in the option `description`.
+
+`-context conversation` (literal token, not `@`) injects the current conversation history as a context source. Off by default; user must opt-in.
+
+Combinable: `--quick` + `-context` is the fastest path — context fills most fields, the abbreviated interview asks only what is left.
+
 ## Overview
 
 Transform a vague goal into structured, traceable requirements through:
@@ -587,6 +631,35 @@ Each AskUserQuestion option must have:
 - `description`: the consequence/implication of this choice
 - First option gets "(Recommended)" suffix only when you genuinely have a recommendation
 
+#### Default-First Pattern (v1.6.0-sr.7)
+
+Before composing options, **always attempt to derive a tentative answer** from one of these sources, in priority order:
+
+1. `<spec_dir>/context-bundle.md` (when `-context` flag was used)
+2. Phase 0.5 Research findings (`qa-log.md` `## Research`)
+3. KB content loaded for `where.sr_modules`
+4. WHERE context defaults (situation × ambition × sr_profile)
+5. Sensible engineering defaults for the project_type
+
+When a tentative answer can be derived, structure the question as **Recognition + Verification**, not Recall:
+
+```
+question: "Confirm the tentative answer or override?"
+header: "<topic>"
+options: [
+  { label: "Confirm: <tentative>", description: "Use the value above. Source: <where it came from>" },
+  { label: "Modify", description: "Provide a different value via Other" },
+  { label: "Skip", description: "Leave as uncertainty zone — revisit during /blueprint or later" },
+  { label: "Other concrete option", description: "..." }
+]
+```
+
+The "Skip" option is required whenever the user is unlikely to know the answer (Tech axis details, security thresholds, etc.). It records the node as `status: assumption` with confidence `low` and adds an Open Item, instead of forcing speculation.
+
+When **no** tentative answer can be derived honestly, fall back to standard option construction. Do NOT fabricate a default just to satisfy the pattern.
+
+Provenance: when the tentative answer comes from a context document, include `[from <file>:<lineX-Y>]` in the description so the user sees the origin.
+
 **Example** (batched):
 ```
 questions: [
@@ -698,7 +771,13 @@ Do NOT call gap-auditor after every AskUserQuestion turn — that's wasteful. Ca
 Each call:
 1. Write current Q&A state to `qa-log.md` first
 2. Increment `audit_counts.{business|interaction|tech|final}` in `qa-log.md` frontmatter before dispatch.
-3. If the relevant count would exceed **5**, stop and ask:
+3. **v1.6.0-sr.7 — Single-shot audit (default)**: each axis runs gap-auditor exactly once. If the verdict is CONTINUE, do **not** loop. Instead, automatically promote the auditor's AMBIGUOUS list to `## Open Items` (each as `status: ambiguous`) and treat the axis as sufficient for completion purposes. Record `audit_counts.{axis}: 1` and proceed.
+
+   Rationale: repeated audit loops were the dominant Phase 1 cost (per `12_specify-pipeline-review.md` H-1 and `15_specify-redesign-living-spec.md` §3). Open Items are now first-class — `/blueprint` and `/execute` are expected to surface them through `spec_inbox.json` (Living Spec) or via Open Decisions in `requirements.md`.
+
+   Legacy multi-loop behavior is available via `--strict` flag (max 5 loops + circuit breaker AskUserQuestion). The opt-out exists for high-risk product specs; default is single-shot.
+
+   Multi-loop (legacy `--strict`) circuit breaker:
    ```
    AskUserQuestion(
      question: "The {axis} audit has looped 5 times without reaching SUFFICIENT. Continue interviewing or accept the remaining gaps as open decisions?",

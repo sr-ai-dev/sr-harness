@@ -121,7 +121,17 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v1.6.0-sr.4)
+## Recent Changes (v1.6.0-sr.7)
+
+- feat(specify): Living Spec M-Lite — UX 4건 (v1.6.0-sr.7)
+  - **`--quick` 플래그**: Phase 1을 노드당 max 2 질문으로 cap, inline drill 비활성, gap-auditor 단일 호출, final audit skip. 토큰/시간 50% 이상 단축 추정.
+  - **`-context @file` 플래그**: 사전 정리 문서를 Mirror + Phase 1 default 답변 소스로 주입. context-bundle.md 작성, qa-log.md frontmatter에 `source: from-context-doc` + `lineage: <file>:<lines>` 기록.
+  - **바 `/specify` Smart Router**: 인자 없는 호출 시 spec_dir/spec_inbox 상태 기반 자동 라우팅 (init/resume/status/reflect 추천). `--strict` 옵션은 legacy multi-loop 회로차단기 유지.
+  - **Default-First Question Construction**: Phase 1 질문 작성 가이드에 "Recall → Recognition + Verification" 패턴 추가. 4-way 옵션 (Confirm/Modify/Skip/Other) + 출처 표기 `[from <file>:<lines>]`. context-bundle / Phase 0.5 research / KB / WHERE / engineering default 우선순위.
+  - **Gap-auditor 단일 호출 default**: 축당 1회 audit, CONTINUE 시 자동으로 AMBIGUOUS → Open Items 승격. legacy multi-loop은 `--strict` opt-in.
+- docs: `15_specify-redesign-living-spec.md` (신규) — Living Spec System 전체 재설계 비전 (M1-M6 마이그레이션, spec.json SSoT, spec_inbox, SpecQuery API, Smart Router, Context-First Ingestion). 본 sr.7은 그중 M-Lite phase 구현.
+
+## Previous Changes (v1.6.0-sr.4)
 
 - feat(specify): 파이프라인 후속 보강 6건 (v1.6.0-sr.4)
   - Step 0.3: 재실행 시 type rerun 검증 (N-12)

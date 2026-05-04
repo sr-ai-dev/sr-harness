@@ -5,7 +5,7 @@
 **All you need is requirements.**
 一个 Claude Code 插件，从你的意图中推导需求，验证每一步推导过程，并交付可追溯的代码——无需你编写计划。
 
-[![npm](https://img.shields.io/npm/v/@team-attention/hoyeon-cli)](https://www.npmjs.com/package/@team-attention/hoyeon-cli)
+[![npm](https://img.shields.io/npm/v/@syscon-robotics/sr-harness-cli)](https://www.npmjs.com/package/@syscon-robotics/sr-harness-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 [快速开始](#快速开始) · [理念](#需求不是写出来的) · [推导链](#推导链) · [命令](#命令) · [智能体](#二十一个思维)
@@ -66,7 +66,7 @@ Goal → Decisions → Requirements → Sub-requirements → Tasks
 
 - **`requirements.md` + `plan.json` 作为结构化产出物** — `/specify` 生成 `requirements.md`（做什么）。`/blueprint` 生成包含契约和任务图的 `plan.json`（怎么做）。所有智能体从这些共享产出物中读取。没有任何智能体自行编造上下文。没有信息仅存在于对话中。这些产出物是跨越上下文窗口、压缩和智能体切换后依然存续的共享记忆。
 
-- **CLI 强制结构** — `hoyeon-cli` 验证计划结构和任务状态转换。字段名、类型、必需关系——全部在 LLM 看到数据之前由程序检查。CLI 不是建议结构，而是**拒绝**无效结构。
+- **CLI 强制结构** — `sr-harness-cli` 验证计划结构和任务状态转换。字段名、类型、必需关系——全部在 LLM 看到数据之前由程序检查。CLI 不是建议结构，而是**拒绝**无效结构。
 
 - **推导链即契约** — Goal → Decisions → Requirements → Sub-requirements → Tasks 相互关联。每一层引用其上一层。子需求追溯到需求。任务通过 `fulfills` 追溯到需求。链条断裂，关卡阻拦。这意味着: **只要你拥有有效的需求，系统就会产出结果**——确定性地路由，即使 LLM 的单次输出有所不同。
 
@@ -419,7 +419,7 @@ Worker 负责实现，独立 Verifier 智能体检查每个任务的子需求 �
 ```bash
 # 安装插件
 claude plugin add team-attention/hoyeon
-npm install -g @team-attention/hoyeon-cli
+npm install -g @syscon-robotics/sr-harness-cli
 
 # 开始——推导需求、规划、执行
 /specify "add dark mode toggle to settings page"
@@ -437,11 +437,11 @@ npm install -g @team-attention/hoyeon-cli
 
 ## CLI
 
-`hoyeon-cli` 管理 plan.json 验证和任务状态:
+`sr-harness-cli` 管理 plan.json 验证和任务状态:
 
 ```bash
-hoyeon-cli plan get <task-id> <plan-path>                    # 获取任务详情
-hoyeon-cli plan task <plan-path> --status <task-id>=done   # 更新任务状态
+sr-harness-cli plan get <task-id> <plan-path>                    # 获取任务详情
+sr-harness-cli plan task <plan-path> --status <task-id>=done   # 更新任务状态
 ```
 
 详见 [docs/cli.md](docs/cli.md) 了解完整命令参考。

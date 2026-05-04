@@ -245,7 +245,7 @@ deep-interview의 질문 레퍼토리가 가장 넓다. 6종 프로브 유형으
 | **포맷** | 마크다운 (.md) | 마크다운 (insights.md) | JSON (spec.json) |
 | **기계 처리** | 불가 | 불가 (사람용) | 가능 (/execute가 소비) |
 | **후속 파이프라인** | 없음 (독립 완결) | `/specify --context`로 핸드오프 | /execute → 자동 구현 |
-| **저장 위치** | `requirements/` (선택적) | `.hoyeon/deep-interview/` | `.hoyeon/specs/` |
+| **저장 위치** | `requirements/` (선택적) | `.sr-harness/deep-interview/` | `.sr-harness/specs/` |
 
 ---
 

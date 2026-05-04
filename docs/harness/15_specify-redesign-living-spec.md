@@ -320,7 +320,7 @@ $ /specify
 |---|---|---|
 | 1. 명시 (권장) | `-context` 플래그 | `/specify init -context @docs/idea.md @notes/meeting.md` |
 | 2. IDE 통합 | 현재 열린/선택 파일 자동 감지 | IDE에서 `idea.md` 열고 `/specify init` |
-| 3. 자동 감지 | `.hoyeon/context/` 디렉토리 + 최근 대화 | "현재 채팅에 컨텍스트가 충분합니다. 활용?" |
+| 3. 자동 감지 | `.sr-harness/context/` 디렉토리 + 최근 대화 | "현재 채팅에 컨텍스트가 충분합니다. 활용?" |
 
 여러 소스 결합 허용:
 
@@ -428,7 +428,7 @@ Pre-Fill 완료 후:
 ### 5.5 Pipeline-wide Issue Pool — 자동 spec 진화
 
 ```
-.hoyeon/specs/<spec_dir>/
+.sr-harness/specs/<spec_dir>/
   spec.json                 ← SSoT
   spec_inbox.json           ← 새로 도입: 후속 단계가 적재하는 발견들
   history/                  ← spec.json 스냅샷 v0, v0.1, ...
@@ -562,7 +562,7 @@ worker가 사용자 개입 없이 spec_inbox에 자동 적재 → 이후 `/speci
   ↓ 5분, 6-8 질문, 골격 v0
   ↓ spec.json (must-haves 3개 + non-goals + uncertainty_zones 표시)
 
-사용자: /blueprint .hoyeon/specs/teleop-ui/
+사용자: /blueprint .sr-harness/specs/teleop-ui/
   ↓ 설계 중 "권한 모델 미정", "rate limit 미정" 등을 spec_inbox.json에 자동 적재
 
 사용자: /specify reflect --from blueprint
@@ -619,7 +619,7 @@ worker가 사용자 개입 없이 spec_inbox에 자동 적재 → 이후 `/speci
         - 12개: docs/idea.md 출처 (lineage 포함)
         - 4개: 인터뷰 출처
         - 3개: uncertainty zone (TECH.SECURITY 등)
-        다음 단계: /blueprint .hoyeon/specs/teleop-ui/
+        다음 단계: /blueprint .sr-harness/specs/teleop-ui/
 
 사용자: /blueprint ...
   ↓ (이후는 6.1과 동일한 진화 사이클)

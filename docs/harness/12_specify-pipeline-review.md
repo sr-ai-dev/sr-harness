@@ -19,7 +19,7 @@ Phase 0: WHERE Grounding
     ├─ Step 0.1: Mirror + SR Context Detection
     ├─ Step 0.2: PROJECT_TYPE × SITUATION × AMBITION
     ├─ Step 0.2b: Risk Modifiers
-    ├─ Step 0.3: spec_dir 생성 (hoyeon-cli req init)
+    ├─ Step 0.3: spec_dir 생성 (sr-harness-cli req init)
     └─ Step 0.4: Axis Depth Calibration (A→B→C→D)
 
 Phase 0.5: Context Research (brownfield only)
@@ -645,7 +645,7 @@ after SECURITY, preserving the same Q/Drill/status recording format.
 
 #### N-17. `/knowledge scan` handoff 계약 정리
 
-**현상:** Phase 0.5 stale KB 처리에서 Re-scan 선택지는 `/knowledge scan {module}`을 실행한다고 되어 있다. 하지만 `/specify`의 CLI Dependency는 `hoyeon-cli req init`만 언급하고, `/knowledge` 호출 실패 시 fallback도 명시하지 않는다.
+**현상:** Phase 0.5 stale KB 처리에서 Re-scan 선택지는 `/knowledge scan {module}`을 실행한다고 되어 있다. 하지만 `/specify`의 CLI Dependency는 `sr-harness-cli req init`만 언급하고, `/knowledge` 호출 실패 시 fallback도 명시하지 않는다.
 
 **개선:** Re-scan now의 동작을 다음처럼 고정한다.
 

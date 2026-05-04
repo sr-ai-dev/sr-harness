@@ -1,7 +1,7 @@
 # /specify 재설계 — Living Spec System
 
-> 작성일: 2026-05-04
-> 대상: `skills/specify/SKILL.md` (v1.6.0-sr.4 기준)
+> 작성일: 2026-05-04 (최초) / 2026-05-04 (sr.7 구현 반영)
+> 대상: `skills/specify/SKILL.md` (v1.6.0-sr.7 배포)
 > 목적: 현행 specify 흐름의 병목/UX 문제를 정리하고, **점진적·진화형 요구사항 관리(Living Spec)** 로의 재설계 방향을 제시
 > 관련 문서:
 > - [`12_specify-pipeline-review.md`](./12_specify-pipeline-review.md) — 기존 보강 이력
@@ -14,6 +14,85 @@
 
 > `/specify`를 **단발 인터뷰 산출물**에서 **프로젝트 라이프사이클 동안 자라는 Living Spec**으로 전환하고,
 > 인터뷰는 "Recall(고민)" → "Recognition + Verification(확인)" 패러다임으로 바꾼다.
+
+---
+
+## 0.5 sr.7 구현 현황 (M-Lite — 실제 배포된 상태)
+
+> **이 섹션은 §1 이하의 "vision"과 분리되어 실제로 v1.6.0-sr.7에서 동작하는 것만 정리합니다.**
+> 본 문서 §5의 명령 체계 (`/specify init/expand/reflect/...`)는 **미구현**이며 M1+에서 도입됩니다.
+
+### 0.5.1 호출 형태 — 명령은 `/specify` 하나뿐
+
+sr.7에는 `/specify init`, `/specify expand`, `/specify reflect` 같은 sub-command가 존재하지 않습니다. **명령은 `/specify` 하나**이고, 동작은 플래그 + 상태 기반 라우팅으로 결정됩니다.
+
+```
+/specify [--quick] [--strict] [-context @<file>...] ["<goal>"]
+```
+
+### 0.5.2 항상 적용되는 변경 (always-on)
+
+플래그 없이 `/specify`를 호출해도 **이전 sr.6과 동일하게 동작하지 않습니다**. 다음 두 가지가 default 동작이 되었습니다:
+
+| 변경 | 동작 |
+|---|---|
+| **Default-First Question Pattern** | Phase 1의 모든 질문이 "What X?" (Recall) 대신 "Confirm tentative <X> or override?" (Recognition + Verification) 형태. 사용자는 **Confirm / Modify / Skip / Other** 4-way 선택. tentative 추정 답의 출처를 `[from <file>:<lines>]` 형태로 표기. 우선순위: context-bundle → research → KB → WHERE → engineering default. |
+| **Gap-auditor 단일 호출 default** | 축당 1회만 audit 실행. CONTINUE 시 자동으로 AMBIGUOUS 항목을 `## Open Items`로 승격하고 축을 sufficient로 처리. legacy multi-loop 회로차단기는 `--strict` opt-in으로 격하. |
+| **Bare 호출 Smart Router** | `/specify` (인자 없음)는 spec_dir 상태에 따라 init / resume / status로 자동 라우팅. 별도 sub-command 없음. |
+
+### 0.5.3 Opt-in 플래그
+
+| 플래그 | 효과 | 미사용 시 |
+|---|---|---|
+| `--quick` | Phase 1 노드당 max **2 질문** cap, inline drill 비활성, gap-auditor 단일 호출 (이미 default), final audit skip. | `depth_calibration` 그대로 (deep 노드는 4+ 질문). |
+| `--strict` | gap-auditor multi-loop 복원 (축당 max 5회 + 사용자 회로차단기). | 단일 호출 (default). |
+| `-context @<file>` | 사전 문서를 읽어 `<spec_dir>/context-bundle.md`로 stash. Mirror + Phase 1 default 답변 소스로 사용. qa-log frontmatter에 `source: from-context-doc` + `lineage: <file>:<line-range>` 기록. | 추출 단계 skip. |
+| `-context conversation` | 현재 대화 히스토리를 컨텍스트 소스로 추가 (opt-in). | 자동 사용 안 함. |
+
+`--quick` + `-context`는 **결합 가능** — 가장 빠른 경로 (1-2분, batch confirm 위주).
+
+### 0.5.4 호출 패턴 동작 매트릭스
+
+| 호출 | 질문 깊이 | 질문 형식 | gap-audit | inline drill | final audit |
+|---|---|---|---|---|---|
+| sr.6 이전 (참고) | depth_calibration 그대로 | Recall ("What X?") | 축당 max 5회 루프 | 활성 | 실행 |
+| sr.7 `/specify "<goal>"` | depth_calibration 그대로 | **Default-First** | **단일 호출** | 활성 | 실행 |
+| sr.7 `/specify --quick "<goal>"` | **노드당 max 2** | Default-First | 단일 호출 | **비활성** | **skip** |
+| sr.7 `/specify --strict "<goal>"` | depth_calibration 그대로 | Default-First | **5회 루프 (legacy)** | 활성 | 실행 |
+| sr.7 `/specify -context @file "<goal>"` | depth_calibration 그대로, 추출된 노드 skip | Default-First (context를 1순위로) | 단일 호출 | 활성 | 실행 |
+| sr.7 `/specify` (bare) | — | Smart Router → init/resume/status 자동 분기 | — | — | — |
+
+### 0.5.5 vision 섹션과의 매핑
+
+| §1+에서 제안된 항목 | sr.7 구현 상태 |
+|---|---|
+| 명령 체계 (`init`/`expand`/`reflect`/`status`/`diff`/`decisions`/`lock`) | **미구현**. `/specify` 단일 명령 + 플래그/Smart Router로 대체. |
+| spec.json SSoT | **미구현**. 기존 다파일 모델(`requirements.md`+`qa-log.md`+`reqs-*.md`+`cross-check.md`) 그대로. |
+| spec_inbox.json + 적재 hook | **미구현**. `/blueprint`, `/execute`, `/qa`는 spec에 backfill하지 않음. |
+| Uncertainty 메타데이터 (confidence/source/lineage/locked) | **부분 구현**. qa-log frontmatter에 `source` + `lineage`만 기록 (context-doc 출처 추적용). spec.json이 없어 요구사항 단위로는 미반영. |
+| Default-First Interview Engine | **구현 완료** (always-on). |
+| Pipeline-wide Issue Pool | **미구현** (spec_inbox 의존). |
+| Dynamic Depth (priority score) | **미구현**. 기존 depth_calibration + `--quick` cap. |
+| Active Axis 동적 선택 | **미구현**. WHERE 기반 calibration은 그대로 (모든 축 활성). |
+| Knowledge System 깊은 통합 | **부분**. 기존 KB-first lookup(Phase 0.5)은 그대로 동작. Default-First가 KB를 1순위 default 소스로 사용. |
+| Smart Router | **구현 완료** (lite — 라우팅만, 추천 출력은 SKILL.md 가이드라인 수준). |
+| Context-First Ingestion | **lite 구현**. `-context` 플래그로 문서 ingest, 정식 Phase 0.0 추출 agent는 미구현. |
+| Spec Health Dashboard | **미구현** (`/specify status`가 별도 명령으로 없음). |
+| SpecQuery API | **미구현**. |
+| Compaction-safe state machine | **부분**. 기존 hook 시스템 그대로. |
+
+### 0.5.6 사용자 가이드 — 어떻게 써야 하나
+
+| 의도 | 호출 |
+|---|---|
+| 새 spec 시작 (정성) | `/specify "<goal>"` |
+| 새 spec 빠르게 (skeleton 수준) | `/specify --quick "<goal>"` |
+| 사전 문서가 있음 | `/specify -context @docs/idea.md "<goal>"` |
+| 사전 문서 + 빠르게 | `/specify --quick -context @docs/idea.md "<goal>"` |
+| 이전 sr.6 동작 복원 (multi-loop만) | `/specify --strict "<goal>"` |
+| 진행 중인 spec 이어가기 / 상태 보기 | `/specify` (bare — Smart Router) |
+
+`init`이라는 명시적 명령은 **사용하지 않습니다**. bare `/specify` 또는 plain `/specify "<goal>"`이 init 역할을 모두 수행합니다.
 
 ---
 

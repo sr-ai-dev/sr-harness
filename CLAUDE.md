@@ -121,7 +121,17 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v1.6.0-sr.7)
+## Recent Changes (v1.6.0-sr.8)
+
+- docs(specify): `15_specify-redesign-living-spec.md` §0.5 신설 — sr.7 구현 현황 분리
+  - vision(§1+) vs reality(§0.5) 명시적 분리: `/specify init/expand/reflect` 등 sub-command는 미구현, M1+에 도입 예정
+  - sr.7에서 항상 적용되는 변경(Default-First / 단일 audit / Smart Router) vs opt-in 플래그(`--quick`/`--strict`/`-context`) 구분 표
+  - 호출 패턴 동작 매트릭스 (sr.6 vs sr.7 / `--quick` / `--strict` / `-context`)
+  - vision 섹션과의 매핑 (구현 / 부분 / 미구현)
+  - 사용자 가이드 — 의도별 호출 형태
+- 코드 변경 없음 (문서 패치 릴리즈)
+
+## Previous Changes (v1.6.0-sr.7)
 
 - feat(specify): Living Spec M-Lite — UX 4건 (v1.6.0-sr.7)
   - **`--quick` 플래그**: Phase 1을 노드당 max 2 질문으로 cap, inline drill 비활성, gap-auditor 단일 호출, final audit skip. 토큰/시간 50% 이상 단축 추정.

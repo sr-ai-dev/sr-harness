@@ -39,6 +39,35 @@ git diff --name-only
 
 Deduplicate and store as `CHANGED_FILES`.
 
+### 1.5. KB Lint Auto-Trigger (conditional)
+
+*Fulfills R-T4.1; one of three lint triggers per INV-13 alongside manual `sr-harness-cli knowledge lint` and Phase 0.5 stale-only notification (R-T4.2 / R-B3.3 — see specify/SKILL.md Phase 0.5 step 3a).*
+
+This step is gated by the `kb_lint` feature flag. When the flag is off, `/check` skips KB lint entirely and proceeds straight to step 2 — this preserves the pre-PR2 behaviour and satisfies the R-T10.1 flag-rollback contract.
+
+1. Resolve the `kb_lint` feature flag via `getFlag('kb_lint', false)` from `cli/src/lib/settings.js` (project `.claude/settings.json` overrides `~/.claude/settings.json`; absent → `false`). If `kb_lint === false`, skip this step and proceed to step 2.
+2. When `kb_lint === true`, run the auto-lint:
+   ```bash
+   sr-harness-cli knowledge lint --all --json
+   ```
+   - Use `--all` so every module under `.sr-harness/knowledge/index.yaml` is scanned. Affected-modules narrowing (deriving lint scope from `CHANGED_FILES`) is intentionally **not** applied here — the goal of `/check` is pre-push KB health visibility, which benefits from the full module sweep.
+   - Capture stdout (structured findings JSON) and the exit code:
+     - `exit 0` → no findings; record one PASS line and proceed.
+     - `exit 1` → findings present; treat each finding as a WARN row in the Phase 1 output (see step 4 aggregation), grouped under a synthetic category `kb-health` so it sorts alongside `domain` / `concern` / `pipeline`.
+     - any other non-zero exit → record one ERROR row with the stderr text; do NOT block `/check` (R-T4.1 is informational, not a gate).
+3. Include the lint result in the Phase 1 verification output (step 4) using the same PASS / WARN / ERROR shape as rule-graph results. Example merged Phase 1 output:
+   ```
+   ### WARN (3 items)
+   #### kb-health
+   - [knowledge lint] STALE: spx-driver — 12 files changed since stored sha (threshold=5)
+   - [knowledge lint] ORPHAN: core-navigation — topic id `nav-pipeline` anchor missing in files.common
+   #### concern
+   - [ux] en.json changed -> ko.json not updated
+   ```
+4. The `/check` skill never auto-fixes lint findings. The follow-up Fix All / Select / Ignore prompt in step 9 may include kb-health WARNs, but the only "fix" available is to suggest the user re-run `/knowledge scan <module>` for stale entries or hand-edit `index.yaml` for orphan anchors — `/check` does not invoke `/knowledge scan` automatically.
+
+This auto-trigger keeps the three lint dispatch surfaces (INV-13) explicit and non-overlapping: a developer who wants to lint **right now** runs `sr-harness-cli knowledge lint <module>` manually; a developer about to push runs `/check` and gets the WARN report; a developer running `/specify` Phase 0.5 sees only a one-line non-blocking suggestion (R-T4.2). None of the three triggers blocks the user.
+
 ### 2. Build Rule Graph and Match
 
 Read YAML frontmatter from all `.hoyeon/rules/*.md` files to construct the rule graph. Refer to `references/rules-authoring.md` ("Structure" section) for the frontmatter schema.

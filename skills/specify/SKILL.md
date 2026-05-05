@@ -506,6 +506,18 @@ Run this check BEFORE dispatching agents. If `where.sr_modules` was detected in 
    - Skip → `agent_scan` (load_mode `agent_scan`, saved 0).
 
    If `/knowledge scan {module}` fails, is unavailable, or the user aborts it, do not abort `/specify`. Mark that module as `agent_scan`, add `KB re-scan failed: {module} — {reason}` to `qa-log.md` `## Research`, and continue with agent dispatch.
+3a. **Stale-only lint suggestion (non-blocking)** — *Fulfills R-B3.3, R-T4.2; one of three lint triggers per INV-13 alongside manual `sr-harness-cli knowledge lint` and `/check` auto-lint (R-T4.1).*
+
+    After step 3 fully resolves (the batched MISMATCH AskUserQuestion has been answered for every stale module — never before, so the actual question is never buried), evaluate exactly one informational notification line:
+
+    1. Resolve the `kb_lint` feature flag via `getFlag('kb_lint', false)` from `cli/src/lib/settings.js` (project `.claude/settings.json` overrides `~/.claude/settings.json`; absent → `false`). When `kb_lint === false`, **emit nothing** and continue to step 4 — this preserves the pre-PR2 behaviour and satisfies the R-T10.1 flag-rollback contract.
+    2. When `kb_lint === true`, collect the modules that were classified as `kb_stale` in step 2 (the original stale set, regardless of whether the user later picked Use existing / Re-scan / Skip in step 3). Let `S` be that list.
+       - If `S` is empty (no stale modules), emit nothing and continue.
+       - If `S` has exactly one module `M`, print one line: `Run lint? sr-harness-cli knowledge lint <M>`.
+       - If `S` has two or more modules, print one line: `Run lint? sr-harness-cli knowledge lint --all`.
+    3. The line is **informational only**. Do NOT spawn an `AskUserQuestion`, do NOT block on user input, and do NOT auto-invoke `sr-harness-cli knowledge lint`. Phase 0.5 continues to step 4 immediately whether or not the user later runs lint in another shell. This non-blocking discipline is what distinguishes the Phase 0.5 trigger from the manual CLI trigger and the `/check` auto-lint trigger (INV-13: 3-trigger lint dispatch — manual / `/check` / Phase 0.5 notify).
+
+    Format note: the suggestion line uses the literal text `Run lint?` followed by the exact command the user can paste — no Korean translation, no decoration, and no trailing punctuation other than what the command itself contains. The `sr-harness-cli` binary name (not `hoyeon-cli`) is canonical here so users can copy-paste verbatim.
 4. If **all** modules are `kb_loaded` → skip "Dispatch subagents in parallel" entirely. Write KB content into `qa-log.md` `## Research` section directly.
 5. If **some** modules are `kb_loaded` (and others are `agent_scan`) → still dispatch agents, but inject the following constraints into each agent prompt:
    - **Exclude already-known modules**: list `kb_loaded` modules with note "이미 KB로 처리됨 — 스캔 제외"

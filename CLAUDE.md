@@ -121,15 +121,19 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v1.6.0-sr.9)
+## Recent Changes (v1.6.0-sr.10)
 
-- fix(hooks): `.hoyeon/` → `.sr-harness/` path 마이그레이션 잔재 정리 (4파일)
+- fix(hooks): `.hoyeon/` → `.sr-harness/` path 마이그레이션 잔재 정리 (4파일) — sr.9 핫픽스
   - `scripts/skill-session-guard.sh` — guard allowlist에 `.sr-harness/` 추가, deny 메시지 업데이트. **specify/execute 진행 중 spec_dir(`.sr-harness/specs/`)에 대한 Write/Edit 차단 버그 해결**. legacy `.hoyeon/` 도 backward-compat로 계속 허용.
   - `scripts/ultrawork-init-hook.sh` — `$CWD/.sr-harness/state.local.json` 으로 이동 + 기존 `.hoyeon/state.local.json` 자동 마이그레이션 fallback 추가
   - `scripts/ultrawork-stop-hook.sh` — STATE_FILE/SPECS_ROOT를 `.sr-harness/`로 변경, `.hoyeon/` fallback 유지
   - `cli/src/commands/session.js` — help 예시 주석을 `.sr-harness/specs/foo`로 갱신 (CLI 재빌드 완료, dist/cli.js 갱신)
   - `scripts/spec-verify-docs.sh` — 예시 주석 갱신 + v1 legacy helper임을 명시
   - **검증**: 시뮬레이션 hook input 3건(allow `.sr-harness/`, allow legacy `.hoyeon/`, deny `cli/src/`)으로 동작 확인. cli 테스트 12/12 pass.
+- 코드 변경 외 항목 없음 — 패치 릴리즈 (sr.9 사용자에게 hook 버그 fix 전달이 목적)
+
+## Previous Changes (v1.6.0-sr.9)
+
 - chore(upstream): upstream 1.6.1-prep 부분 동기화 (체리픽 2건 + 1건 스킵)
   - `93737e7` refactor(blueprint): ask-only-when-owned — 승인 게이트 3개(Phase 2.3/4.3/5.2) 축소, coverage gate가 task-graph 정합성 강제, 5.2는 informational 요약(`--no-summary`로 skip)
   - `ef0ac59` feat(qa,execute): evidence_dir 배선 + verifier 모델 업그레이드 (worker는 제외)

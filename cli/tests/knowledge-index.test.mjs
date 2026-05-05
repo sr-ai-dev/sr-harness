@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { validateKnowledgeIndex } from '../src/lib/json-io.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const FIXTURE_DIR = join(__dirname, 'fixtures');
 
 // Helper: wrap a single module entry into the full index.yaml shape.
 function wrap(name, entry) {
@@ -135,4 +141,19 @@ test('validateKnowledgeIndex rejects hub_by_profile entry missing in_refs', () =
   });
   const { ok } = validateKnowledgeIndex(obj);
   assert.equal(ok, false);
+});
+
+test('validateKnowledgeIndex accepts the canonical fixture (legacy + new modules)', async () => {
+  // T4 — canonical fixture demonstrating R-T5.1 (legacy module without topics) +
+  // R-T5.2 (multi-ROS module with topics_common/topics_ros1/topics_ros2 +
+  // hub_by_profile keyed by sr_profile). Loaded as JSON because INV-8 forbids
+  // new npm deps (no js-yaml available); the .yaml sibling is human reference.
+  const raw = await readFile(join(FIXTURE_DIR, 'knowledge-index-with-topics.json'), 'utf8');
+  const obj = JSON.parse(raw);
+  const { ok, errors } = validateKnowledgeIndex(obj);
+  assert.equal(ok, true, JSON.stringify(errors));
+  // Sanity-check the fixture covers all three module shapes we care about.
+  assert.ok(obj.modules['spx/legacy-module'], 'fixture must include a legacy module');
+  assert.ok(Array.isArray(obj.modules['sarics-nx/backend'].topics), 'fixture must include a flat-topics module');
+  assert.ok(Array.isArray(obj.modules['spx/core-driver'].topics_common), 'fixture must include a multi-ROS module');
 });

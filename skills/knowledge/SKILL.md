@@ -178,6 +178,116 @@ modules:
     commit_sha: "{git HEAD SHA}"
 ```
 
+---
+
+## Optional Fields (v1.6.0+: topics, hub_by_profile)
+
+`topics` 와 `hub_by_profile` 은 `index.yaml` 모듈 항목에 추가할 수 있는 **영구적으로 선택적인** 필드다. 둘 다 없는 모듈은 종전 그대로 동작하며 (full-file Read fallback), 마이그레이션 일정도 없다 (R-T5.1, R-B6.3, INV-2). AJV 스키마는 `cli/schemas/knowledge-index.schema.json`에 정의되어 있고 `/knowledge scan` 쓰기 직전에 검증한다 (R-T2.2).
+
+### topic_entry 4-필드 형식
+
+각 topic 항목은 정확히 4개의 필드를 가진다 (R-T5).
+
+| 필드 | 타입 | 필수 | 검증 규칙 |
+|------|------|:----:|---------|
+| `id` | string | ✅ | kebab-case 정규식 `^[a-z0-9]+(-[a-z0-9]+)*$`, 모듈 내 unique. provenance 태그 키로 사용 (`[from KB:<id>]`) |
+| `anchor` | string | ✅ | 마크다운 heading 또는 라인 anchor — selective Read 범위를 결정 |
+| `summary` | string | ✅ | 한 줄 요약 (≤ 80자). Phase 0.5 console summary line에 사용 |
+| `sr_profile` | string | ❌ | 특정 sr_profile (driver / ros-node / cross-product / web / infra) 한정. 없으면 모든 profile에 적용 |
+
+`additionalProperties: false` — 스키마는 위 4개 외의 키를 거부한다.
+
+### topics ↔ topics_common / topics_ros1 / topics_ros2 상호 배타
+
+| 케이스 | 사용 키 |
+|--------|--------|
+| Single-ROS 모듈 (또는 ROS 무관) | `topics` (flat array) |
+| Multi-ROS 모듈 (`files.ros1` + `files.ros2` 동시 존재) | `topics_common` + `topics_ros1` + `topics_ros2` (3개 분리 키) |
+
+**상호 배타 규칙**: `topics` 와 `topics_common` / `topics_ros1` / `topics_ros2` 그룹은 모듈 단위에서 동시 사용 불가. AJV 스키마가 `not(anyOf(...))` 로 강제한다 (R-T5.2).
+
+```yaml
+# ✓ Single-ROS — flat topics 사용
+modules:
+  sarics-nx/backend:
+    file: sarics-nx/backend.md
+    topics:
+      - id: auth-flow
+        anchor: "## Auth Flow"
+        summary: "JWT-based session lifecycle"
+        sr_profile: web
+
+# ✓ Multi-ROS — common + ros1 + ros2 분리
+modules:
+  spx/core-driver:
+    files:
+      ros1: spx/core-driver.ros1.md
+      ros2: spx/core-driver.ros2.md
+    topics_common:
+      - id: encoder-calibration
+        anchor: "## Encoder Calibration"
+        summary: "Quadrature zero-offset routine"
+    topics_ros1:
+      - id: rosserial-bridge
+        anchor: "## rosserial Bridge"
+        summary: "ROS1 직렬 브리지 토픽 매핑"
+    topics_ros2:
+      - id: rcl-lifecycle
+        anchor: "## rcl Lifecycle"
+        summary: "ROS2 라이프사이클 콜백"
+
+# ✗ 충돌 — topics + topics_common 동시 사용 (스키마 검증 실패)
+modules:
+  spx/conflict:
+    file: spx/conflict.md
+    topics:        [{ id: foo, anchor: "## Foo", summary: "..." }]
+    topics_common: [{ id: bar, anchor: "## Bar", summary: "..." }]
+```
+
+### hub_by_profile (sr_profile 키, ROS-version-agnostic)
+
+`hub_by_profile` 은 `sr_profile` 문자열을 키로 하고 `{ file, in_refs, out_refs }` 객체를 값으로 갖는 map이다. **ROS 버전과 무관**하다 (R-T5.2). graphify가 보고한 hub 정보를 모듈 단위로 캐시해 Phase 0.5가 `graph.json` 재파싱 없이 `[from graph: <file>:<line> ←hub:<N>]` provenance를 합성할 수 있게 한다.
+
+```yaml
+modules:
+  spx/core-driver:
+    hub_by_profile:
+      driver:
+        file: src/hardware/can_bus.cpp
+        in_refs: 14
+        out_refs: 3
+      ros-node:
+        file: src/ros_bridge/driver_node.cpp
+        in_refs: 8
+        out_refs: 11
+      cross-product:
+        file: src/integration/contracts.h
+        in_refs: 22
+        out_refs: 5
+```
+
+| 필드 | 타입 | 필수 | 검증 규칙 |
+|------|------|:----:|---------|
+| `file` | string | ✅ | `$PROJECT_ROOT` 상대 경로 |
+| `in_refs` | integer ≥0 | ✅ | graphify가 보고한 incoming reference 개수 |
+| `out_refs` | integer ≥0 | ✅ | graphify가 보고한 outgoing reference 개수 |
+
+각 hub entry도 `additionalProperties: false` 로 위 3개 외 키 거부.
+
+### Authoring 규칙
+
+`/knowledge scan` 이 KB 마크다운 파일을 파싱할 때 level-2 헤딩(`## ...`)을 추출해 `topics` 배열의 후보 anchor로 변환한다. `summary` 와 `sr_profile` 오버라이드는 사용자가 결과 `index.yaml` 을 수동으로 편집해 채운다. 이후 `sr-harness-cli knowledge index-update <module> --json "$(cat /tmp/...)"` 로 부분 업데이트도 가능하다 (R-T3.2 — JSON 페이로드는 항상 파일 경유).
+
+### Permanently Optional 보장
+
+- `topics` / `topics_common` / `topics_ros1` / `topics_ros2` / `hub_by_profile` 5개 키 모두 부재해도 스키마 검증을 통과한다.
+- Phase 0.5 는 키가 없으면 기존 full-file Read 경로로 fallback 한다 (R-T5.1, R-B6.3).
+- Deprecation 일정 없음 — 구 모듈과 신 모듈은 무기한 공존한다 (INV-2).
+
+> **참고**: 정식 스키마는 `cli/schemas/knowledge-index.schema.json`. 예시 fixture는 `cli/tests/fixtures/knowledge-index-with-topics.{yaml,json}` (legacy + 신규 모듈 혼합).
+
+---
+
 **스키마 검증 (모든 명령 진입 시 실행):**
 
 `/knowledge` 명령 (list/status/scan/update/delete/Phase 0.5 KB-first 등)이 index.yaml을 읽을 때 다음 검증을 수행한다.

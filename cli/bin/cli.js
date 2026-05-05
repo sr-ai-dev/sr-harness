@@ -3,6 +3,7 @@ import planHandler from '../src/commands/plan.js';
 import learningHandler from '../src/commands/learning.js';
 import issueHandler from '../src/commands/issue.js';
 import sessionHandler from '../src/commands/session.js';
+import knowledgeHandler from '../src/commands/knowledge.js';
 
 const USAGE = `
 hoyeon-cli — CLI for specify + blueprint + execute workflow
@@ -11,11 +12,12 @@ Usage:
   hoyeon-cli <group> <command> [options]
 
 Groups:
-  req       requirements.md scaffolding (init only — cli does not parse .md)
-  plan      plan.json operations (init, merge, get, list, task, validate)
-  learning  Add structured learning entries to context/learnings.json
-  issue     Add structured issue entries to context/issues.json
-  session   Session state management (set/get key-value in ~/.hoyeon/<sid>/state.json)
+  req        requirements.md scaffolding (init only — cli does not parse .md)
+  plan       plan.json operations (init, merge, get, list, task, validate)
+  learning   Add structured learning entries to context/learnings.json
+  issue      Add structured issue entries to context/issues.json
+  session    Session state management (set/get key-value in ~/.hoyeon/<sid>/state.json)
+  knowledge  KB index + graph operations (lint, index-update, graph-link, graph-build, graph-clean)
 
 Options:
   --help, -h    Show this help message
@@ -37,6 +39,7 @@ const GROUPS = {
   learning: learningHandler,
   issue: issueHandler,
   session: sessionHandler,
+  knowledge: knowledgeHandler,
 };
 
 async function main() {

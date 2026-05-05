@@ -24,9 +24,14 @@ if ! echo "$PROMPT" | grep -qiE "^/ultrawork|^ultrawork"; then
   exit 0
 fi
 
-# Initialize state file
-STATE_FILE="$CWD/.hoyeon/state.local.json"
-mkdir -p "$CWD/.hoyeon/specs"
+# Initialize state file (v1.6.0: .sr-harness/ is the canonical workspace path)
+STATE_FILE="$CWD/.sr-harness/state.local.json"
+mkdir -p "$CWD/.sr-harness/specs"
+
+# Backward-compat: migrate legacy .hoyeon/state.local.json if present and new state missing
+if [[ -f "$CWD/.hoyeon/state.local.json" && ! -f "$STATE_FILE" ]]; then
+  cp "$CWD/.hoyeon/state.local.json" "$STATE_FILE"
+fi
 
 if [[ ! -f "$STATE_FILE" ]]; then
   echo '{}' > "$STATE_FILE"

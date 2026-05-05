@@ -123,6 +123,13 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 
 ## Recent Changes (v1.6.0-sr.9)
 
+- fix(hooks): `.hoyeon/` → `.sr-harness/` path 마이그레이션 잔재 정리 (4파일)
+  - `scripts/skill-session-guard.sh` — guard allowlist에 `.sr-harness/` 추가, deny 메시지 업데이트. **specify/execute 진행 중 spec_dir(`.sr-harness/specs/`)에 대한 Write/Edit 차단 버그 해결**. legacy `.hoyeon/` 도 backward-compat로 계속 허용.
+  - `scripts/ultrawork-init-hook.sh` — `$CWD/.sr-harness/state.local.json` 으로 이동 + 기존 `.hoyeon/state.local.json` 자동 마이그레이션 fallback 추가
+  - `scripts/ultrawork-stop-hook.sh` — STATE_FILE/SPECS_ROOT를 `.sr-harness/`로 변경, `.hoyeon/` fallback 유지
+  - `cli/src/commands/session.js` — help 예시 주석을 `.sr-harness/specs/foo`로 갱신 (CLI 재빌드 완료, dist/cli.js 갱신)
+  - `scripts/spec-verify-docs.sh` — 예시 주석 갱신 + v1 legacy helper임을 명시
+  - **검증**: 시뮬레이션 hook input 3건(allow `.sr-harness/`, allow legacy `.hoyeon/`, deny `cli/src/`)으로 동작 확인. cli 테스트 12/12 pass.
 - chore(upstream): upstream 1.6.1-prep 부분 동기화 (체리픽 2건 + 1건 스킵)
   - `93737e7` refactor(blueprint): ask-only-when-owned — 승인 게이트 3개(Phase 2.3/4.3/5.2) 축소, coverage gate가 task-graph 정합성 강제, 5.2는 informational 요약(`--no-summary`로 skip)
   - `ef0ac59` feat(qa,execute): evidence_dir 배선 + verifier 모델 업그레이드 (worker는 제외)
@@ -131,10 +138,11 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
     - **모델 업그레이드 (sonnet→opus)**: qa-verifier, taskgraph-planner, verify-planner
     - **모델 다운그레이드 (opus→sonnet) 제외**: agents/worker.md (sr-harness 정책상 보류 — `docs/plans/worker-model-policy/notes.md` 참조)
   - upstream `5f8154a` (1.6.1 버전 범프) 스킵 — sr.x 라인 진행
-- docs(harness): 분석 자료 3건
+- docs(harness): 분석 자료 4건
   - `docs/harness/14_skills-improvement-rollup.md` — `12_specify-pipeline-review` 결과를 27개 스킬 전체에 mapping
   - `docs/harness/16_state-management-pattern.md` — Cold Scan vs Warm State Lookup 일반론 (Smart Router/spec_inbox 패턴 토큰/시간 절감 관점)
   - `docs/harness/15_specify-redesign-living-spec.md` §0.5에 16_ cross-reference 1줄
+  - `docs/harness/18_superpowers-coexistence.md` — obra superpowers ↔ sr-harness 공존 설정 종합 문서화 (격리 8개 / 활성 14개 / using-superpowers 커스터마이즈 / 트리거 분리 룰 / 신규 스킬 추가 결정 트리 / 롤백 절차)
 - docs(plans): `worker-model-policy/notes.md` 신설 — worker model_class 정책 검토 노트(보류). sr_profile→model_class propagation 옵션, 영향 범위, 강제성 옵션, 다음 실험 설계 정리
 - chore(standards): 프로젝트 표준 추가
   - `.claude/rules/agent-overrides.md`: sr-harness 본체용 coder/reviewer/tester/architect 추가 규칙

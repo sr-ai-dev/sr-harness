@@ -1,10 +1,10 @@
 #!/bin/bash
 # skill-session-guard.sh — Unified PreToolUse[Edit|Write] guard
 #
-# Reads: ~/.hoyeon/{session_id}/state.json
+# Reads: ~/.hoyeon/{session_id}/state.json   (user home — session state namespace)
 # Behavior per skill:
-#   - specify: DENY writes outside .hoyeon/
-#   - execute: WARN on writes outside .hoyeon/ (allow but message)
+#   - specify: DENY writes outside spec_dir (allowed: .sr-harness/specs/, legacy .hoyeon/specs/)
+#   - execute: WARN on writes outside spec_dir (allow but message)
 #   - No session file: allow all
 
 set -euo pipefail
@@ -21,10 +21,11 @@ STATE_FILE="$HOME/.hoyeon/$SESSION_ID/state.json"
 SKILL=$(jq -r '.skill // empty' "$STATE_FILE")
 [[ -z "$SKILL" ]] && exit 0
 
-# .hoyeon/ files always allowed
+# spec_dir paths always allowed (v1.6.0: .sr-harness/specs/, legacy: .hoyeon/specs/)
+[[ "$FILE_PATH" == *".sr-harness/"* ]] && exit 0
 [[ "$FILE_PATH" == *".hoyeon/"* ]] && exit 0
 
-# Skill-specific behavior for files outside .hoyeon/
+# Skill-specific behavior for files outside spec_dir
 case "$SKILL" in
   specify)
     cat << 'EOF'
@@ -33,7 +34,7 @@ case "$SKILL" in
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny"
   },
-  "systemMessage": "PLAN MODE: Code modification not allowed. During specify phase, only .hoyeon/ paths are writable. Implementation happens after plan approval."
+  "systemMessage": "PLAN MODE: Code modification not allowed. During specify phase, only spec_dir paths (.sr-harness/specs/) are writable. Implementation happens after plan approval."
 }
 EOF
     ;;

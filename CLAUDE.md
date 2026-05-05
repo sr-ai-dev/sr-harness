@@ -92,6 +92,38 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - Run `hoyeon-cli session get --sid <id>` to verify session state after changes
 - Hook behavior gotchas are documented in commit history and session learnings
 
+## Feature Flags Convention (kb-wiki-graphify)
+
+The kb-wiki-graphify spec ships as 7 staged PRs. Each PR is independently rollback-safe via a `settings.json` feature flag (INV-9, R-B5.1). When a PR lands, the corresponding flag stays `false` until the feature has stabilised; setting it back to `false` makes the pipeline behave identically to the pre-PR state.
+
+| Flag | Owning PR | Default at merge | Effect when `false` |
+|------|-----------|------------------|----------------------|
+| `kb_topics_lookup` | PR1 (topics + selective load) | `false` initially, `true` after smoke window | Phase 0.5 reverts to full-file KB Read |
+| `kb_lint` | PR2 (lint MVP) | `false` | `/check` skips KB lint; Phase 0.5 omits stale-lint suggestion line |
+| `kb_hub_by_profile` | PR3 (hub_by_profile routing) | `false` | Phase 0.5 ignores `hub_by_profile` even if present in `index.yaml` |
+| `kb_ingest_cascade` | PR4 (Step 4.5 cascade) | `false` | Step 4.5 only writes to the primary module |
+| `kb_lint_contradiction` | PR5 (lint v2 LLM mode) | `false` | `knowledge lint --mode contradiction` short-circuits |
+| `graphify_enabled` | PR6 (Graphify wrapper) | `false` | All graph branches in Phase 0.5 are skipped (R-U7.3) |
+| `kb_phase1_provenance` | PR7 (Phase 1 hub injection) | `false` | Phase 1 `AskUserQuestion` descriptions carry no provenance tags |
+| `graphify_hub_n` | PR6 (tuning) | `10` | Top-N hub count used by `graphify-run.sh` and `.meta.json` |
+
+**Where flags live**:
+- `~/.claude/settings.json` — user-level (preferred for per-developer toggles)
+- `<project>/.claude/settings.json` — project-level override (preferred for team-wide forced state)
+- Project values override user values.
+
+**How flags are read at runtime**:
+- All consumers must call `getFlag(name, defaultValue)` (or `getFlags(names, opts)`) from `cli/src/lib/settings.js`.
+- The helper uses Node.js built-ins only (no new dependencies — INV-8) and caches reads per process.
+- Missing files return the default; invalid JSON returns the default + emits a one-time stderr warning.
+- Non-boolean values (e.g. `graphify_hub_n` integer) are returned as-is so callers apply their own type semantics.
+
+**Rollback policy**:
+- Any PR can be rolled back at runtime by flipping its flag to `false` in either settings file. No code revert is required for the canary window.
+- A force revert (`git revert <pr-merge>`) is the second-line response if the flag toggle is insufficient.
+
+Reference: `.sr-harness/specs/kb-wiki-graphify/design.md` §3.5 (settings flags table) and §6 INV-9.
+
 ## Git Branching & Release
 
 - **`main`** — release only. Do not commit directly.

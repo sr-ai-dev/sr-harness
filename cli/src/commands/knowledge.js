@@ -1,25 +1,26 @@
-// knowledge command group — scaffold (T2 / PR1)
+// knowledge command group.
 //
-// Subcommand IMPLEMENTATIONS land in later PRs:
-//   - lint          → PR2 (T7)   — stale + orphan detection
-//   - index-update  → PR1 (T4)   — partial index.yaml update via AJV-validated JSON
-//   - graph-link    → PR6 (T17)  — write hub_by_profile from .meta.json
-//   - graph-build   → PR6 (T16)  — invoke scripts/graphify-run.sh
-//   - graph-clean   → PR6 (T17)  — delete ~/.sr-harness/graph/<slug>/ entries
+// Subcommand IMPLEMENTATIONS land in staged PRs:
+//   - lint          → PR2 (T7)   IMPLEMENTED — stale + orphan detection (this file)
+//   - index-update  → PR1 (T4)   stub        — partial index.yaml update via AJV-validated JSON
+//   - graph-link    → PR6 (T17)  stub        — write hub_by_profile from .meta.json
+//   - graph-build   → PR6 (T16)  stub        — invoke scripts/graphify-run.sh
+//   - graph-clean   → PR6 (T17)  stub        — delete ~/.sr-harness/graph/<slug>/ entries
 //
-// This file currently provides:
-//   1. CLI surface (subcommand dispatch + --help) so callers can wire integrations early.
-//   2. A reachable reference to validateKnowledgeIndex from json-io.js (T1) so esbuild
-//      bundles the knowledge-index.schema.json into dist/cli.js (R-T3.3).
+// Notes:
+//   - JSON payloads are passed via `--json "$(cat /tmp/...)"` (R-T3.2).
+//   - After modifying this file run `cd cli && npm run build` (R-T3.3).
 
 import { validateKnowledgeIndex } from '../lib/json-io.js';
+import { cmdLint as lintCmd } from '../lib/lint.js';
 
 const HELP = `
 Usage:
   hoyeon-cli knowledge <subcommand> [options]
 
 Subcommands:
-  lint <module>                 Detect stale + orphan entries in a module's KB index (PR2, not yet implemented)
+  lint [<module>]               Detect stale + orphan entries in a module's KB index (PR2)
+                                Run 'knowledge lint --help' for full options + exit codes.
   index-update <module>         Apply partial update to index.yaml for a module (PR1 follow-up T4, not yet implemented)
                                 JSON payload via --json "$(cat /tmp/...)" — file-based to avoid zsh glob expansion (R-T3.2)
   graph-link <module>           Write hub_by_profile entries for a module from .meta.json (PR6, not yet implemented)
@@ -42,8 +43,10 @@ function stub(subName, ownerPr) {
 
 // ---------------- lint ----------------
 
-async function cmdLint(_args) {
-  stub('lint', 'PR2');
+async function cmdLint(args) {
+  // Delegate to lint.js (PR2 / T7). cmdLint there handles --help, --json,
+  // --threshold, and resolves the project root from process.cwd().
+  await lintCmd(args);
 }
 
 // ---------------- index-update ----------------

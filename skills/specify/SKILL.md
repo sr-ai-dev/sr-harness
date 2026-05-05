@@ -132,8 +132,11 @@ Record these events:
 | research agent before/after | `mark <spec_dir> phase0.5 agent_start/end --label "<code-explorer|docs-researcher|refactor-impact>"` |
 | KB load mode (per module) | `mark <spec_dir> phase0.5 kb_load_mode --label "<selective\|fullfile\|agent_scan>:<module>"` |
 | KB token savings estimate | `mark <spec_dir> phase0.5 kb_token_estimate --label "module=<name>,saved=<int>"` |
+| Phase 0.5 console summary printed | `mark <spec_dir> phase0.5 phase05_summary_printed --label "<exact summary text>"` |
 
 The two `kb_*` events feed the Phase 0.5 selective-load reporting consumed by `specify-metrics.mjs` (see T23 / R-U5.3). `kb_load_mode` records exactly one of `selective` / `fullfile` / `agent_scan` per module so the report can tally the load-mode mix; `kb_token_estimate` records the integer token savings vs the full-file baseline (0 when the load mode is `fullfile` or `agent_scan`). Phase 0.5 emits both events for every module it considers (kb_loaded or fall-through), regardless of whether the `kb_topics_lookup` flag is enabled — when the flag is off, every module records `fullfile` and `saved=0`, which keeps the metric series continuous across rollback toggles.
+
+`phase05_summary_printed` is recorded exactly once per `/specify` run — immediately after Phase 0.5's final console summary line is emitted (see *Step 0.5.6: Phase 0.5 Console Summary*). Its `--label` is the byte-identical text that was printed, so the journal can replay the user-visible line during audit (R-U1.2, R-U5.1). When Phase 0.5 is skipped (greenfield) the event is **not** emitted, which is the signal that no console summary was ever shown for that run.
 
 At the end of Phase 4.4, generate the report:
 
@@ -510,7 +513,7 @@ Run this check BEFORE dispatching agents. If `where.sr_modules` was detected in 
    - Example prompt suffix: `"제외 대상 (이미 KB 로드됨): spx-driver. 조사 대상: core-navigation"`
    Write KB content for `kb_loaded` modules + agent findings for the rest into a unified `## Research` section.
 
-After step 5, the orchestrator holds a per-module record of `{ name, load_mode, tokens_saved_estimate, topics_loaded[] }`. T6 consumes this record to print the one-line Phase 0.5 console summary (`KB topics: N loaded (saved ~M tokens) ...`) — T5 only **prepares** the data, the print statement itself is owned by T6 (R-U5.1).
+After step 5, the orchestrator holds a per-module record of `{ name, load_mode, tokens_saved_estimate, topics_loaded[] }`. This record is consumed at the end of Phase 0.5 by *Step 0.5.6: Phase 0.5 Console Summary* below to print the one-line summary `KB topics: N loaded (saved ~M tokens) ...` exactly once before Phase 1 (R-U1.2, R-U5.1).
 
 ### Selective Load Algorithm
 
@@ -589,7 +592,51 @@ During Phase 1, when asking Tech axis questions:
 - Reference the research findings ("I see you use Vite + TypeScript — is that still the target?" instead of "what's your build tool?")
 - Only ask the user for **decisions** (what they want) and **intent** (why), not **facts** (what exists — we already found those)
 
+### Step 0.5.6: Phase 0.5 Console Summary
+
+*Fulfills R-U1.1, R-U1.2, R-U5.1.*
+
+This is the **final action of Phase 0.5**. After research has been consolidated into `qa-log.md` and before any Phase 1 step runs, print exactly **one** console line that summarizes what Phase 0.5 loaded. The summary makes selective-load behaviour visible to the user without introducing a new slash command (R-U1.1 — `/specify` continues to be the only entry point; this print is owned by the existing command flow).
+
+**Inputs** — read from the in-memory per-module record assembled by step 5 of *SR-Harness: KB-first lookup* above:
+- `N_loaded` = count of modules whose `load_mode ∈ {selective, fullfile}` (i.e. KB content was actually loaded — `agent_scan` modules are excluded)
+- `total_saved` = sum of `tokens_saved_estimate` across all modules (typically dominated by selective modules; fullfile and agent_scan contribute 0)
+- `all_agent_scan` = boolean `true` when every module fell through to `agent_scan` (no KB content loaded at all)
+
+**Format** — choose one of two templates:
+
+| Condition | Line printed |
+|---|---|
+| `all_agent_scan === true` (KB miss on every module, or `where.sr_modules` was empty) | `KB topics: 0 loaded (agent_scan fallback)` |
+| Otherwise | `KB topics: {N_loaded} modules loaded (saved ~{total_saved} tokens)` |
+
+When `total_saved === 0` but at least one module loaded in `fullfile` mode, the second template still applies (the line shows `saved ~0 tokens`, which correctly reports that the topics-anchored optimisation did not engage for that run — useful signal for the user / metrics).
+
+**PR6 forward-compatibility note** — once `graphify_enabled === true` (PR6+) and the graph cache is fresh, the summary is extended with a second segment: `KB topics: ... / Graphify hub: {K} refs`, where `K` is the count of hub-file entries pulled from `.meta.json`. While `graphify_enabled === false` (PR1 default), the `Graphify hub:` segment is **omitted entirely** — do not emit a placeholder zero. The Phase05HubInjectionAPI contract owns this segment and will be wired in by T18 / T19.
+
+**Print-exactly-once invariant** — emit the line through a single console write (not via metrics commands). It must appear **after** all KB content has been written to `qa-log.md` and **before** the Phase 1 metric `phase_start` mark is recorded. Do not duplicate the line if Phase 0.5 is re-run via the *Re-scan* path (the rerun overwrites the per-module record and prints a fresh summary, but never two lines back-to-back from the same run).
+
+**Audit / replay trace** — immediately after the console line is printed, record one metric event so the line can be reconstructed from the metrics journal during post-mortems:
+
+```bash
+node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase0.5 phase05_summary_printed --label "<exact summary text>"
+```
+
+The `--label` value MUST be byte-identical to the printed line (no quoting, no decoration) so that `specify-metrics.mjs report` can replay the exact summary in `performance.md`.
+
+**Examples**:
+
+```
+KB topics: 3 modules loaded (saved ~1240 tokens)
+KB topics: 1 modules loaded (saved ~0 tokens)
+KB topics: 0 loaded (agent_scan fallback)
+```
+
+After this line is printed, Phase 0.5 is complete; control transfers immediately to *Phase 1: Interview*.
+
 ## Phase 1: Interview
+
+> **Phase 0.5 → Phase 1 contract**: Phase 1 begins **after** Phase 0.5 prints the console summary line described in *Step 0.5.6: Phase 0.5 Console Summary* (R-U5.1). Workers extending Phase 1 must not insert steps before that summary print — the line is the canonical Phase 0.5 → Phase 1 boundary.
 
 Record Phase 1 start/end:
 

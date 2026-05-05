@@ -3,14 +3,22 @@ name: CI
 on: [push, pull_request]
 
 jobs:
+  # R-T8.1: tests must run on macos-latest and ubuntu-latest. Windows is
+  # explicitly out of scope (cli scripts assume POSIX path separators + a real
+  # /bin/sh wrapper for graphify).
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
       - run: cd cli && npm ci
+      - run: cd cli && npm run build
       - run: cd cli && npm test
 
   build:

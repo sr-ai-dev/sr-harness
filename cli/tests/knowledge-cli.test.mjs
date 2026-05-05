@@ -40,10 +40,14 @@ test('knowledge (no subcommand) prints help and exits 0', async () => {
   assert.match(stdout, /Usage:\s+hoyeon-cli knowledge/);
 });
 
-test("knowledge lint stub prints 'not yet implemented' and exits 0", async () => {
-  const { code, stdout } = await runCli(['knowledge', 'lint']);
+test('knowledge lint --help advertises stale + orphan detection (PR2 / T7)', async () => {
+  const { code, stdout } = await runCli(['knowledge', 'lint', '--help']);
   assert.equal(code, 0);
-  assert.match(stdout, /\[knowledge lint\] not yet implemented \(lands in PR2\)/);
+  assert.match(stdout, /knowledge lint/);
+  assert.match(stdout, /STALE/);
+  assert.match(stdout, /ORPHAN/);
+  // Exit-code contract is part of the public surface — keep it documented.
+  assert.match(stdout, /Exit codes/);
 });
 
 test("knowledge index-update stub prints 'not yet implemented' and exits 0", async () => {

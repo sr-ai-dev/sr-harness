@@ -2976,7 +2976,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve5.call(this, root, ref);
+      let _sch = resolve7.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a = root.localRefs) === null || _a === void 0 ? void 0 : _a[ref];
         const { schemaId } = this.opts;
@@ -3003,7 +3003,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve5(root, ref) {
+    function resolve7(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3571,24 +3571,24 @@ var require_fast_uri = __commonJS({
     function normalize(uri, options) {
       if (typeof uri === "string") {
         uri = /** @type {T} */
-        serialize(parse(uri, options), options);
+        serialize(parse2(uri, options), options);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
-        parse(serialize(uri, options), options);
+        parse2(serialize(uri, options), options);
       }
       return uri;
     }
-    function resolve5(baseURI, relativeURI, options) {
+    function resolve7(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
-      const resolved = resolveComponent(parse(baseURI, schemelessOptions), parse(relativeURI, schemelessOptions), schemelessOptions, true);
+      const resolved = resolveComponent(parse2(baseURI, schemelessOptions), parse2(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
     function resolveComponent(base, relative, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
-        base = parse(serialize(base, options), options);
-        relative = parse(serialize(relative, options), options);
+        base = parse2(serialize(base, options), options);
+        relative = parse2(serialize(relative, options), options);
       }
       options = options || {};
       if (!options.tolerant && relative.scheme) {
@@ -3640,13 +3640,13 @@ var require_fast_uri = __commonJS({
     function equal(uriA, uriB, options) {
       if (typeof uriA === "string") {
         uriA = unescape(uriA);
-        uriA = serialize(normalizeComponentEncoding(parse(uriA, options), true), { ...options, skipEscape: true });
+        uriA = serialize(normalizeComponentEncoding(parse2(uriA, options), true), { ...options, skipEscape: true });
       } else if (typeof uriA === "object") {
         uriA = serialize(normalizeComponentEncoding(uriA, true), { ...options, skipEscape: true });
       }
       if (typeof uriB === "string") {
         uriB = unescape(uriB);
-        uriB = serialize(normalizeComponentEncoding(parse(uriB, options), true), { ...options, skipEscape: true });
+        uriB = serialize(normalizeComponentEncoding(parse2(uriB, options), true), { ...options, skipEscape: true });
       } else if (typeof uriB === "object") {
         uriB = serialize(normalizeComponentEncoding(uriB, true), { ...options, skipEscape: true });
       }
@@ -3715,7 +3715,7 @@ var require_fast_uri = __commonJS({
       return uriTokens.join("");
     }
     var URI_PARSE = /^(?:([^#/:?]+):)?(?:\/\/((?:([^#/?@]*)@)?(\[[^#/?\]]+\]|[^#/:?]*)(?::(\d*))?))?([^#?]*)(?:\?([^#]*))?(?:#((?:.|[\n\r])*))?/u;
-    function parse(uri, opts) {
+    function parse2(uri, opts) {
       const options = Object.assign({}, opts);
       const parsed = {
         scheme: void 0,
@@ -3805,11 +3805,11 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize,
-      resolve: resolve5,
+      resolve: resolve7,
       resolveComponent,
       equal,
       serialize,
-      parse
+      parse: parse2
     };
     module.exports = fastUri;
     module.exports.default = fastUri;
@@ -7780,13 +7780,615 @@ async function session(args) {
   die5(`Error: unknown session command '${sub}'. Run 'hoyeon-cli session --help'.`);
 }
 
+// src/lib/lint.js
+import { readFileSync as readFileSync6, existsSync as existsSync8 } from "node:fs";
+import { resolve as resolve6, join as join6, isAbsolute, dirname as dirname2 } from "node:path";
+import { spawnSync } from "node:child_process";
+
+// src/lib/yaml-mini.js
+var YamlMiniParseError = class extends Error {
+  constructor(message, line) {
+    super(line ? `line ${line}: ${message}` : message);
+    this.name = "YamlMiniParseError";
+    this.line = line;
+  }
+};
+var INDENT = 2;
+function parse(src) {
+  if (typeof src !== "string") {
+    throw new YamlMiniParseError("input must be a string");
+  }
+  const lines = src.replace(/\r\n?/g, "\n").split("\n");
+  const tokens = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const lineNo = i + 1;
+    const raw = lines[i];
+    const stripped = stripComment(raw);
+    if (stripped.trim() === "") continue;
+    if (/^---\s*$/.test(stripped) || /^\.\.\.\s*$/.test(stripped)) {
+      throw new YamlMiniParseError("multi-document YAML not supported", lineNo);
+    }
+    if (/\t/.test(stripped.match(/^\s*/)[0])) {
+      throw new YamlMiniParseError("tab indentation not supported (use 2 spaces)", lineNo);
+    }
+    const indentChars = stripped.match(/^ */)[0].length;
+    if (indentChars % INDENT !== 0) {
+      throw new YamlMiniParseError(
+        `indent must be multiple of ${INDENT} spaces (got ${indentChars})`,
+        lineNo
+      );
+    }
+    tokens.push({ line: lineNo, indent: indentChars, content: stripped.slice(indentChars) });
+  }
+  if (tokens.length === 0) return null;
+  const ctx = { tokens, idx: 0 };
+  const value = parseBlock(ctx, 0);
+  if (ctx.idx < tokens.length) {
+    throw new YamlMiniParseError(
+      `unexpected content at indent ${tokens[ctx.idx].indent}`,
+      tokens[ctx.idx].line
+    );
+  }
+  return value;
+}
+function parseBlock(ctx, indent) {
+  const tok = peek(ctx);
+  if (!tok || tok.indent < indent) return null;
+  if (tok.indent !== indent) {
+    throw new YamlMiniParseError(
+      `expected indent ${indent}, got ${tok.indent}`,
+      tok.line
+    );
+  }
+  if (tok.content.startsWith("- ") || tok.content === "-") {
+    return parseSequence(ctx, indent);
+  }
+  return parseMapping(ctx, indent);
+}
+function parseMapping(ctx, indent) {
+  const out = {};
+  while (true) {
+    const tok = peek(ctx);
+    if (!tok || tok.indent < indent) break;
+    if (tok.indent > indent) {
+      throw new YamlMiniParseError(
+        `unexpected indent (got ${tok.indent}, expected ${indent})`,
+        tok.line
+      );
+    }
+    if (tok.content.startsWith("- ") || tok.content === "-") {
+      break;
+    }
+    const { key, rest } = splitKeyValue(tok);
+    advance(ctx);
+    if (rest === "") {
+      const child = peek(ctx);
+      if (child && child.indent === indent + INDENT) {
+        out[key] = parseBlock(ctx, indent + INDENT);
+      } else if (child && child.indent === indent && (child.content.startsWith("- ") || child.content === "-")) {
+        out[key] = parseSequence(ctx, indent);
+      } else {
+        out[key] = null;
+      }
+    } else {
+      out[key] = parseScalar(rest, tok.line);
+    }
+  }
+  return out;
+}
+function parseSequence(ctx, indent) {
+  const out = [];
+  while (true) {
+    const tok = peek(ctx);
+    if (!tok || tok.indent < indent) break;
+    if (tok.indent !== indent) {
+      throw new YamlMiniParseError(
+        `expected sequence at indent ${indent}, got ${tok.indent}`,
+        tok.line
+      );
+    }
+    if (!(tok.content.startsWith("- ") || tok.content === "-")) break;
+    if (tok.content === "-") {
+      advance(ctx);
+      const child = peek(ctx);
+      if (child && child.indent === indent + INDENT) {
+        out.push(parseBlock(ctx, indent + INDENT));
+      } else {
+        out.push(null);
+      }
+      continue;
+    }
+    const inline = tok.content.slice(2);
+    if (looksLikeKey(inline)) {
+      const fakeIndent = indent + INDENT;
+      ctx.tokens[ctx.idx] = { line: tok.line, indent: fakeIndent, content: inline };
+      out.push(parseMapping(ctx, fakeIndent));
+    } else {
+      advance(ctx);
+      out.push(parseScalar(inline, tok.line));
+    }
+  }
+  return out;
+}
+function parseScalar(raw, line) {
+  const s = raw.trim();
+  if (s === "" || s === "~" || s.toLowerCase() === "null") return null;
+  if (s === "true" || s === "True" || s.toLowerCase() === "yes") return true;
+  if (s === "false" || s === "False" || s.toLowerCase() === "no") return false;
+  if (s.startsWith("'") && s.endsWith("'") && s.length >= 2) {
+    return s.slice(1, -1).replace(/''/g, "'");
+  }
+  if (s.startsWith('"') && s.endsWith('"') && s.length >= 2) {
+    return decodeDoubleQuoted(s.slice(1, -1), line);
+  }
+  if (/^-?\d+$/.test(s)) return parseInt(s, 10);
+  if (/^-?\d+\.\d+$/.test(s)) return parseFloat(s);
+  return s;
+}
+function decodeDoubleQuoted(body, line) {
+  let out = "";
+  for (let i = 0; i < body.length; i += 1) {
+    const c = body[i];
+    if (c === "\\" && i + 1 < body.length) {
+      const next = body[i + 1];
+      const map = { n: "\n", t: "	", r: "\r", '"': '"', "\\": "\\", "'": "'" };
+      if (Object.prototype.hasOwnProperty.call(map, next)) {
+        out += map[next];
+        i += 1;
+      } else {
+        throw new YamlMiniParseError(`unsupported escape '\\${next}'`, line);
+      }
+    } else {
+      out += c;
+    }
+  }
+  return out;
+}
+function peek(ctx) {
+  return ctx.tokens[ctx.idx];
+}
+function advance(ctx) {
+  ctx.idx += 1;
+}
+function looksLikeKey(s) {
+  if (s.startsWith('"') || s.startsWith("'")) return false;
+  return /^[^\s:][^:]*:(\s|$)/.test(s);
+}
+function splitKeyValue(tok) {
+  const content = tok.content;
+  let inSingle = false;
+  let inDouble = false;
+  for (let i = 0; i < content.length; i += 1) {
+    const c = content[i];
+    if (c === "'" && !inDouble) inSingle = !inSingle;
+    else if (c === '"' && !inSingle) inDouble = !inDouble;
+    else if (c === ":" && !inSingle && !inDouble) {
+      const key = content.slice(0, i).trim();
+      const rest = content.slice(i + 1).trim();
+      if (!key) throw new YamlMiniParseError("mapping key is empty", tok.line);
+      return { key: stripQuotes(key), rest };
+    }
+  }
+  throw new YamlMiniParseError(`expected mapping ':' in '${content}'`, tok.line);
+}
+function stripQuotes(k) {
+  if (k.startsWith("'") && k.endsWith("'") && k.length >= 2) return k.slice(1, -1);
+  if (k.startsWith('"') && k.endsWith('"') && k.length >= 2) return k.slice(1, -1);
+  return k;
+}
+function stripComment(line) {
+  let inSingle = false;
+  let inDouble = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const c = line[i];
+    if (c === "'" && !inDouble) inSingle = !inSingle;
+    else if (c === '"' && !inSingle) inDouble = !inDouble;
+    else if (c === "#" && !inSingle && !inDouble) {
+      return line.slice(0, i).replace(/\s+$/, "");
+    }
+  }
+  return line.replace(/\s+$/, "");
+}
+
+// src/lib/settings.js
+import { readFileSync as readFileSync5, existsSync as existsSync7 } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import { resolve as resolve5, join as join5 } from "node:path";
+var _cache = /* @__PURE__ */ new Map();
+var _warnedFiles = /* @__PURE__ */ new Set();
+function loadSettings(path) {
+  if (_cache.has(path)) return _cache.get(path);
+  if (!existsSync7(path)) {
+    _cache.set(path, null);
+    return null;
+  }
+  try {
+    const raw = readFileSync5(path, "utf8");
+    const parsed = JSON.parse(raw);
+    _cache.set(path, parsed);
+    return parsed;
+  } catch (err) {
+    if (!_warnedFiles.has(path)) {
+      _warnedFiles.add(path);
+      process.stderr.write(
+        `[sr-harness settings] ignoring invalid JSON at ${path}: ${err.message}
+`
+      );
+    }
+    _cache.set(path, null);
+    return null;
+  }
+}
+function settingsPaths(cwd) {
+  const home = homedir2();
+  return {
+    user: join5(home, ".claude", "settings.json"),
+    project: resolve5(cwd, ".claude", "settings.json")
+  };
+}
+function getFlag(name, defaultValue = false, opts = {}) {
+  const cwd = opts.cwd ?? process.cwd();
+  const { user, project } = settingsPaths(cwd);
+  const proj = loadSettings(project);
+  if (proj && Object.prototype.hasOwnProperty.call(proj, name)) {
+    return proj[name];
+  }
+  const usr = loadSettings(user);
+  if (usr && Object.prototype.hasOwnProperty.call(usr, name)) {
+    return usr[name];
+  }
+  return defaultValue;
+}
+
+// src/lib/lint.js
+var DEFAULT_STALE_THRESHOLD = 5;
+function loadKnowledgeIndex(projectRoot) {
+  const kbDir = join6(projectRoot, ".sr-harness", "knowledge");
+  const indexPath = join6(kbDir, "index.yaml");
+  if (!existsSync8(indexPath)) {
+    return { ok: false, error: `index.yaml not found at ${indexPath}`, indexPath };
+  }
+  let raw;
+  try {
+    raw = readFileSync6(indexPath, "utf8");
+  } catch (err) {
+    return { ok: false, error: `read failed: ${err.message}`, indexPath };
+  }
+  try {
+    const index = parse(raw);
+    if (!index || typeof index !== "object" || !index.modules) {
+      return { ok: false, error: "index.yaml has no `modules` key", indexPath };
+    }
+    return { ok: true, index, indexPath, kbDir };
+  } catch (err) {
+    const detail = err instanceof YamlMiniParseError ? err.message : err.message;
+    return { ok: false, error: `parse failed: ${detail}`, indexPath };
+  }
+}
+function gitRevParseHead(sourcePath) {
+  if (!sourcePath || !existsSync8(join6(sourcePath, ".git"))) return null;
+  const r = spawnSync("git", ["-C", sourcePath, "rev-parse", "HEAD"], { encoding: "utf8" });
+  if (r.status !== 0) return null;
+  return r.stdout.trim() || null;
+}
+function gitChangedFileCount(sourcePath, storedSha) {
+  if (!sourcePath || !existsSync8(join6(sourcePath, ".git"))) return null;
+  const r = spawnSync(
+    "git",
+    ["-C", sourcePath, "diff", "--name-only", `${storedSha}..HEAD`],
+    { encoding: "utf8" }
+  );
+  if (r.status !== 0) return null;
+  return r.stdout.split("\n").filter((l) => l.trim() !== "").length;
+}
+function checkStale(moduleName, entry, opts) {
+  const threshold = opts.threshold ?? DEFAULT_STALE_THRESHOLD;
+  const gitOps = opts.gitOps ?? { revParseHead: gitRevParseHead, changedFiles: gitChangedFileCount };
+  const sourcePath = entry?.source?.path;
+  const storedSha = entry?.commit_sha;
+  if (!storedSha) return null;
+  if (!sourcePath) {
+    return {
+      type: "ERROR",
+      module: moduleName,
+      reason: `cannot evaluate stale: module entry has no source.path`
+    };
+  }
+  const headSha = gitOps.revParseHead(sourcePath);
+  if (!headSha) {
+    return null;
+  }
+  if (storedSha === headSha) return null;
+  const changedFiles = gitOps.changedFiles(sourcePath, storedSha);
+  if (changedFiles === null) return null;
+  if (changedFiles < threshold) return null;
+  return {
+    type: "STALE",
+    module: moduleName,
+    stored_sha: storedSha,
+    head_sha: headSha,
+    changed_files: changedFiles,
+    threshold
+  };
+}
+function topicGroupsForEntry(entry) {
+  const out = [];
+  if (Array.isArray(entry.topics)) {
+    out.push({ group: "topics", topics: entry.topics, kbFile: entry?.files?.common ?? entry?.file });
+  }
+  if (Array.isArray(entry.topics_common)) {
+    out.push({ group: "topics_common", topics: entry.topics_common, kbFile: entry?.files?.common });
+  }
+  if (Array.isArray(entry.topics_ros1)) {
+    out.push({ group: "topics_ros1", topics: entry.topics_ros1, kbFile: entry?.files?.ros1 });
+  }
+  if (Array.isArray(entry.topics_ros2)) {
+    out.push({ group: "topics_ros2", topics: entry.topics_ros2, kbFile: entry?.files?.ros2 });
+  }
+  return out;
+}
+function readKbFile(kbDir, kbFile) {
+  if (!kbFile) return null;
+  const abs = isAbsolute(kbFile) ? kbFile : join6(kbDir, kbFile);
+  if (!existsSync8(abs)) return { absent: true, path: abs };
+  try {
+    return { absent: false, path: abs, content: readFileSync6(abs, "utf8") };
+  } catch (err) {
+    return { absent: true, path: abs, error: err.message };
+  }
+}
+function anchorMatchesContent(anchor, content) {
+  const target = anchor.trim();
+  const lines = content.split("\n");
+  for (const line of lines) {
+    if (line.trim() === target) return true;
+  }
+  return false;
+}
+function checkOrphan(moduleName, entry, kbDir) {
+  const findings = [];
+  const groups = topicGroupsForEntry(entry);
+  for (const g of groups) {
+    if (g.topics.length === 0) continue;
+    if (!g.kbFile) {
+      findings.push({
+        type: "ERROR",
+        module: moduleName,
+        reason: `topics group '${g.group}' has no corresponding files.* entry`
+      });
+      continue;
+    }
+    const kb = readKbFile(kbDir, g.kbFile);
+    if (!kb) continue;
+    if (kb.absent) {
+      for (const topic of g.topics) {
+        findings.push({
+          type: "ORPHAN",
+          module: moduleName,
+          topic_id: topic.id ?? "<unknown>",
+          anchor: topic.anchor ?? "",
+          file: g.kbFile,
+          reason: `KB file missing at ${kb.path}`
+        });
+      }
+      continue;
+    }
+    for (const topic of g.topics) {
+      if (!topic || !topic.anchor) continue;
+      if (!anchorMatchesContent(topic.anchor, kb.content)) {
+        findings.push({
+          type: "ORPHAN",
+          module: moduleName,
+          topic_id: topic.id ?? "<unknown>",
+          anchor: topic.anchor,
+          file: g.kbFile,
+          reason: "anchor not found as a heading line"
+        });
+      }
+    }
+  }
+  return findings;
+}
+function lint(options) {
+  const projectRoot = resolve6(options.projectRoot);
+  const loaded = loadKnowledgeIndex(projectRoot);
+  if (!loaded.ok) {
+    return {
+      ok: false,
+      findings: [],
+      modules_checked: [],
+      indexPath: loaded.indexPath,
+      error: loaded.error
+    };
+  }
+  const allModuleNames = Object.keys(loaded.index.modules ?? {});
+  let names;
+  if (options.modules && options.modules.length > 0) {
+    names = options.modules;
+    const missing = names.filter((n) => !allModuleNames.includes(n));
+    if (missing.length > 0) {
+      return {
+        ok: false,
+        findings: [],
+        modules_checked: [],
+        indexPath: loaded.indexPath,
+        error: `module(s) not in index.yaml: ${missing.join(", ")}`
+      };
+    }
+  } else {
+    names = allModuleNames;
+  }
+  const findings = [];
+  for (const name of names) {
+    const entry = loaded.index.modules[name];
+    if (!entry || typeof entry !== "object") continue;
+    const stale = checkStale(name, entry, {
+      threshold: options.threshold,
+      gitOps: options.gitOps
+    });
+    if (stale) findings.push(stale);
+    const orphans = checkOrphan(name, entry, loaded.kbDir);
+    findings.push(...orphans);
+  }
+  return {
+    ok: true,
+    findings,
+    modules_checked: names,
+    indexPath: loaded.indexPath
+  };
+}
+function formatFindings(result) {
+  if (!result.ok) {
+    return `Error: ${result.error} (${result.indexPath})
+`;
+  }
+  if (result.findings.length === 0) {
+    const n = result.modules_checked.length;
+    return `KB lint clean (${n} module${n === 1 ? "" : "s"} checked)
+`;
+  }
+  const lines = [];
+  let stale = 0;
+  let orphan = 0;
+  let errors = 0;
+  for (const f of result.findings) {
+    if (f.type === "STALE") {
+      stale += 1;
+      lines.push(
+        `[STALE] ${f.module}
+  commit_sha: ${shortSha(f.stored_sha)} (HEAD: ${shortSha(f.head_sha)})
+  changed files: ${f.changed_files} (threshold: ${f.threshold})
+  \u2192 recommend: hoyeon-cli knowledge index-update ${f.module}`
+      );
+    } else if (f.type === "ORPHAN") {
+      orphan += 1;
+      lines.push(
+        `[ORPHAN] ${f.module}
+  topic '${f.topic_id}' (anchor: ${JSON.stringify(f.anchor)})
+  not found in ${f.file} \u2014 ${f.reason}
+  \u2192 recommend: remove topic or add heading to KB file`
+      );
+    } else if (f.type === "ERROR") {
+      errors += 1;
+      lines.push(`[ERROR] ${f.module}
+  ${f.reason}`);
+    }
+  }
+  const moduleSet = new Set(result.findings.map((f) => f.module));
+  const total = result.findings.length;
+  lines.push(
+    `
+Summary: ${total} issue${total === 1 ? "" : "s"} (${stale} stale, ${orphan} orphan${errors ? `, ${errors} error` : ""}) across ${moduleSet.size} module${moduleSet.size === 1 ? "" : "s"}`
+  );
+  return lines.join("\n") + "\n";
+}
+function shortSha(sha) {
+  return typeof sha === "string" && sha.length >= 7 ? sha.slice(0, 7) : String(sha);
+}
+var CMD_HELP = `Usage:
+  hoyeon-cli knowledge lint [<module>] [options]
+
+Detects two classes of KB rot defined in requirements R-B3.1:
+
+  STALE   module.commit_sha drifted from git HEAD AND >= N files changed since
+          (N defaults to 5; configurable via 'kb_lint_stale_threshold' flag).
+
+  ORPHAN  topic.anchor is not present as a heading line in the corresponding
+          KB markdown file (resolved via files.common / files.ros1 / files.ros2).
+
+Arguments:
+  <module>       Module name to lint (omit to lint every module \u2014 same as --all).
+
+Options:
+  --all          Lint every module in index.yaml (implicit when <module> is omitted).
+  --threshold N  Override stale changed-file threshold for this run.
+  --json         Emit findings as a JSON object instead of human text.
+  --help, -h     This help.
+
+Exit codes:
+  0   no findings
+  1   one or more findings (stale / orphan / error)
+  2   index.yaml missing or unreadable
+`;
+async function cmdLint(args, env = {}) {
+  const cwd = env.cwd ?? process.cwd();
+  const stdout = env.stdout ?? process.stdout;
+  const exit = env.exit ?? ((code) => {
+    process.exit(code);
+  });
+  let useJson = false;
+  let useAll = false;
+  let threshold;
+  const positional = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const a = args[i];
+    if (a === "--help" || a === "-h") {
+      stdout.write(CMD_HELP);
+      exit(0);
+      return 0;
+    }
+    if (a === "--all") {
+      useAll = true;
+      continue;
+    }
+    if (a === "--json") {
+      useJson = true;
+      continue;
+    }
+    if (a === "--threshold") {
+      const v = args[i + 1];
+      if (!v || !/^\d+$/.test(v)) {
+        process.stderr.write(`Error: --threshold requires a non-negative integer
+`);
+        exit(1);
+        return 1;
+      }
+      threshold = parseInt(v, 10);
+      i += 1;
+      continue;
+    }
+    if (a.startsWith("--")) {
+      process.stderr.write(`Error: unknown option '${a}'. Run 'hoyeon-cli knowledge lint --help'.
+`);
+      exit(1);
+      return 1;
+    }
+    positional.push(a);
+  }
+  const moduleArg = useAll ? null : positional[0] ?? null;
+  const modules = moduleArg ? [moduleArg] : [];
+  const resolvedThreshold = threshold ?? getFlag("kb_lint_stale_threshold", DEFAULT_STALE_THRESHOLD, { cwd });
+  const numericThreshold = typeof resolvedThreshold === "number" && Number.isFinite(resolvedThreshold) ? resolvedThreshold : DEFAULT_STALE_THRESHOLD;
+  const result = lint({
+    projectRoot: cwd,
+    modules,
+    threshold: numericThreshold
+  });
+  if (useJson) {
+    stdout.write(JSON.stringify(result, null, 2) + "\n");
+  } else {
+    stdout.write(formatFindings(result));
+  }
+  if (!result.ok) {
+    exit(2);
+    return 2;
+  }
+  if (result.findings.length === 0) {
+    exit(0);
+    return 0;
+  }
+  exit(1);
+  return 1;
+}
+
 // src/commands/knowledge.js
 var HELP6 = `
 Usage:
   hoyeon-cli knowledge <subcommand> [options]
 
 Subcommands:
-  lint <module>                 Detect stale + orphan entries in a module's KB index (PR2, not yet implemented)
+  lint [<module>]               Detect stale + orphan entries in a module's KB index (PR2)
+                                Run 'knowledge lint --help' for full options + exit codes.
   index-update <module>         Apply partial update to index.yaml for a module (PR1 follow-up T4, not yet implemented)
                                 JSON payload via --json "$(cat /tmp/...)" \u2014 file-based to avoid zsh glob expansion (R-T3.2)
   graph-link <module>           Write hub_by_profile entries for a module from .meta.json (PR6, not yet implemented)
@@ -7808,8 +8410,8 @@ function stub(subName, ownerPr) {
   process.stdout.write(`[knowledge ${subName}] not yet implemented (lands in ${ownerPr})
 `);
 }
-async function cmdLint(_args) {
-  stub("lint", "PR2");
+async function cmdLint2(args) {
+  await cmdLint(args);
 }
 async function cmdIndexUpdate(_args) {
   const _validator = validateKnowledgeIndex;
@@ -7826,7 +8428,7 @@ async function cmdGraphClean(_args) {
   stub("graph-clean", "PR6");
 }
 var COMMANDS3 = {
-  lint: cmdLint,
+  lint: cmdLint2,
   "index-update": cmdIndexUpdate,
   "graph-link": cmdGraphLink,
   "graph-build": cmdGraphBuild,

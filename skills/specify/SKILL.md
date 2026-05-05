@@ -130,6 +130,10 @@ Record these events:
 | gap-auditor before/after | `mark <spec_dir> phase1 gap_audit_start/end --label "<business|interaction|tech|final>"` |
 | extractor before/after | `mark <spec_dir> phase2 agent_start/end --label "<business-extractor|interaction-extractor|tech-extractor>"` |
 | research agent before/after | `mark <spec_dir> phase0.5 agent_start/end --label "<code-explorer|docs-researcher|refactor-impact>"` |
+| KB load mode (per module) | `mark <spec_dir> phase0.5 kb_load_mode --label "<selective\|fullfile\|agent_scan>:<module>"` |
+| KB token savings estimate | `mark <spec_dir> phase0.5 kb_token_estimate --label "module=<name>,saved=<int>"` |
+
+The two `kb_*` events feed the Phase 0.5 selective-load reporting consumed by `specify-metrics.mjs` (see T23 / R-U5.3). `kb_load_mode` records exactly one of `selective` / `fullfile` / `agent_scan` per module so the report can tally the load-mode mix; `kb_token_estimate` records the integer token savings vs the full-file baseline (0 when the load mode is `fullfile` or `agent_scan`). Phase 0.5 emits both events for every module it considers (kb_loaded or fall-through), regardless of whether the `kb_topics_lookup` flag is enabled — when the flag is off, every module records `fullfile` and `saved=0`, which keeps the metric series continuous across rollback toggles.
 
 At the end of Phase 4.4, generate the report:
 
@@ -461,11 +465,22 @@ AskUserQuestion(
 
 Run this check BEFORE dispatching agents. If `where.sr_modules` was detected in Step 0.1:
 
+0. **Read the `kb_topics_lookup` feature flag** before any KB I/O. The flag is resolved through `getFlag('kb_topics_lookup', false)` exposed by `cli/src/lib/settings.js` (project `.claude/settings.json` overrides `~/.claude/settings.json`; absent → `false`). The resolved boolean controls whether step 2 takes the **selective-load** branch or the **full-file fallback** branch — the rest of the classification logic (`kb_loaded` / `kb_stale` / `agent_scan`) is unchanged.
 1. Read `.sr-harness/knowledge/index.yaml`
 2. **Classify each module in `where.sr_modules`** (in-memory, no user prompts yet):
-   - Not in index.yaml → mark `agent_scan` (fall through to dispatch)
-   - In index.yaml + `commit_sha` match `git rev-parse HEAD` in `source.path` → mark `kb_loaded` (load KB files: `common` + `ros2`/`ros1` if present, skip agent scan)
-   - In index.yaml + `commit_sha` mismatch → mark `kb_stale` (collected for batched prompt below)
+   - Not in index.yaml → mark `agent_scan` (fall through to dispatch); record `load_mode = "agent_scan"`, `tokens_saved_estimate = 0`.
+   - In index.yaml + `commit_sha` match `git rev-parse HEAD` in `source.path` → mark `kb_loaded`. Skip the agent scan and read the KB content using the **load-mode rule** below. Record `load_mode` ∈ {`selective`, `fullfile`} and `tokens_saved_estimate` (integer ≥ 0; 0 when `fullfile`).
+   - In index.yaml + `commit_sha` mismatch → mark `kb_stale` (collected for batched prompt below). The mismatch test applies to whichever `commit_sha` field is stored on the module entry — the existing single `commit_sha`, or after PR1 the topics-aligned `commit_sha` written by `/knowledge scan`. Either field maps to the same batched MISMATCH AskUserQuestion (R-U3.3); there is no separate prompt for "topics stale" vs "KB stale".
+
+   **Load-mode rule (kb_loaded only)**:
+   - **Selective branch** — chosen when ALL of the following are true: (a) `kb_topics_lookup === true`; (b) the index entry has at least one of `topics`, `topics_common`, `topics_ros1`, `topics_ros2` populated; (c) at least one topic survives the relevance filter described in *Selective Load Algorithm* below. Read **only** the anchor sections of the KB markdown file via `Read(file_path, offset, limit)` where `offset` and `limit` are computed from the topic anchor heading position (typical target: 50–100 lines per module versus the 300–500 lines of a full file, ~3-5× token reduction). Set `load_mode = "selective"` and compute `tokens_saved_estimate = max(0, full_file_token_estimate - selective_token_estimate)`.
+   - **Fullfile fallback branch** — chosen otherwise (flag false, OR no topics-family key present, OR topics present but relevance filter selected zero topics). Read the entire KB markdown file unchanged from the v1.6.0-sr.2 behaviour. Set `load_mode = "fullfile"` and `tokens_saved_estimate = 0`. R-B2.2 / R-T5.1 / R-B6.3 require this branch to never raise an error — absence of topics keys is an expected pre-migration state, not a failure.
+
+   For each module, immediately after the load completes, emit the metric events declared in *Performance Metrics*:
+   ```bash
+   node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase0.5 kb_load_mode --label "<load_mode>:<module>"
+   node "${baseDir}/../../scripts/specify-metrics.mjs" mark <spec_dir> phase0.5 kb_token_estimate --label "module=<module>,saved=<int>"
+   ```
 3. **Batched MISMATCH prompt** — if any modules are `kb_stale`, ask the user once with one question per stale module (max 4 per AskUserQuestion call; chunk if more):
    ```
    AskUserQuestion(
@@ -483,9 +498,9 @@ Run this check BEFORE dispatching agents. If `where.sr_modules` was detected in 
    )
    ```
    Apply the user's answer per module:
-   - Use existing → `kb_loaded`
-   - Re-scan now → invoke `/knowledge scan {module}` via the knowledge skill, then reload the KB and mark `kb_loaded`
-   - Skip → `agent_scan`
+   - Use existing → `kb_loaded`. Apply the same load-mode rule as in step 2 (selective vs fullfile based on the flag and topics presence). Emit `kb_load_mode` and `kb_token_estimate` events as above.
+   - Re-scan now → invoke `/knowledge scan {module}` via the knowledge skill, then reload the KB and mark `kb_loaded`; topics are typically refreshed by `/knowledge scan`, so the resulting load is `selective` whenever the flag is on and topics are produced.
+   - Skip → `agent_scan` (load_mode `agent_scan`, saved 0).
 
    If `/knowledge scan {module}` fails, is unavailable, or the user aborts it, do not abort `/specify`. Mark that module as `agent_scan`, add `KB re-scan failed: {module} — {reason}` to `qa-log.md` `## Research`, and continue with agent dispatch.
 4. If **all** modules are `kb_loaded` → skip "Dispatch subagents in parallel" entirely. Write KB content into `qa-log.md` `## Research` section directly.
@@ -494,6 +509,52 @@ Run this check BEFORE dispatching agents. If `where.sr_modules` was detected in 
    - **Scope to remaining modules only**: agent should investigate only the not-loaded modules
    - Example prompt suffix: `"제외 대상 (이미 KB 로드됨): spx-driver. 조사 대상: core-navigation"`
    Write KB content for `kb_loaded` modules + agent findings for the rest into a unified `## Research` section.
+
+After step 5, the orchestrator holds a per-module record of `{ name, load_mode, tokens_saved_estimate, topics_loaded[] }`. T6 consumes this record to print the one-line Phase 0.5 console summary (`KB topics: N loaded (saved ~M tokens) ...`) — T5 only **prepares** the data, the print statement itself is owned by T6 (R-U5.1).
+
+### Selective Load Algorithm
+
+This subsection applies only when the *Selective branch* of step 2's load-mode rule is taken. It describes how Phase 0.5 chooses **which** topic anchor sections to read out of an arbitrarily long `topics` (or `topics_common` / `topics_ros1` / `topics_ros2`) array.
+
+**Step S1 — Pick the topic source array** based on `where.sr_ros_version`:
+
+| `where.sr_ros_version` | Topic arrays consulted (concatenated in this order) |
+|---|---|
+| `ros1` | `topics_common` then `topics_ros1` |
+| `ros2` | `topics_common` then `topics_ros2` |
+| `null` (no ROS version detected) | `topics` (flat array) when present; otherwise `topics_common` + `topics_ros1` + `topics_ros2` merged |
+
+Per the AJV schema, a module never combines the flat `topics` key with the `topics_common` / `topics_ros1` / `topics_ros2` group — the keys are mutually exclusive at the module level. If both groups are somehow present (unexpected legacy data), prefer `topics_common` + variant arrays and ignore `topics`.
+
+**Step S2 — sr_profile filter**: discard any topic whose `sr_profile` field is set to a value different from `where.sr_profile`. Topics without an `sr_profile` field apply to all profiles and are always retained.
+
+**Step S3 — Relevance scoring**: for each remaining topic, compute an integer relevance score against the active context. The score signals how likely this topic is to be useful in the current interview.
+
+```
+keywords = lowercased tokens drawn from:
+  - where.sr_modules            (e.g. ["core-driver", "wheel"])
+  - where.sr_profile            (e.g. ["driver"])
+  - mirror.understanding text   (split on whitespace + punctuation, filter stop words)
+
+score(topic) =
+    (count of keywords appearing in topic.id, hyphenated-tokenized)
+  + (count of keywords appearing in topic.summary, lowercased)
+  + (1 if topic.sr_profile === where.sr_profile, else 0)
+```
+
+The `topic.id` and `topic.summary` matches use simple substring containment after lowercasing; the algorithm intentionally avoids regex or semantic similarity to keep Phase 0.5 fast and deterministic. A topic with score = 0 is not eliminated outright — it is only dropped if there are at least `K` higher-scoring topics (see Step S4).
+
+**Step S4 — Top-K selection**:
+- Default `K = 5` topics per module.
+- If the post-filter array has `≤ K` topics, load all of them (do not artificially trim — small topic arrays usually mean the author already curated them).
+- If `> K` topics exist, sort by `score` descending (stable sort preserves index.yaml order on ties) and keep the top `K`.
+- If **all** kept topics have score = 0 (no keyword overlap with the active context), Phase 0.5 falls back to the *Fullfile fallback branch* for that module instead of loading a random top-5 — the safer behaviour when the user's mirror does not match any indexed topic.
+
+**Step S5 — Anchor-to-Read translation**: for each chosen topic, locate the anchor heading in the KB markdown file and pass `offset` (1-based starting line) and `limit` (number of lines until the next sibling heading or EOF) to the `Read` tool. The KB section between the anchor and the next heading of equal or higher level is the unit of selective load. Concatenate the loaded sections in the order they were chosen and store them on the module's `topics_loaded` record together with `{ id, anchor }` so T6 can format the summary line and T21 (PR7) can later append `[from KB:<topic.id>]` provenance tags in Phase 1.
+
+**Step S6 — Token estimate accounting**: estimate `full_file_token_estimate` from the KB markdown file size (≈ 4 chars per token is the default heuristic; use the exact byte length divided by 4 as an integer floor). Estimate `selective_token_estimate` from the byte length of the concatenated section content. The difference, clamped at 0, becomes `tokens_saved_estimate` for that module.
+
+The 30% Phase 0.5 token-reduction target (R-B2) is a **release-level success metric** validated by T23's specify-metrics extension across multiple `/specify` runs. Individual modules may save more (densely topical KBs) or less (single-topic KBs); per-module variation is expected and is not a per-task gate.
 
 ### Dispatch subagents in parallel
 

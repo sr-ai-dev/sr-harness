@@ -10,7 +10,7 @@ Use `.playground/` directory for experiments and testing. This directory is git-
 
 To automatically validate agent/skill output, add a `validate_prompt` field to the frontmatter.
 
-**Agent example** (`.claude/agents/my-agent.md`):
+**Agent example** (`.Codex/agents/my-agent.md`):
 ```yaml
 ---
 name: my-agent
@@ -21,7 +21,7 @@ validate_prompt: |
 ---
 ```
 
-**Skill example** (`.claude/skills/my-skill/SKILL.md`):
+**Skill example** (`.Codex/skills/my-skill/SKILL.md`):
 ```yaml
 ---
 name: my-skill
@@ -35,16 +35,16 @@ validate_prompt: |
 1. `PostToolUse` hook detects Task/Skill completion
 2. Extracts `subagent_type` or `skill` name from tool input
 3. Finds agent/skill file and parses `validate_prompt` from frontmatter
-4. Outputs validation reminder to Claude
+4. Outputs validation reminder to Codex
 
 ### Implementation Files
 
-- `.claude/scripts/validate-output.sh` - PostToolUse validation hook
-- `.claude/settings.json` - registers PostToolUse hook for Task|Skill
+- `.Codex/scripts/validate-output.sh` - PostToolUse validation hook
+- `.Codex/settings.json` - registers PostToolUse hook for Task|Skill
 
 ## Hook System
 
-Hooks are registered in `.claude/settings.json` and automate pipeline transitions and quality enforcement.
+Hooks are registered in `.Codex/settings.json` and automate pipeline transitions and quality enforcement.
 
 ### Hook Types
 
@@ -83,11 +83,11 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 
 ### Hook Development Notes
 
-- Hook scripts live in `.claude/scripts/` (symlink to `scripts/`) and must be executable (`chmod +x`)
+- Hook scripts live in `.Codex/scripts/` (symlink to `scripts/`) and must be executable (`chmod +x`)
 - **When adding a new hook script, you MUST update all three:**
   1. `hooks/hooks.json` — plugin-level registration (uses `${CLAUDE_PLUGIN_ROOT}/scripts/...`)
-  2. `.claude/settings.json` — project-level registration (uses `.claude/scripts/...`)
-  3. `CLAUDE.md` — add entry to the Active Hooks table above
+  2. `.Codex/settings.json` — project-level registration (uses `.Codex/scripts/...`)
+  3. `AGENTS.md` — add entry to the Active Hooks table above
 - A hook script that is not registered in settings will **not fire** — creating the file alone is not enough
 - Run `sr-harness-cli session get --sid <id>` to verify session state after changes
 - Hook behavior gotchas are documented in commit history and session learnings
@@ -100,7 +100,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 
 ### Pre-Release Checklist
 
-- [ ] All content must be written in English (SKILL.md, agent .md, CLAUDE.md, README.md, commit messages, comments)
+- [ ] All content must be written in English (SKILL.md, agent .md, AGENTS.md, README.md, commit messages, comments)
 - [ ] When `README.md` is updated, sync all translations: `README.ko.md`, `README.zh.md`, `README.ja.md`
 
 ### Release Flow
@@ -108,7 +108,7 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 ```
 1. All features merged to develop
 2. Version bump commit on develop (plugin.json + marketplace.json + cli/package.json)
-3. Update CLAUDE.md (Recent Changes) and README.md (if new skills/agents added)
+3. Update AGENTS.md (Recent Changes) and README.md (if new skills/agents added)
 4. cd cli && npm run build && npm publish --access public
 5. git checkout main && git merge develop --no-ff -m "Release X.Y.Z"
 6. git tag vX.Y.Z && git push origin main --tags && git push origin develop
@@ -117,76 +117,11 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 
 ## Versioning
 
-- Plugin version is in `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `cli/package.json`
+- Plugin version is in `.Codex-plugin/plugin.json`, `.Codex-plugin/marketplace.json`, and `cli/package.json`
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@syscon-robotics/sr-harness-cli`) is always synced with plugin version
 
-## Recent Changes (v1.6.0-sr.9)
-
-- chore(upstream): upstream 1.6.1-prep 부분 동기화 (체리픽 2건 + 1건 스킵)
-  - `93737e7` refactor(blueprint): ask-only-when-owned — 승인 게이트 3개(Phase 2.3/4.3/5.2) 축소, coverage gate가 task-graph 정합성 강제, 5.2는 informational 요약(`--no-summary`로 skip)
-  - `ef0ac59` feat(qa,execute): evidence_dir 배선 + verifier 모델 업그레이드 (worker는 제외)
-    - qa-verifier에 `evidence_dir` 인자 추가 (없으면 `.qa-reports/verify-evidence/` default)
-    - execute verify가 `{spec_dir}/verify-evidence`를 주입 — per-spec 증거가 spec 디렉토리 아래 적재
-    - **모델 업그레이드 (sonnet→opus)**: qa-verifier, taskgraph-planner, verify-planner
-    - **모델 다운그레이드 (opus→sonnet) 제외**: agents/worker.md (sr-harness 정책상 보류 — `docs/plans/worker-model-policy/notes.md` 참조)
-  - upstream `5f8154a` (1.6.1 버전 범프) 스킵 — sr.x 라인 진행
-- docs(harness): 분석 자료 3건
-  - `docs/harness/14_skills-improvement-rollup.md` — `12_specify-pipeline-review` 결과를 27개 스킬 전체에 mapping
-  - `docs/harness/16_state-management-pattern.md` — Cold Scan vs Warm State Lookup 일반론 (Smart Router/spec_inbox 패턴 토큰/시간 절감 관점)
-  - `docs/harness/15_specify-redesign-living-spec.md` §0.5에 16_ cross-reference 1줄
-- docs(plans): `worker-model-policy/notes.md` 신설 — worker model_class 정책 검토 노트(보류). sr_profile→model_class propagation 옵션, 영향 범위, 강제성 옵션, 다음 실험 설계 정리
-- chore(standards): 프로젝트 표준 추가
-  - `.claude/rules/agent-overrides.md`: sr-harness 본체용 coder/reviewer/tester/architect 추가 규칙
-  - `.claude/rules/design-change-propagation.md`: 5가지 트리거(스키마/훅/스킬/에이전트/릴리즈) 별 전파 체크리스트
-  - `docs/plans/_templates/`: init-project skill 표준 템플릿 5종
-- docs(meta): `AGENTS.md` 추가 — OpenAI Codex CLI 등 'AGENTS.md' 호환 도구용 alias 가이드 (sr.2 시점 CLAUDE.md 베이스, 후속 동기화 필요)
-
-## Previous Changes (v1.6.0-sr.8)
-
-- docs(specify): `15_specify-redesign-living-spec.md` §0.5 신설 — sr.7 구현 현황 분리
-  - vision(§1+) vs reality(§0.5) 명시적 분리: `/specify init/expand/reflect` 등 sub-command는 미구현, M1+에 도입 예정
-  - sr.7에서 항상 적용되는 변경(Default-First / 단일 audit / Smart Router) vs opt-in 플래그(`--quick`/`--strict`/`-context`) 구분 표
-  - 호출 패턴 동작 매트릭스 (sr.6 vs sr.7 / `--quick` / `--strict` / `-context`)
-  - vision 섹션과의 매핑 (구현 / 부분 / 미구현)
-  - 사용자 가이드 — 의도별 호출 형태
-- 코드 변경 없음 (문서 패치 릴리즈)
-
-## Previous Changes (v1.6.0-sr.7)
-
-- feat(specify): Living Spec M-Lite — UX 4건 (v1.6.0-sr.7)
-  - **`--quick` 플래그**: Phase 1을 노드당 max 2 질문으로 cap, inline drill 비활성, gap-auditor 단일 호출, final audit skip. 토큰/시간 50% 이상 단축 추정.
-  - **`-context @file` 플래그**: 사전 정리 문서를 Mirror + Phase 1 default 답변 소스로 주입. context-bundle.md 작성, qa-log.md frontmatter에 `source: from-context-doc` + `lineage: <file>:<lines>` 기록.
-  - **바 `/specify` Smart Router**: 인자 없는 호출 시 spec_dir/spec_inbox 상태 기반 자동 라우팅 (init/resume/status/reflect 추천). `--strict` 옵션은 legacy multi-loop 회로차단기 유지.
-  - **Default-First Question Construction**: Phase 1 질문 작성 가이드에 "Recall → Recognition + Verification" 패턴 추가. 4-way 옵션 (Confirm/Modify/Skip/Other) + 출처 표기 `[from <file>:<lines>]`. context-bundle / Phase 0.5 research / KB / WHERE / engineering default 우선순위.
-  - **Gap-auditor 단일 호출 default**: 축당 1회 audit, CONTINUE 시 자동으로 AMBIGUOUS → Open Items 승격. legacy multi-loop은 `--strict` opt-in.
-- docs: `15_specify-redesign-living-spec.md` (신규) — Living Spec System 전체 재설계 비전 (M1-M6 마이그레이션, spec.json SSoT, spec_inbox, SpecQuery API, Smart Router, Context-First Ingestion). 본 sr.7은 그중 M-Lite phase 구현.
-
-## Previous Changes (v1.6.0-sr.4)
-
-- feat(specify): 파이프라인 후속 보강 6건 (v1.6.0-sr.4)
-  - Step 0.3: 재실행 시 type rerun 검증 (N-12)
-  - Phase 0.5 KB-first lookup: 모듈별 → batched MISMATCH AskUserQuestion (N-7)
-  - Phase 1: Late SR Profile Surface — mid-interview에 sr_profile 갱신 시 Step D 재실행 + Tech axis gap-auditor 일찍 dispatch (N-6)
-  - Phase 4.1: Data sources 3-bullet 명시 (cross-check.md / reqs-*.md / qa-log non_goals) (N-5)
-  - Phase 4.2: 결정 발생 시 qa-log Resolutions에 1줄 append + Resume rule 4-step 명시 (N-4 lightweight)
-  - Step 4.4: Open Items → Open Decisions promotion 매핑 명시 (N-9)
-  - templates/qa-log.md: Open Items promotion 코멘트 + Resolutions 섹션 anchor 추가
-- feat(specify): 파이프라인 추가 보강 7건 (v1.6.0-sr.3)
-  - agents/interaction-extractor.md: 축 코드 R-I → R-U 통일 (specify/blueprint 동기화)
-  - agents/gap-auditor.md: depth 판정 기준을 specify와 동일한 질문 수 + drill 의무 표로 동기화
-  - SKILL.md Step 0.1: sr_modules 추출 토큰→정규화명 매핑 표 추가
-  - SKILL.md Phase 2/3: cross-check.md 2-section 구조 (Dedup Log + Cross-Check Report) 고정
-  - SKILL.md Step 0.3: Resume mismatch check + 3-옵션 AskUserQuestion 게이트
-  - SKILL.md 상단: Path Conventions 섹션 (baseDir / spec_dir 정의)
-  - templates/qa-log.md: SR 필드 5개 + research_done + audit_counts 기본값
-- docs: 12_specify-pipeline-review.md
-  - 기존 C-1~M-5 (10건) 각 섹션에 (해결됨) 헤더 + "현재 동작" 1줄 요약
-  - "## v1.6.0-sr.3 추가 보강" 섹션 (N-1~N-7 + 영향 매트릭스)
-  - "## v1.6.0-sr.4 후속 보강" 섹션 (N-12, N-7, N-6, N-5, N-4, N-9 + Reject/Defer + 영향 매트릭스)
-- docs: 13_sr-profile-reference.md (신규) — sr_profile 종합 레퍼런스 (값/감지/저장/파이프라인 영향/예시)
-
-## Previous Changes (v1.6.0-sr.2)
+## Recent Changes (v1.6.0-sr.2)
 
 - feat(knowledge): full Knowledge System integration into specify/execute/bugfix pipeline
   - knowledge/SKILL.md — section-name anchors, re-scan learning preservation, regex DOTALL pitfall warning, schema validation, commit_sha/source.path semantics, de-dup policy, cross-product schema, --compact option

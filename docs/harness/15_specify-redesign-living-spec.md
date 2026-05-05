@@ -21,6 +21,7 @@
 
 > **이 섹션은 §1 이하의 "vision"과 분리되어 실제로 v1.6.0-sr.7에서 동작하는 것만 정리합니다.**
 > 본 문서 §5의 명령 체계 (`/specify init/expand/reflect/...`)는 **미구현**이며 M1+에서 도입됩니다.
+> Smart Router 효율성의 일반 원리는 [`16_state-management-pattern.md`](./16_state-management-pattern.md) (Cold Scan vs Warm State Lookup) 참고.
 
 ### 0.5.1 호출 형태 — 명령은 `/specify` 하나뿐
 

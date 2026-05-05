@@ -1,6 +1,6 @@
 {
   "name": "@team-attention/hoyeon-cli",
-  "version": "1.6.0-sr.8",
+  "version": "1.6.0-sr.9",
   "type": "module",
   "description": "Dedicated CLI for specify + blueprint workflow (requirements.md + plan.json)",
   "bin": {

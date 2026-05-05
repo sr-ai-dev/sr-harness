@@ -121,7 +121,28 @@ Hooks are registered in `.claude/settings.json` and automate pipeline transition
 - **Bump all three files** in a single commit on `develop` before merging to `main`
 - CLI version (`@team-attention/hoyeon-cli`) is always synced with plugin version
 
-## Recent Changes (v1.6.0-sr.8)
+## Recent Changes (v1.6.0-sr.9)
+
+- chore(upstream): upstream 1.6.1-prep 부분 동기화 (체리픽 2건 + 1건 스킵)
+  - `93737e7` refactor(blueprint): ask-only-when-owned — 승인 게이트 3개(Phase 2.3/4.3/5.2) 축소, coverage gate가 task-graph 정합성 강제, 5.2는 informational 요약(`--no-summary`로 skip)
+  - `ef0ac59` feat(qa,execute): evidence_dir 배선 + verifier 모델 업그레이드 (worker는 제외)
+    - qa-verifier에 `evidence_dir` 인자 추가 (없으면 `.qa-reports/verify-evidence/` default)
+    - execute verify가 `{spec_dir}/verify-evidence`를 주입 — per-spec 증거가 spec 디렉토리 아래 적재
+    - **모델 업그레이드 (sonnet→opus)**: qa-verifier, taskgraph-planner, verify-planner
+    - **모델 다운그레이드 (opus→sonnet) 제외**: agents/worker.md (sr-harness 정책상 보류 — `docs/plans/worker-model-policy/notes.md` 참조)
+  - upstream `5f8154a` (1.6.1 버전 범프) 스킵 — sr.x 라인 진행
+- docs(harness): 분석 자료 3건
+  - `docs/harness/14_skills-improvement-rollup.md` — `12_specify-pipeline-review` 결과를 27개 스킬 전체에 mapping
+  - `docs/harness/16_state-management-pattern.md` — Cold Scan vs Warm State Lookup 일반론 (Smart Router/spec_inbox 패턴 토큰/시간 절감 관점)
+  - `docs/harness/15_specify-redesign-living-spec.md` §0.5에 16_ cross-reference 1줄
+- docs(plans): `worker-model-policy/notes.md` 신설 — worker model_class 정책 검토 노트(보류). sr_profile→model_class propagation 옵션, 영향 범위, 강제성 옵션, 다음 실험 설계 정리
+- chore(standards): 프로젝트 표준 추가
+  - `.claude/rules/agent-overrides.md`: sr-harness 본체용 coder/reviewer/tester/architect 추가 규칙
+  - `.claude/rules/design-change-propagation.md`: 5가지 트리거(스키마/훅/스킬/에이전트/릴리즈) 별 전파 체크리스트
+  - `docs/plans/_templates/`: init-project skill 표준 템플릿 5종
+- docs(meta): `AGENTS.md` 추가 — OpenAI Codex CLI 등 'AGENTS.md' 호환 도구용 alias 가이드 (sr.2 시점 CLAUDE.md 베이스, 후속 동기화 필요)
+
+## Previous Changes (v1.6.0-sr.8)
 
 - docs(specify): `15_specify-redesign-living-spec.md` §0.5 신설 — sr.7 구현 현황 분리
   - vision(§1+) vs reality(§0.5) 명시적 분리: `/specify init/expand/reflect` 등 sub-command는 미구현, M1+에 도입 예정

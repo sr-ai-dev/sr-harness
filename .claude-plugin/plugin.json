@@ -1,6 +1,6 @@
 {
   "name": "sr-harness",
-  "version": "1.6.0-sr.8",
+  "version": "1.6.0-sr.9",
   "description": "Development workflow automation plugin: specify → open → execute pipeline with parallel research agents, hook-based guards, and PR state management",
   "author": {
     "name": "syscon-robotics"

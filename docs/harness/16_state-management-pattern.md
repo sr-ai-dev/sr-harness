@@ -5,7 +5,7 @@
 > 목적: 토큰/시간/사용자 인지부담을 줄이는 state 관리 패턴 정리. specify의 Smart Router는 이 패턴의 한 사례.
 > 관련 문서:
 > - [`15_specify-redesign-living-spec.md`](./15_specify-redesign-living-spec.md) — Smart Router / spec_inbox 구체 사례
-> - [`01-1_hoyeon-cli-role.md`](./01-1_hoyeon-cli-role.md) — sr-harness-cli의 state 관리 명령군
+> - [`01-1_sr-harness-cli-role.md`](./01-1_sr-harness-cli-role.md) — sr-harness-cli의 state 관리 명령군
 
 ---
 
@@ -48,9 +48,9 @@ Claude Code 에이전트의 기본 실행 모델:
   Read README.md → 200줄 (~3K 토큰)
   Bash "git status" → 변경 목록 (~200 토큰)
   Bash "git log --oneline -20" → 최근 커밋 (~500 토큰)
-  Glob ".hoyeon/specs/*/" → 3개 spec 발견 (~100 토큰)
-  Read .hoyeon/specs/teleop-ui/requirements.md → 300줄 (~5K 토큰)
-  Read .hoyeon/specs/teleop-ui/qa-log.md → 800줄 (~12K 토큰)
+  Glob ".sr-harness/specs/*/" → 3개 spec 발견 (~100 토큰)
+  Read .sr-harness/specs/teleop-ui/requirements.md → 300줄 (~5K 토큰)
+  Read .sr-harness/specs/teleop-ui/qa-log.md → 800줄 (~12K 토큰)
   Grep "TODO|FIXME" → 결과 (~500 토큰)
   사용자에게 질문: "Phase 1까지 했네요. 어떤 axis부터 이어갈까요?"
 

@@ -54,7 +54,7 @@ gap-auditor 5회 circuit breaker와 동일한 가드는 다음 스킬에 필요�
 
 template 3종 존재 확인을 Step 0.3에 둔 것과 동일한 패턴은 외부 리소스를 사용하는 모든 스킬에 적용 가능.
 
-- **잠재 영향군:** `browser-work`(chromux 가용성), `google-search`/`deep-research`/`dev-scan`(브라우저 + 외부 API), `qa`(테스트 환경), `knowledge`(KB 디렉토리), `spec-review`(`hoyeon-cli` 가용성), `ultrawork`(specify/execute 체인 모두 가용한지)
+- **잠재 영향군:** `browser-work`(chromux 가용성), `google-search`/`deep-research`/`dev-scan`(브라우저 + 외부 API), `qa`(테스트 환경), `knowledge`(KB 디렉토리), `spec-review`(`sr-harness-cli` 가용성), `ultrawork`(specify/execute 체인 모두 가용한지)
 - **개선 패턴:** 오케스트레이션 시작 전 의존성 fail-fast 검증, 명확한 abort 메시지
 
 ### Theme D. User Gate Before Side Effects — 자동 진행 차단 (M-2 일반화)
@@ -112,7 +112,7 @@ generic 키워드 단독으로 분류를 결정하지 않는 패턴은 다음 �
 
 | Skill | validate | tools | Themes | 즉시 액션 |
 |-------|:--------:|:-----:|--------|-----------|
-| **spec-review** | ✗ | ✓ | C | (1) `validate_prompt`: `hoyeon-cli plan validate` 통과, requirements.md/plan.json/design.md/contracts.md 동기화 cascade 규칙 충족 검증 (2) Theme C: 시작 시 `hoyeon-cli` 가용성 fail-fast |
+| **spec-review** | ✗ | ✓ | C | (1) `validate_prompt`: `sr-harness-cli plan validate` 통과, requirements.md/plan.json/design.md/contracts.md 동기화 cascade 규칙 충족 검증 (2) Theme C: 시작 시 `sr-harness-cli` 가용성 fail-fast |
 | **scaffold** | ✗ | ✓ | A, D | (1) `validate_prompt`: L2/L3/L4 gate 각각의 완료 조건 명시 (2) Theme D: 파일 대량 생성 직전 사용자 게이트 |
 | **ultrawork** | ✗ | ✓ | A, B, C, D | (1) `validate_prompt`: chained skill (specify/blueprint/execute) 각 stage 완료 조건 (2) Theme C: 시작 시 의존 스킬 가용성 + 디렉토리 권한 확인 (3) Theme B: pipeline 전체 timeout/iter 가드 |
 
@@ -196,7 +196,7 @@ tool policy가 없거나 non-canonical key를 쓰는 항목이다. 런타임이 
 | B-01 | P1 | `specify` | `validate_prompt` 추가: `qa-log.md`, `reqs-*.md`, `cross-check.md`, final `requirements.md`, `Open Decisions` 형식 검증 | 이번 리뷰에서 고친 회귀를 자동 감지 |
 | B-02 | P1 | `blueprint` | `validate_prompt` + `allowed-tools` 추가. `plan.json validate`, `contracts.md`, 9-section `design.md` 조건 고정 | downstream `/execute` 입력 품질 보장 |
 | B-03 | P1 | `knowledge` | scan/update/delete/list/status별 `validate_prompt` 추가 | KB 무결성, commit_sha/source.path 규칙 회귀 방지 |
-| B-04 | P1 | `spec-review` | cascade sync 검증 `validate_prompt` 추가, `hoyeon-cli plan validate` 조건 명시 | gate 밖 문서 수정 시 requirements/plan/design drift 방지 |
+| B-04 | P1 | `spec-review` | cascade sync 검증 `validate_prompt` 추가, `sr-harness-cli plan validate` 조건 명시 | gate 밖 문서 수정 시 requirements/plan/design drift 방지 |
 | B-05 | P1 | `ultrawork` | stage별 completion marker와 circuit breaker를 `validate_prompt`로 고정 | chained pipeline 중간 실패/무한 진행 방지 |
 | B-06 | P2 | `bugfix`, `issue` | `allowed_tools`를 `allowed-tools`로 정규화 | frontmatter convention 일관화 |
 | B-07 | P2 | `browser-work` | `allowed-tools` + guide-file `validate_prompt` 추가 | browser automation 실패 시 재현/복구 가능성 개선 |

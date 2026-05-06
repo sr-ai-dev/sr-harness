@@ -135,7 +135,7 @@ L4 → Read("references/L4-tasks.md")         ← just-in-time 읽기
 
 #### 핵심: 전부 프롬프트 (코드 아님)
 
-모든 .md 파일은 LLM에게 주는 **지시문(프롬프트)**이다. 유일한 코드 실행은 `hoyeon-cli` 호출:
+모든 .md 파일은 LLM에게 주는 **지시문(프롬프트)**이다. 유일한 코드 실행은 `sr-harness-cli` 호출:
 
 | 구분 | 예시 | 실행 방식 |
 |------|------|---------|
@@ -1011,7 +1011,7 @@ hoyeon의 `derive-requirements` / `derive-tasks` 패턴을 문서에도 적용�
 `derive-requirements`가 requirement 스텁을 생성하듯, `spec render`가 문서 골격을 생성한다.
 
 ```bash
-sr-harness-cli spec render .hoyeon/specs/{name}/spec.json
+sr-harness-cli spec render .sr-harness/specs/{name}/spec.json
 
 # 동작:
 # 1. spec.json 읽기
@@ -1045,7 +1045,7 @@ sr-harness-cli spec render .hoyeon/specs/{name}/spec.json
 `spec validate`가 스키마를 검증하듯, `verify-docs`가 문서 일치를 검증한다.
 
 ```bash
-sr-harness-cli spec verify-docs .hoyeon/specs/{name}/spec.json
+sr-harness-cli spec verify-docs .sr-harness/specs/{name}/spec.json
 
 # 검증 항목:
 # ✅ design.md 존재

@@ -6,7 +6,7 @@ description: |
   Turn requirements.md into an executable blueprint (plan.json + contracts.md).
   Five phases: Contracts → Tasks → Journeys → Verify Plan → Commit.
   Sits between /specify and /execute. Scope-adaptive (greenfield → bugfix).
-  Uses hoyeon-cli (plan.json only; requirements.md is read as-is via Read tool).
+  Uses sr-harness-cli (plan.json only; requirements.md is read as-is via Read tool).
 ---
 
 # blueprint: Requirements → Executable Plan
@@ -52,14 +52,14 @@ Only those three files. No rendered view file, no language-specific stubs.
 
 ## Prerequisite: cli
 
-All `plan.json` operations go through `hoyeon-cli` (NOT legacy `hoyeon-cli`):
+All `plan.json` operations go through `sr-harness-cli` (NOT legacy `sr-harness-cli`):
 
 | Command | Purpose |
 |---|---|
-| `hoyeon-cli plan init <spec_dir> --type <t>` | Create empty stub (if missing) |
-| `hoyeon-cli plan merge <spec_dir> --json '<payload>' [--patch\|--append]` | Merge JSON with schema validation |
-| `hoyeon-cli plan get <spec_dir> --path <dotted>` | Read field |
-| `hoyeon-cli plan validate <spec_dir>` | Schema + internal cross-ref integrity |
+| `sr-harness-cli plan init <spec_dir> --type <t>` | Create empty stub (if missing) |
+| `sr-harness-cli plan merge <spec_dir> --json '<payload>' [--patch\|--append]` | Merge JSON with schema validation |
+| `sr-harness-cli plan get <spec_dir> --path <dotted>` | Read field |
+| `sr-harness-cli plan validate <spec_dir>` | Schema + internal cross-ref integrity |
 
 **cli never parses requirements.md.** Reading the markdown is the blueprint agent's job (via Read tool). cli only validates plan.json self-consistency. Coverage against requirements.md is enforced semantically by the LLM (Phase 2 / Phase 4 of this skill).
 
@@ -100,7 +100,7 @@ Approval is not `meta.type`-scaled anymore — the ask-only-when-owned rule gove
 
 ### Step 0.1: Resolve spec_dir
 
-- If user passed a path, use it. Otherwise ask: "Which spec_dir? (e.g., `.hoyeon/specs/my-thing/`)"
+- If user passed a path, use it. Otherwise ask: "Which spec_dir? (e.g., `.sr-harness/specs/my-thing/`)"
 - Error if `<spec_dir>/requirements.md` does not exist — tell user to run /specify first.
 
 ### Step 0.2: Read requirements.md
@@ -126,7 +126,7 @@ reqs = [
 ### Step 0.3: Init plan.json stub
 
 ```bash
-hoyeon-cli plan init <spec_dir> --type <meta.type>
+sr-harness-cli plan init <spec_dir> --type <meta.type>
 ```
 
 If plan.json already exists (re-run), skip init and treat as patch-merge mode.
@@ -137,7 +137,7 @@ If plan.json already exists (re-run), skip init and treat as patch-merge mode.
 cat > /tmp/bp-meta.json << 'EOF'
 {"meta": {"type": "<t>", "goal": "<goal>", "non_goals": ["..."]}}
 EOF
-hoyeon-cli plan merge <spec_dir> --patch --json "$(cat /tmp/bp-meta.json)"
+sr-harness-cli plan merge <spec_dir> --patch --json "$(cat /tmp/bp-meta.json)"
 ```
 
 ---
@@ -222,7 +222,7 @@ The agent writes `<spec_dir>/contracts.md` (markdown) and returns:
 cat > /tmp/bp-contracts.json << 'EOF'
 {"contracts": {"artifact": "contracts.md", "interfaces": [...], "invariants": [...]}}
 EOF
-hoyeon-cli plan merge <spec_dir> --patch --json "$(cat /tmp/bp-contracts.json)"
+sr-harness-cli plan merge <spec_dir> --patch --json "$(cat /tmp/bp-contracts.json)"
 ```
 
 ---
@@ -297,7 +297,7 @@ Coverage: 12/12 sub-reqs fulfilled (0 uncovered)
 cat > /tmp/bp-tasks.json << 'EOF'
 {"tasks": [ ... ]}
 EOF
-hoyeon-cli plan merge <spec_dir> --append --json "$(cat /tmp/bp-tasks.json)"
+sr-harness-cli plan merge <spec_dir> --append --json "$(cat /tmp/bp-tasks.json)"
 ```
 
 Use `--append` on first write. Use `--patch` later if you need to update individual task fields by id.
@@ -373,7 +373,7 @@ Constraints (enforced by schema):
 cat > /tmp/bp-journeys.json << 'EOF'
 {"journeys": [ ... ]}
 EOF
-hoyeon-cli plan merge <spec_dir> --append --json "$(cat /tmp/bp-journeys.json)"
+sr-harness-cli plan merge <spec_dir> --append --json "$(cat /tmp/bp-journeys.json)"
 ```
 
 ---
@@ -505,7 +505,7 @@ If the user chooses to revise: apply the chosen option to `verify_plan` (add/dro
 cat > /tmp/bp-verify.json << 'EOF'
 {"verify_plan": [ ... ]}
 EOF
-hoyeon-cli plan merge <spec_dir> --append --json "$(cat /tmp/bp-verify.json)"
+sr-harness-cli plan merge <spec_dir> --append --json "$(cat /tmp/bp-verify.json)"
 ```
 
 ---
@@ -574,7 +574,7 @@ Write `<spec_dir>/design.md`. This file is **for human review only** — /execut
 ### Step 5.1: Full validation
 
 ```bash
-hoyeon-cli plan validate <spec_dir>
+sr-harness-cli plan validate <spec_dir>
 ```
 
 This runs schema validation AND these internal cross-ref checks:
@@ -679,19 +679,19 @@ All state changes go through cli with one `--json` per merge. Never hand-write p
 
 ```bash
 # Init (idempotent — skip if exists)
-hoyeon-cli plan init <spec_dir> --type greenfield
+sr-harness-cli plan init <spec_dir> --type greenfield
 
 # Patch meta (replace field values, keep unchanged fields)
-hoyeon-cli plan merge <spec_dir> --patch --json '{"meta":{...}}'
+sr-harness-cli plan merge <spec_dir> --patch --json '{"meta":{...}}'
 
 # Append to arrays (tasks/journeys/verify_plan)
-hoyeon-cli plan merge <spec_dir> --append --json '{"tasks":[...]}'
+sr-harness-cli plan merge <spec_dir> --append --json '{"tasks":[...]}'
 
 # Patch array items by id (update single task field)
-hoyeon-cli plan merge <spec_dir> --patch --json '{"tasks":[{"id":"T3","status":"in_progress"}]}'
+sr-harness-cli plan merge <spec_dir> --patch --json '{"tasks":[{"id":"T3","status":"in_progress"}]}'
 
 # Final sanity
-hoyeon-cli plan validate <spec_dir>
+sr-harness-cli plan validate <spec_dir>
 ```
 
 **JSON passing**: always write to `/tmp/bp-<step>.json` via heredoc first, then pass with `--json "$(cat ...)"`. Direct inlining breaks on zsh glob expansion (`[`, `{`, `$`).

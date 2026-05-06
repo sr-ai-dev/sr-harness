@@ -7,7 +7,7 @@
 | 레이어 | 경로 | 설명 |
 |--------|------|------|
 | CLI 스키마 | `cli/schemas/` | plan.json / requirements 등 JSON Schema |
-| CLI 소스 | `cli/src/` | hoyeon-cli 명령 구현 (req/plan/learning/issue/session) |
+| CLI 소스 | `cli/src/` | sr-harness-cli 명령 구현 (req/plan/learning/issue/session) |
 | CLI 테스트 | `cli/tests/` | `node --test` 기반 테스트 |
 | 에이전트 | `agents/*.md` | Subagent 프롬프트 (interviewer, tech-extractor, …) |
 | 스킬 | `skills/*/SKILL.md` | 사용자 진입점 (specify, blueprint, execute, …) |

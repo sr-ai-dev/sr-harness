@@ -11,7 +11,7 @@
 
 | | executing-plans | /execute (Direct) |
 |---|---|---|
-| **입력** | tasks.md (마크다운) | spec.json (`hoyeon-cli spec plan`) |
+| **입력** | tasks.md (마크다운) | spec.json (`sr-harness-cli spec plan`) |
 | **실행 주체** | 오케스트레이터 본인 (배치 실행) | 오케스트레이터 본인 (서브에이전트 없음) |
 | **리뷰** | 배치 간 사용자 리뷰 | verify recipe (Light/Standard/Thorough/Ralph) |
 

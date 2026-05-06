@@ -5,8 +5,8 @@ import { parseArgs } from '../lib/args.js';
 
 const HELP = `
 Usage:
-  hoyeon-cli session set --sid <session-id> [options]    Update session state
-  hoyeon-cli session get --sid <session-id>              Read session state
+  sr-harness-cli session set --sid <session-id> [options]    Update session state
+  sr-harness-cli session get --sid <session-id>              Read session state
 
 Options for 'set':
   --sid <id>          Session ID (required)
@@ -15,15 +15,15 @@ Options for 'set':
   --json '{...}'      Deep-merge JSON fragment into state
 
 Examples:
-  hoyeon-cli session set --sid abc123 --key spec_dir --value .sr-harness/specs/foo
-  hoyeon-cli session set --sid abc123 --json '{"ralph": {"round": 0}}'
-  hoyeon-cli session get --sid abc123
+  sr-harness-cli session set --sid abc123 --key spec_dir --value .sr-harness/specs/foo
+  sr-harness-cli session set --sid abc123 --json '{"ralph": {"round": 0}}'
+  sr-harness-cli session get --sid abc123
 `;
 
 function die(msg) { process.stderr.write(msg + '\n'); process.exit(1); }
 
 function statePath(sid) {
-  return join(homedir(), '.hoyeon', sid, 'state.json');
+  return join(homedir(), '.sr-harness', sid, 'state.json');
 }
 
 function readState(path) {
@@ -98,5 +98,5 @@ export default async function session(args) {
   }
   if (sub === 'set') return handleSet(args.slice(1));
   if (sub === 'get') return handleGet(args.slice(1));
-  die(`Error: unknown session command '${sub}'. Run 'hoyeon-cli session --help'.`);
+  die(`Error: unknown session command '${sub}'. Run 'sr-harness-cli session --help'.`);
 }

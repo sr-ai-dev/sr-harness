@@ -1,7 +1,7 @@
 # 에이전트 동작 오버라이드
 
 ## 프로젝트 정보
-- 프로젝트: sr-harness (Claude Code 플러그인 + hoyeon-cli)
+- 프로젝트: sr-harness (Claude Code 플러그인 + sr-harness-cli)
 - 언어: Node.js (ESM, JavaScript), Bash, Python (보조 스크립트), Markdown (스킬/에이전트 정의)
 - 빌드: `cd cli && npm run build` (esbuild 단일 번들 → `cli/dist/cli.js`)
 - 패키지 매니저: npm (lockfile 기준)
@@ -15,7 +15,7 @@
   cat > /tmp/spec-merge.json << 'EOF'
   { ... }
   EOF
-  hoyeon-cli plan merge <spec_dir> --json "$(cat /tmp/spec-merge.json)"
+  sr-harness-cli plan merge <spec_dir> --json "$(cat /tmp/spec-merge.json)"
   ```
 - 훅 스크립트는 `chmod +x` 처리 + 3곳(`hooks/hooks.json`, `.claude/settings.json`, `CLAUDE.md` Active Hooks 표) 모두 등록 (design-change-propagation.md 트리거 2 참조)
 - 한국어 커밋 메시지 작성, Co-Authored-By 라인 포함하지 않음 (글로벌 CLAUDE.md 규칙)
@@ -31,7 +31,7 @@
 - 테스트 실행: `cd cli && npm test`
 - 테스트 파일 위치: `cli/tests/*.test.mjs`
 - 테스트 작성 시 `node:test`/`node:assert` 사용 (외부 러너 금지)
-- 훅/스크립트 동작 검증은 `hoyeon-cli session get/set` 또는 `.playground/` 임시 spec_dir로 진행
+- 훅/스크립트 동작 검증은 `sr-harness-cli session get/set` 또는 `.playground/` 임시 spec_dir로 진행
 
 ## architect 에이전트 추가 규칙
 - 설계 문서 경로: `docs/plans/<topic>/` (kebab-case 토픽)

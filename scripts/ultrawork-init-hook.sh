@@ -28,9 +28,9 @@ fi
 STATE_FILE="$CWD/.sr-harness/state.local.json"
 mkdir -p "$CWD/.sr-harness/specs"
 
-# Backward-compat: migrate legacy .hoyeon/state.local.json if present and new state missing
-if [[ -f "$CWD/.hoyeon/state.local.json" && ! -f "$STATE_FILE" ]]; then
-  cp "$CWD/.hoyeon/state.local.json" "$STATE_FILE"
+# Backward-compat: migrate legacy .sr-harness/state.local.json if present and new state missing
+if [[ -f "$CWD/.sr-harness/state.local.json" && ! -f "$STATE_FILE" ]]; then
+  cp "$CWD/.sr-harness/state.local.json" "$STATE_FILE"
 fi
 
 if [[ ! -f "$STATE_FILE" ]]; then

@@ -7040,7 +7040,7 @@ function readPlanIfExists(specDir) {
 // src/commands/req.js
 var HELP = `
 Usage:
-  hoyeon-cli req <command> [options]
+  sr-harness-cli req <command> [options]
 
 Commands:
   init <spec_dir> --type <greenfield|feature|refactor|bugfix> [--goal "<text>"]
@@ -7091,7 +7091,7 @@ async function req(args) {
     return;
   }
   const fn = COMMANDS[sub];
-  if (!fn) die(`Error: unknown req command '${sub}'. Run 'hoyeon-cli req --help'.`);
+  if (!fn) die(`Error: unknown req command '${sub}'. Run 'sr-harness-cli req --help'.`);
   await fn(args.slice(1));
 }
 
@@ -7100,7 +7100,7 @@ import { existsSync as existsSync3 } from "fs";
 var TASK_STATES = ["pending", "running", "done", "failed", "blocked"];
 var HELP2 = `
 Usage:
-  hoyeon-cli plan <command> [options]
+  sr-harness-cli plan <command> [options]
 
 Commands:
   init <spec_dir> --type <greenfield|feature|refactor|bugfix> [--force]
@@ -7351,7 +7351,7 @@ async function plan(args) {
     return;
   }
   const fn = COMMANDS2[sub];
-  if (!fn) die2(`Error: unknown plan command '${sub}'. Run 'hoyeon-cli plan --help'.`);
+  if (!fn) die2(`Error: unknown plan command '${sub}'. Run 'sr-harness-cli plan --help'.`);
   await fn(args.slice(1));
 }
 
@@ -7360,8 +7360,8 @@ import { existsSync as existsSync4, readFileSync as readFileSync2, writeFileSync
 import { resolve as resolve3, join as join2 } from "path";
 var HELP3 = `
 Usage:
-  hoyeon-cli learning --task <id> --json '{...}' <spec_dir>
-  hoyeon-cli learning --task <id> --stdin <spec_dir> << 'EOF'
+  sr-harness-cli learning --task <id> --json '{...}' <spec_dir>
+  sr-harness-cli learning --task <id> --stdin <spec_dir> << 'EOF'
 
 Add a structured learning entry to <spec_dir>/context/learnings.json.
 Task ID is validated against plan.json if it exists.
@@ -7466,8 +7466,8 @@ import { existsSync as existsSync5, readFileSync as readFileSync3, writeFileSync
 import { resolve as resolve4, join as join3 } from "path";
 var HELP4 = `
 Usage:
-  hoyeon-cli issue --task <id> --json '{...}' <spec_dir>
-  hoyeon-cli issue --task <id> --stdin <spec_dir> << 'EOF'
+  sr-harness-cli issue --task <id> --json '{...}' <spec_dir>
+  sr-harness-cli issue --task <id> --stdin <spec_dir> << 'EOF'
 
 Add a structured issue entry to <spec_dir>/context/issues.json.
 Task ID is validated against plan.json if it exists.
@@ -7570,8 +7570,8 @@ import { homedir } from "os";
 import { join as join4, dirname } from "path";
 var HELP5 = `
 Usage:
-  hoyeon-cli session set --sid <session-id> [options]    Update session state
-  hoyeon-cli session get --sid <session-id>              Read session state
+  sr-harness-cli session set --sid <session-id> [options]    Update session state
+  sr-harness-cli session get --sid <session-id>              Read session state
 
 Options for 'set':
   --sid <id>          Session ID (required)
@@ -7580,16 +7580,16 @@ Options for 'set':
   --json '{...}'      Deep-merge JSON fragment into state
 
 Examples:
-  hoyeon-cli session set --sid abc123 --key spec_dir --value .sr-harness/specs/foo
-  hoyeon-cli session set --sid abc123 --json '{"ralph": {"round": 0}}'
-  hoyeon-cli session get --sid abc123
+  sr-harness-cli session set --sid abc123 --key spec_dir --value .sr-harness/specs/foo
+  sr-harness-cli session set --sid abc123 --json '{"ralph": {"round": 0}}'
+  sr-harness-cli session get --sid abc123
 `;
 function die5(msg) {
   process.stderr.write(msg + "\n");
   process.exit(1);
 }
 function statePath(sid) {
-  return join4(homedir(), ".hoyeon", sid, "state.json");
+  return join4(homedir(), ".sr-harness", sid, "state.json");
 }
 function readState(path) {
   if (!existsSync6(path)) return null;
@@ -7656,35 +7656,35 @@ async function session(args) {
   }
   if (sub === "set") return handleSet(args.slice(1));
   if (sub === "get") return handleGet(args.slice(1));
-  die5(`Error: unknown session command '${sub}'. Run 'hoyeon-cli session --help'.`);
+  die5(`Error: unknown session command '${sub}'. Run 'sr-harness-cli session --help'.`);
 }
 
 // bin/cli.js
 var USAGE = `
-hoyeon-cli \u2014 CLI for specify + blueprint + execute workflow
+sr-harness-cli \u2014 CLI for specify + blueprint + execute workflow
 
 Usage:
-  hoyeon-cli <group> <command> [options]
+  sr-harness-cli <group> <command> [options]
 
 Groups:
   req       requirements.md scaffolding (init only \u2014 cli does not parse .md)
   plan      plan.json operations (init, merge, get, list, task, validate)
   learning  Add structured learning entries to context/learnings.json
   issue     Add structured issue entries to context/issues.json
-  session   Session state management (set/get key-value in ~/.hoyeon/<sid>/state.json)
+  session   Session state management (set/get key-value in ~/.sr-harness/<sid>/state.json)
 
 Options:
   --help, -h    Show this help message
   --version     Show version
 
 Examples:
-  hoyeon-cli req init .hoyeon/specs/my-spec --type greenfield
-  hoyeon-cli plan init .hoyeon/specs/my-spec --type greenfield
-  hoyeon-cli plan merge .hoyeon/specs/my-spec --json '{"tasks":[...]}'
-  hoyeon-cli plan task .hoyeon/specs/my-spec --status T1=running
-  hoyeon-cli learning --task T1 --json '{"problem":"..."}' .hoyeon/specs/my-spec
-  hoyeon-cli issue --task T1 --json '{"type":"blocker","description":"..."}' .hoyeon/specs/my-spec
-  hoyeon-cli session set --sid abc123 --key spec_dir --value .hoyeon/specs/foo
+  sr-harness-cli req init .sr-harness/specs/my-spec --type greenfield
+  sr-harness-cli plan init .sr-harness/specs/my-spec --type greenfield
+  sr-harness-cli plan merge .sr-harness/specs/my-spec --json '{"tasks":[...]}'
+  sr-harness-cli plan task .sr-harness/specs/my-spec --status T1=running
+  sr-harness-cli learning --task T1 --json '{"problem":"..."}' .sr-harness/specs/my-spec
+  sr-harness-cli issue --task T1 --json '{"type":"blocker","description":"..."}' .sr-harness/specs/my-spec
+  sr-harness-cli session set --sid abc123 --key spec_dir --value .sr-harness/specs/foo
 `;
 var GROUPS = {
   req,
@@ -7701,7 +7701,7 @@ async function main() {
   }
   if (args[0] === "--version") {
     const version = true ? "1.6.0-sr.10" : "dev";
-    process.stdout.write(`hoyeon-cli v${version}
+    process.stdout.write(`sr-harness-cli v${version}
 `);
     process.exit(0);
   }
@@ -7709,7 +7709,7 @@ async function main() {
   if (!Object.prototype.hasOwnProperty.call(GROUPS, group)) {
     process.stderr.write(`Error: unknown group '${group}'
 `);
-    process.stderr.write(`Run 'hoyeon-cli --help' for usage.
+    process.stderr.write(`Run 'sr-harness-cli --help' for usage.
 `);
     process.exit(1);
   }

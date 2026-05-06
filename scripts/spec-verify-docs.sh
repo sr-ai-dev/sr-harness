@@ -19,6 +19,7 @@ SPEC_PATH="${1:-}"
 if [ -z "$SPEC_PATH" ]; then
   echo "Usage: spec-verify-docs.sh <spec.json-path>"
   echo "Example: spec-verify-docs.sh .sr-harness/specs/my-feature/spec.json"
+  echo "Note: legacy v1 helper — v1.6.0 specify pipeline uses requirements.md + plan.json instead."
   exit 1
 fi
 

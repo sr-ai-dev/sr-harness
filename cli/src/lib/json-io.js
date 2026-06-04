@@ -3,16 +3,24 @@ import { resolve, join } from 'path';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import planSchema from '../../schemas/plan.schema.json' with { type: 'json' };
+import knowledgeIndexSchema from '../../schemas/knowledge-index.schema.json' with { type: 'json' };
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);
 
 let _planValidator = null;
+let _knowledgeIndexValidator = null;
 
 export function validatePlan(obj) {
   if (!_planValidator) _planValidator = ajv.compile(planSchema);
   const ok = _planValidator(obj);
   return { ok, errors: ok ? [] : formatAjvErrors(_planValidator.errors) };
+}
+
+export function validateKnowledgeIndex(obj) {
+  if (!_knowledgeIndexValidator) _knowledgeIndexValidator = ajv.compile(knowledgeIndexSchema);
+  const ok = _knowledgeIndexValidator(obj);
+  return { ok, errors: ok ? [] : formatAjvErrors(_knowledgeIndexValidator.errors) };
 }
 
 function formatAjvErrors(errs) {

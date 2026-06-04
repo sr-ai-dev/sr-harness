@@ -1,0 +1,98 @@
+# Reference fixture for index.yaml with the v1.6.0+ topics / hub_by_profile fields.
+#
+# Purpose: human-readable example demonstrating how legacy modules (no topics)
+# and new modules (with topics + hub_by_profile) coexist in a single index.yaml.
+# This file is reference material; the JSON sibling
+# (knowledge-index-with-topics.json) is the test-loadable form because the
+# CLI has zero new npm dependencies (INV-8) and js-yaml is not available.
+#
+# Spec references:
+#   - R-T5.1   topics/hub_by_profile permanently optional
+#   - R-T5.2   ROS variant separation (topics_common/topics_ros1/topics_ros2)
+#   - R-B6.3   no migration error when keys absent
+#   - INV-2    permanent optional, no deprecation timeline
+#   - INV-8    zero new npm dependencies (drives the YAML/JSON dual-format choice)
+
+modules:
+  # ─── Legacy module ──────────────────────────────────────────────
+  # Pre-migration entry: no topics, no hub_by_profile.
+  # MUST validate; Phase 0.5 falls back to full-file Read.
+  spx/legacy-module:
+    product: spx
+    files:
+      common: spx/legacy-module.md
+    source:
+      path: /tmp/spx-legacy
+      github: https://github.com/syscon-robotics/spx-legacy
+    ros: ros2
+    scanned_at: "2026-04-15T10:00:00Z"
+    commit_sha: "0123456789abcdef0123456789abcdef01234567"
+
+  # ─── New flat-topics module (single-ROS or ROS-agnostic) ────────
+  # `topics` is a flat array; sr_profile may pin a topic to one profile.
+  sarics-nx/backend:
+    product: sarics-nx
+    files:
+      common: sarics-nx/backend.md
+    source:
+      path: /tmp/sarics-nx
+      github: https://github.com/syscon-robotics/sarics-nx
+    # `ros` field omitted — sarics-nx/backend has no ROS dependency.
+    # Schema allows `ros` to be absent (optional field).
+    scanned_at: "2026-05-06T11:42:18Z"
+    commit_sha: "9e2b6c4f0d1a8b7c3e5f2a1d9c8b7e6f5a4d3c2b"
+    topics:
+      - id: auth-flow
+        anchor: "## Auth Flow"
+        summary: "JWT-based session lifecycle, 24h refresh"
+        sr_profile: web
+      - id: kpi-aggregation
+        anchor: "## KPI Aggregation"
+        summary: "Hourly OEE rollup pipeline"
+    hub_by_profile:
+      web:
+        file: src/api/auth_router.ts
+        in_refs: 18
+        out_refs: 4
+
+  # ─── New multi-ROS module (topics_common + topics_ros1 + topics_ros2) ───
+  # `files.ros1` + `files.ros2` present → use ROS variant keys, NOT flat `topics`.
+  # hub_by_profile is keyed by sr_profile only (ROS-version-agnostic).
+  spx/core-driver:
+    product: spx
+    files:
+      ros1: spx/core-driver.ros1.md
+      ros2: spx/core-driver.ros2.md
+    source:
+      path: /tmp/spx-core-driver
+      github: https://github.com/syscon-robotics/spx-core-driver
+    ros: ros2
+    scanned_at: "2026-05-06T11:42:18Z"
+    commit_sha: "abc123def456abc123def456abc123def4567890"
+    topics_common:
+      - id: encoder-calibration
+        anchor: "## Encoder Calibration"
+        summary: "Quadrature zero-offset routine"
+    topics_ros1:
+      - id: rosserial-bridge
+        anchor: "## rosserial Bridge"
+        summary: "ROS1 serial bridge topic mapping"
+        sr_profile: driver
+    topics_ros2:
+      - id: rcl-lifecycle
+        anchor: "## rcl Lifecycle"
+        summary: "ROS2 lifecycle callback structure"
+        sr_profile: ros-node
+    hub_by_profile:
+      driver:
+        file: src/hardware/can_bus.cpp
+        in_refs: 14
+        out_refs: 3
+      ros-node:
+        file: src/ros_bridge/driver_node.cpp
+        in_refs: 8
+        out_refs: 11
+      cross-product:
+        file: src/integration/contracts.h
+        in_refs: 22
+        out_refs: 5

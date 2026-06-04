@@ -6960,14 +6960,135 @@ var plan_schema_default = {
   }
 };
 
+// schemas/knowledge-index.schema.json
+var knowledge_index_schema_default = {
+  $schema: "http://json-schema.org/draft-07/schema#",
+  $id: "https://hoyeon.dev/schemas/knowledge-index.schema.json",
+  title: "knowledge index.yaml (v1)",
+  description: "Schema for .sr-harness/knowledge/index.yaml. New keys (topics, topics_common, topics_ros1, topics_ros2, hub_by_profile) are PERMANENTLY OPTIONAL \u2014 pre-migration modules without these keys must validate (INV-2, R-T5.1, R-B6.3). Validation gate fires before /knowledge scan writes (R-T2.2).",
+  type: "object",
+  required: ["modules"],
+  properties: {
+    modules: {
+      type: "object",
+      additionalProperties: { $ref: "#/$defs/moduleEntry" }
+    }
+  },
+  $defs: {
+    moduleEntry: {
+      type: "object",
+      properties: {
+        product: { type: "string" },
+        file: { type: "string" },
+        files: {
+          type: "object",
+          properties: {
+            common: { type: "string" },
+            ros1: { type: "string" },
+            ros2: { type: "string" }
+          }
+        },
+        source: {
+          type: "object",
+          properties: {
+            path: { type: "string" },
+            github: { type: "string" }
+          }
+        },
+        ros: { type: "string" },
+        scanned_at: { type: "string" },
+        commit_sha: { type: "string" },
+        cross_modules: {
+          type: "array",
+          items: { type: "string" }
+        },
+        topics: { $ref: "#/$defs/topicArray" },
+        topics_common: { $ref: "#/$defs/topicArray" },
+        topics_ros1: { $ref: "#/$defs/topicArray" },
+        topics_ros2: { $ref: "#/$defs/topicArray" },
+        hub_by_profile: { $ref: "#/$defs/hubMap" }
+      },
+      allOf: [
+        {
+          description: "Mutual exclusion: a module uses either flat `topics` OR ROS-variant keys (topics_common / topics_ros1 / topics_ros2), never both.",
+          not: {
+            anyOf: [
+              {
+                required: ["topics", "topics_common"]
+              },
+              {
+                required: ["topics", "topics_ros1"]
+              },
+              {
+                required: ["topics", "topics_ros2"]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    topicArray: {
+      type: "array",
+      items: { $ref: "#/$defs/topicEntry" }
+    },
+    topicEntry: {
+      type: "object",
+      required: ["id", "anchor", "summary"],
+      additionalProperties: false,
+      properties: {
+        id: {
+          type: "string",
+          pattern: "^[a-z0-9]+(-[a-z0-9]+)*$",
+          description: "kebab-case identifier; unique within the module"
+        },
+        anchor: {
+          type: "string",
+          minLength: 1,
+          description: "Heading text or line anchor delimiting the section to selectively load"
+        },
+        summary: {
+          type: "string",
+          minLength: 1,
+          maxLength: 80,
+          description: "One-sentence topic summary (<=80 chars) for Phase 0.5 summary line"
+        },
+        sr_profile: {
+          type: "string",
+          minLength: 1
+        }
+      }
+    },
+    hubMap: {
+      type: "object",
+      additionalProperties: { $ref: "#/$defs/hubEntry" }
+    },
+    hubEntry: {
+      type: "object",
+      required: ["file", "in_refs", "out_refs"],
+      additionalProperties: false,
+      properties: {
+        file: { type: "string", minLength: 1 },
+        in_refs: { type: "integer", minimum: 0 },
+        out_refs: { type: "integer", minimum: 0 }
+      }
+    }
+  }
+};
+
 // src/lib/json-io.js
 var ajv = new import_ajv.default({ allErrors: true, strict: false });
 (0, import_ajv_formats.default)(ajv);
 var _planValidator = null;
+var _knowledgeIndexValidator = null;
 function validatePlan(obj) {
   if (!_planValidator) _planValidator = ajv.compile(plan_schema_default);
   const ok = _planValidator(obj);
   return { ok, errors: ok ? [] : formatAjvErrors(_planValidator.errors) };
+}
+function validateKnowledgeIndex(obj) {
+  if (!_knowledgeIndexValidator) _knowledgeIndexValidator = ajv.compile(knowledge_index_schema_default);
+  const ok = _knowledgeIndexValidator(obj);
+  return { ok, errors: ok ? [] : formatAjvErrors(_knowledgeIndexValidator.errors) };
 }
 function formatAjvErrors(errs) {
   return (errs || []).map((e) => `${e.instancePath || "/"} ${e.message}${e.params ? " (" + JSON.stringify(e.params) + ")" : ""}`);
@@ -7137,7 +7258,7 @@ async function cmdInit2(args) {
   const force = parsed.force === true;
   const path = specPaths(specDir).plan;
   if (existsSync3(path) && !force) die2(`Error: ${path} already exists (use --force to overwrite)`);
-  const stub = {
+  const stub2 = {
     schema: "plan/v1",
     meta: { type, goal: "<TBD>", non_goals: [] },
     contracts: { artifact: null, interfaces: [], invariants: [] },
@@ -7145,7 +7266,7 @@ async function cmdInit2(args) {
     journeys: [],
     verify_plan: []
   };
-  writeJsonAtomic(path, stub);
+  writeJsonAtomic(path, stub2);
   process.stdout.write(`Wrote ${path}
 `);
 }
@@ -7659,6 +7780,69 @@ async function session(args) {
   die5(`Error: unknown session command '${sub}'. Run 'hoyeon-cli session --help'.`);
 }
 
+// src/commands/knowledge.js
+var HELP6 = `
+Usage:
+  hoyeon-cli knowledge <subcommand> [options]
+
+Subcommands:
+  lint <module>                 Detect stale + orphan entries in a module's KB index (PR2, not yet implemented)
+  index-update <module>         Apply partial update to index.yaml for a module (PR1 follow-up T4, not yet implemented)
+                                JSON payload via --json "$(cat /tmp/...)" \u2014 file-based to avoid zsh glob expansion (R-T3.2)
+  graph-link <module>           Write hub_by_profile entries for a module from .meta.json (PR6, not yet implemented)
+  graph-build                   Invoke scripts/graphify-run.sh to build/refresh the graph cache (PR6, not yet implemented)
+  graph-clean [--project <slug>] Delete graph cache directories under ~/.sr-harness/graph/ (PR6, not yet implemented)
+
+Options:
+  --help, -h    This help.
+
+Notes:
+  - All JSON payloads MUST be passed via --json "$(cat /tmp/...)" to avoid zsh glob expansion (R-T3.2).
+  - After modifying cli/src/commands/knowledge.js, run \`cd cli && npm run build\` so dist/cli.js stays in sync (R-T3.3).
+`;
+function die6(msg, code = 1) {
+  process.stderr.write(msg + "\n");
+  process.exit(code);
+}
+function stub(subName, ownerPr) {
+  process.stdout.write(`[knowledge ${subName}] not yet implemented (lands in ${ownerPr})
+`);
+}
+async function cmdLint(_args) {
+  stub("lint", "PR2");
+}
+async function cmdIndexUpdate(_args) {
+  const _validator = validateKnowledgeIndex;
+  void _validator;
+  stub("index-update", "PR1 (T4)");
+}
+async function cmdGraphLink(_args) {
+  stub("graph-link", "PR6");
+}
+async function cmdGraphBuild(_args) {
+  stub("graph-build", "PR6");
+}
+async function cmdGraphClean(_args) {
+  stub("graph-clean", "PR6");
+}
+var COMMANDS3 = {
+  lint: cmdLint,
+  "index-update": cmdIndexUpdate,
+  "graph-link": cmdGraphLink,
+  "graph-build": cmdGraphBuild,
+  "graph-clean": cmdGraphClean
+};
+async function knowledge(args) {
+  const sub = args[0];
+  if (!sub || sub === "--help" || sub === "-h") {
+    process.stdout.write(HELP6);
+    return;
+  }
+  const fn = COMMANDS3[sub];
+  if (!fn) die6(`Error: unknown knowledge subcommand '${sub}'. Run 'hoyeon-cli knowledge --help'.`);
+  await fn(args.slice(1));
+}
+
 // bin/cli.js
 var USAGE = `
 hoyeon-cli \u2014 CLI for specify + blueprint + execute workflow
@@ -7667,11 +7851,12 @@ Usage:
   hoyeon-cli <group> <command> [options]
 
 Groups:
-  req       requirements.md scaffolding (init only \u2014 cli does not parse .md)
-  plan      plan.json operations (init, merge, get, list, task, validate)
-  learning  Add structured learning entries to context/learnings.json
-  issue     Add structured issue entries to context/issues.json
-  session   Session state management (set/get key-value in ~/.hoyeon/<sid>/state.json)
+  req        requirements.md scaffolding (init only \u2014 cli does not parse .md)
+  plan       plan.json operations (init, merge, get, list, task, validate)
+  learning   Add structured learning entries to context/learnings.json
+  issue      Add structured issue entries to context/issues.json
+  session    Session state management (set/get key-value in ~/.hoyeon/<sid>/state.json)
+  knowledge  KB index + graph operations (lint, index-update, graph-link, graph-build, graph-clean)
 
 Options:
   --help, -h    Show this help message
@@ -7691,7 +7876,8 @@ var GROUPS = {
   plan,
   learning,
   issue,
-  session
+  session,
+  knowledge
 };
 async function main() {
   const args = process.argv.slice(2);
